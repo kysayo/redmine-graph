@@ -15,6 +15,8 @@ export function buildDefaultSettings(container: HTMLElement): UserSettings {
 
   return {
     version: 1,
+    startDate: undefined,
+    hideWeekends: false,
     series: [
       {
         id: 'series-0',

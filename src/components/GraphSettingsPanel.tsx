@@ -218,6 +218,36 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
       {/* パネル本体 */}
       {isOpen && (
         <div style={{ padding: '8px 12px 12px' }}>
+          {/* グラフ表示設定 */}
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
+            <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              {/* 開始日 */}
+              <div>
+                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>開始日</label>
+                <input
+                  type="date"
+                  value={settings.startDate ?? ''}
+                  onChange={(e) => onChange({ ...settings, startDate: e.target.value || undefined })}
+                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 140 }}
+                />
+                <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
+              </div>
+              {/* 土日非表示 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <input
+                  type="checkbox"
+                  id="hideWeekends"
+                  checked={settings.hideWeekends ?? false}
+                  onChange={(e) => onChange({ ...settings, hideWeekends: e.target.checked })}
+                  style={{ cursor: 'pointer' }}
+                />
+                <label htmlFor="hideWeekends" style={{ fontSize: 12, color: '#555', cursor: 'pointer' }}>
+                  土日を非表示
+                </label>
+              </div>
+            </div>
+          </div>
+
           {settings.series.map((s, i) => (
             <SeriesRow
               key={s.id}

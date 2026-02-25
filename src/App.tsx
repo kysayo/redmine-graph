@@ -65,12 +65,16 @@ export function App({ container }: Props) {
 
   // チケットデータを系列設定に基づいて集計（取得済みチケットから再計算）
   const comboData = useMemo(() => {
+    const options = {
+      startDate: settings.startDate,
+      hideWeekends: settings.hideWeekends ?? false,
+    }
     if (issueState.issues !== null) {
-      return aggregateIssues(issueState.issues, settings.series, filter)
+      return aggregateIssues(issueState.issues, settings.series, filter, options)
     }
     // Redmineに接続できない場合はダミーデータ
-    return generateSeriesDummyData(settings.series, filter)
-  }, [issueState.issues, settings.series, filter])
+    return generateSeriesDummyData(settings.series, filter, options)
+  }, [issueState.issues, settings.series, settings.startDate, settings.hideWeekends, filter])
 
   const pieData = useMemo(() => generatePieDummyData(config.pieGroupBy), [config.pieGroupBy])
 

@@ -5,7 +5,21 @@ function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
-function generateDateRange(from: Date, to: Date): string[] {
+function isWeekend(date: Date): boolean {
+  const day = date.getDay() // 0=日, 6=土
+  return day === 0 || day === 6
+}
+
+/** 土曜→+2日(月曜)、日曜→+1日(月曜)、平日はそのまま返す */
+function shiftToMonday(dateStr: string): string {
+  const date = new Date(dateStr)
+  const day = date.getDay()
+  if (day === 6) date.setDate(date.getDate() + 2)
+  else if (day === 0) date.setDate(date.getDate() + 1)
+  return formatDate(date)
+}
+
+function generateDateRange(from: Date, to: Date, hideWeekends = false): string[] {
   const dates: string[] = []
   const current = new Date(from)
   current.setHours(0, 0, 0, 0)
@@ -13,10 +27,19 @@ function generateDateRange(from: Date, to: Date): string[] {
   end.setHours(0, 0, 0, 0)
 
   while (current <= end) {
-    dates.push(formatDate(current))
+    if (!hideWeekends || !isWeekend(current)) {
+      dates.push(formatDate(current))
+    }
     current.setDate(current.getDate() + 1)
   }
   return dates
+}
+
+interface AggregateOptions {
+  /** ユーザー指定のグラフX軸開始日（YYYY-MM-DD）。未設定=自動 */
+  startDate?: string
+  /** true のとき土日をX軸から除外し、土日分のチケットは月曜に計上 */
+  hideWeekends?: boolean
 }
 
 /**
@@ -26,17 +49,29 @@ function generateDateRange(from: Date, to: Date): string[] {
  * - closed_on 系列: チケットの完了日（utcToJstDate でJST変換）でカウント。closed_on が null のチケットはスキップ
  * - statusIds が空でない場合: 対象ステータスIDに一致するチケットのみカウント
  * - aggregation === 'cumulative': 日別値の累計に変換
+ * - hideWeekends === true: 土日をX軸から除外し、土日のチケットは次の月曜に計上
+ *
+ * 開始日の優先順位:
+ * 1. options.startDate（ユーザー指定）
+ * 2. filter.createdOn.from（URLフィルタ）
+ * 3. チケットの最古作成日
+ * 4. 14日前
  */
 export function aggregateIssues(
   issues: RedmineIssue[],
   series: SeriesConfig[],
-  filter: RedmineFilter
+  filter: RedmineFilter,
+  options: AggregateOptions = {}
 ): SeriesDataPoint[] {
+  const { startDate, hideWeekends = false } = options
+
   // 日付範囲を確定
   let fromDate: Date
   let toDate: Date
 
-  if (filter.createdOn?.from) {
+  if (startDate) {
+    fromDate = new Date(startDate)
+  } else if (filter.createdOn?.from) {
     fromDate = new Date(filter.createdOn.from)
   } else if (issues.length > 0) {
     // フィルタ未指定の場合は取得済みチケットの最古の作成日を使用
@@ -45,7 +80,7 @@ export function aggregateIssues(
     fromDate = new Date(minDate.slice(0, 10))
   } else {
     fromDate = new Date()
-    fromDate.setDate(fromDate.getDate() - 29)
+    fromDate.setDate(fromDate.getDate() - 14)
   }
 
   if (filter.createdOn?.to) {
@@ -54,7 +89,7 @@ export function aggregateIssues(
     toDate = new Date()
   }
 
-  const dates = generateDateRange(fromDate, toDate)
+  const dates = generateDateRange(fromDate, toDate, hideWeekends)
 
   // 系列ごとの日別カウントを初期化（全日付を 0 で埋める）
   const dailyCounts: Record<string, Record<string, number>> = {}
@@ -81,6 +116,11 @@ export function aggregateIssues(
       } else {
         // created_on: UTCの日付部分をそのまま使用（Redmineのcreated_onは通常JSTと誤差が少ない）
         targetDate = issue.created_on.slice(0, 10)
+      }
+
+      // 土日非表示の場合は次の月曜日に振り替える
+      if (hideWeekends) {
+        targetDate = shiftToMonday(targetDate)
       }
 
       // 日付範囲内のみカウント

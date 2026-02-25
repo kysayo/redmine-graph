@@ -5,28 +5,48 @@ function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
-/** 指定日数分の日付配列を生成（from から days 日分） */
-function generateDateRange(from: Date, days: number): Date[] {
-  return Array.from({ length: days }, (_, i) => {
-    const d = new Date(from)
-    d.setDate(d.getDate() + i)
-    return d
-  })
+/** from から to までの日付配列を生成（hideWeekends=true のとき土日をスキップ） */
+function generateDateRange(from: Date, to: Date, hideWeekends = false): Date[] {
+  const dates: Date[] = []
+  const current = new Date(from)
+  current.setHours(0, 0, 0, 0)
+  const end = new Date(to)
+  end.setHours(0, 0, 0, 0)
+
+  while (current <= end) {
+    const day = current.getDay()
+    if (!hideWeekends || (day !== 0 && day !== 6)) {
+      dates.push(new Date(current))
+    }
+    current.setDate(current.getDate() + 1)
+  }
+  return dates
+}
+
+interface DummyDataOptions {
+  /** ユーザー指定のグラフX軸開始日（YYYY-MM-DD）。未設定=自動 */
+  startDate?: string
+  /** true のとき土日をX軸から除外 */
+  hideWeekends?: boolean
 }
 
 /**
  * 2軸グラフ用ダミーデータを生成する
- * URLパラメータに日付範囲があればその期間、なければ直近30日分
+ * URLパラメータに日付範囲があればその期間、なければ直近14日分
  */
-export function generateComboDummyData(filter: RedmineFilter): ComboDataPoint[] {
+export function generateComboDummyData(filter: RedmineFilter, options: DummyDataOptions = {}): ComboDataPoint[] {
+  const { startDate, hideWeekends = false } = options
+
   let fromDate: Date
   let toDate: Date
 
-  if (filter.createdOn?.from) {
+  if (startDate) {
+    fromDate = new Date(startDate)
+  } else if (filter.createdOn?.from) {
     fromDate = new Date(filter.createdOn.from)
   } else {
     fromDate = new Date()
-    fromDate.setDate(fromDate.getDate() - 29)
+    fromDate.setDate(fromDate.getDate() - 14)
   }
 
   if (filter.createdOn?.to) {
@@ -35,9 +55,7 @@ export function generateComboDummyData(filter: RedmineFilter): ComboDataPoint[] 
     toDate = new Date()
   }
 
-  const msPerDay = 1000 * 60 * 60 * 24
-  const days = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / msPerDay) + 1)
-  const dates = generateDateRange(fromDate, days)
+  const dates = generateDateRange(fromDate, toDate, hideWeekends)
 
   let cumulative = 0
   return dates.map((date) => {
@@ -57,16 +75,21 @@ export function generateComboDummyData(filter: RedmineFilter): ComboDataPoint[] 
  */
 export function generateSeriesDummyData(
   series: SeriesConfig[],
-  filter: RedmineFilter
+  filter: RedmineFilter,
+  options: DummyDataOptions = {}
 ): SeriesDataPoint[] {
+  const { startDate, hideWeekends = false } = options
+
   let fromDate: Date
   let toDate: Date
 
-  if (filter.createdOn?.from) {
+  if (startDate) {
+    fromDate = new Date(startDate)
+  } else if (filter.createdOn?.from) {
     fromDate = new Date(filter.createdOn.from)
   } else {
     fromDate = new Date()
-    fromDate.setDate(fromDate.getDate() - 29)
+    fromDate.setDate(fromDate.getDate() - 14)
   }
 
   if (filter.createdOn?.to) {
@@ -75,9 +98,7 @@ export function generateSeriesDummyData(
     toDate = new Date()
   }
 
-  const msPerDay = 1000 * 60 * 60 * 24
-  const days = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / msPerDay) + 1)
-  const dates = generateDateRange(fromDate, days)
+  const dates = generateDateRange(fromDate, toDate, hideWeekends)
 
   // 各系列の累計カウンター
   const cumulatives: Record<string, number> = {}
