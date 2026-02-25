@@ -24,12 +24,17 @@ src/
 ├── main.tsx              # エントリポイント（moca-react-graph-root にマウント）
 ├── App.tsx               # ルートコンポーネント（data属性を読んでグラフに渡す）
 ├── components/
-│   ├── ComboChart.tsx    # 2軸グラフ（折れ線 + 棒グラフ）
-│   └── PieChart.tsx      # 円グラフ
+│   ├── ComboChart.tsx        # 2軸グラフ（折れ線 + 棒グラフ）
+│   ├── GraphSettingsPanel.tsx # グラフ系列設定UI（折り畳みパネル）
+│   └── PieChart.tsx          # 円グラフ
 ├── utils/
-│   ├── config.ts         # HTMLのdata属性から設定を読み取る
-│   ├── urlParser.ts      # URLパラメータ（Redmineフィルタ条件）を解析
-│   └── dummyData.ts      # 初期開発用ダミーデータ生成
+│   ├── config.ts         # HTMLのdata属性から設定を読み取る・デフォルト設定生成
+│   ├── dateUtils.ts      # UTC→JST変換ユーティリティ
+│   ├── dummyData.ts      # 開発用ダミーデータ生成（API接続不可時のフォールバック）
+│   ├── issueAggregator.ts # チケット一覧を系列設定に基づいて集計
+│   ├── redmineApi.ts     # Redmine API呼び出し（ステータス・チケット一覧取得）
+│   ├── storage.ts        # localStorageによるユーザー設定の永続化
+│   └── urlParser.ts      # URLパラメータ（プロジェクトID・Redmineフィルタ条件）を解析
 └── types/
     └── index.ts          # 共通型定義
 ```
@@ -118,11 +123,13 @@ View Customize（管理 → 表示のカスタマイズ）で以下のように�
 ## グラフの設定（data属性）
 
 `moca-react-graph-root` の div に以下の data 属性を指定することで動作を変更できる。
+系列設定（左軸・右軸の内容）はユーザーがグラフ上の設定UIで変更でき、localStorageに保存される。
+data属性の値はlocalStorageに保存済み設定がない場合の**初期値**として使用される。
 
 | 属性 | 値 | デフォルト | 説明 |
 |---|---|---|---|
-| `data-combo-left` | `cumulative` / `daily` | `cumulative` | 2軸グラフの左軸の初期設定 |
-| `data-combo-right` | `cumulative` / `daily` | `daily` | 2軸グラフの右軸の初期設定 |
+| `data-combo-left` | `cumulative` / `daily` | `cumulative` | 2軸グラフの左軸の初期設定（左軸: series-0の集計方法） |
+| `data-combo-right` | `cumulative` / `daily` | `daily` | 2軸グラフの右軸の初期設定（右軸: series-1の集計方法） |
 | `data-pie-group-by` | `status` / `tracker` / 任意の文字列 | `status` | 円グラフのグループキー |
 | `data-api-key` | RedmineのAPIキー | `""` | `ViewCustomize.context.user.apiKey` から取得してセットする。空の場合はクッキー認証 |
 
