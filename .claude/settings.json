@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/d/Program/Git/bin/git init)",
+      "Bash(/d/Program/Git/bin/git add:*)",
+      "Bash(/d/Program/Git/bin/git status)",
+      "Bash(/d/Program/Git/bin/git commit:*)"
+    ]
+  }
+}
