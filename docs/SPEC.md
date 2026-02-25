@@ -51,7 +51,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 
 - **認証**: `X-Redmine-API-Key` ヘッダーに `data-api-key` 属性の値をセット
 - **ページネーション**: `limit=100`、`offset` を増分して `total_count` に達するまで全件取得
-- **フィルタ**: URLパラメータから取得した `created_on` 範囲・`tracker_id[]` をAPIリクエストに付与
+- **フィルタ**: URLパラメータから取得した `created_on` 範囲・`tracker_id` をAPIリクエストに付与
 - **全ステータス取得**: `status_id=*` で closed チケットも含めて取得（`closed_on` 集計のため）
 - API接続失敗時（開発環境・認証エラーなど）はダミーデータにフォールバック
 
@@ -59,7 +59,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 
 チケット一覧を系列設定に基づいて `SeriesDataPoint[]` に集計する。
 
-- **日付範囲**: URLフィルタの `created_on` 範囲を使用。フィルタなしの場合は直近30日
+- **日付範囲**: URLフィルタの `created_on` 範囲を使用。フィルタなしの場合は取得済みチケットの最古作成日〜今日
 - **created_on 系列**: UTC文字列の日付部分（先頭10文字）をそのまま使用
 - **closed_on 系列**: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
@@ -109,13 +109,19 @@ URLパスの `/projects/{id}/` からプロジェクト識別子を抽出する�
 
 ### フィルタ条件取得（window.location.search）
 
-| パラメータ | 例 | 取得内容 |
-|---|---|---|
-| `created_on` | `><date>2024-01-01` | 作成日の開始日（from） |
-| `created_on` | `<=2024-12-31` | 作成日の終了日（to） |
-| `tracker_id[]` | `1`, `2` | トラッカーIDの配列 |
+Redmine標準のURLフォーマット `f[]`/`f[N]`・`op[field]`・`v[field][]` に対応する。
 
-取得したフィルタ条件はAPI リクエストのパラメータおよび集計日付範囲の決定に使用する。
+| URLパラメータ | 対応演算子 | 取得内容 |
+|---|---|---|
+| `f[]=created_on`（または `f[N]=created_on`） | `><`（期間）/ `>=`（以降）/ `<=`（以前）/ `>t-`（過去N日） | 作成日フィルタ（from/to） |
+| `v[created_on][]=YYYY-MM-DD` | — | 作成日の具体的な値 |
+| `f[]=tracker_id` | `=`（等しい） | トラッカーIDフィルタ |
+| `v[tracker_id][]=N` | — | トラッカーIDの値 |
+
+- `>t-N`（相対指定「今日から過去N日」）は絶対日付に変換して使用
+- 旧形式（`created_on=><date>YYYY-MM-DD`、`tracker_id[]=N`）との後方互換性あり
+
+取得したフィルタ条件はAPIリクエストのパラメータおよび集計日付範囲の決定に使用する。
 
 ## ダミーデータ（dummyData.ts）
 
