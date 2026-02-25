@@ -38,6 +38,11 @@ export function aggregateIssues(
 
   if (filter.createdOn?.from) {
     fromDate = new Date(filter.createdOn.from)
+  } else if (issues.length > 0) {
+    // フィルタ未指定の場合は取得済みチケットの最古の作成日を使用
+    const minDate = issues.reduce((min, issue) =>
+      issue.created_on < min ? issue.created_on : min, issues[0].created_on)
+    fromDate = new Date(minDate.slice(0, 10))
   } else {
     fromDate = new Date()
     fromDate.setDate(fromDate.getDate() - 29)
