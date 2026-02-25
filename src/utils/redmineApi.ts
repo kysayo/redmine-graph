@@ -47,7 +47,7 @@ function buildIssueQueryParams(filter: RedmineFilter, offset: number, limit: num
   }
   if (filter.trackerId) {
     for (const id of filter.trackerId) {
-      params.append('tracker_id[]', id)
+      params.append('tracker_id', id)
     }
   }
 
