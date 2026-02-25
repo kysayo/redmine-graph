@@ -56,23 +56,64 @@ npm run lint
 - CSS込みの1ファイル（追加の `.css` ファイルは不要）
 - iife形式のため `<script src="...">` で読み込むだけで即時実行される
 
+## ホスティング
+
+ビルド成果物は GitHub Pages で配信している。
+
+- **リポジトリ**: https://github.com/kysayo/redmine-graph
+- **配信URL**: https://kysayo.github.io/redmine-graph/moca-react-graph.iife.js
+- **自動デプロイ**: `master` ブランチへの push で GitHub Actions が自動ビルド・デプロイ
+  （ワークフロー: [.github/workflows/deploy.yml](.github/workflows/deploy.yml)）
+
 ## Redmineへの埋め込み方
 
-View Customize で以下のように設定する。
+View Customize（管理 → 表示のカスタマイズ）で以下のように設定する。
 
-**1. グラフを表示したいページのHTMLに挿入するマークアップ**（View Customizeのコード欄）:
+**種別: JavaScript、挿入位置: 全ページのヘッダ**（コード欄）:
 
-```html
-<div
-  id="moca-react-graph-root"
-  data-combo-left="cumulative"
-  data-combo-right="daily"
-  data-pie-group-by="status"
-></div>
-<script src="https://YOUR_HOST/moca-react-graph.iife.js"></script>
+```javascript
+(function() {
+  function insertGraph() {
+    if (document.getElementById('graph-section')) return;
+
+    var optionsFieldset = document.querySelector('fieldset#options.collapsible');
+    if (!optionsFieldset) return;
+
+    var graphFieldset = document.createElement('fieldset');
+    graphFieldset.className = 'collapsible';
+    graphFieldset.id = 'graph-section';
+
+    var legend = document.createElement('legend');
+    legend.setAttribute('onclick', 'toggleFieldset(this);');
+    legend.textContent = 'Graph';
+
+    var graphDiv = document.createElement('div');
+    graphDiv.id = 'moca-react-graph-root';
+    graphDiv.setAttribute('data-combo-left', 'cumulative');
+    graphDiv.setAttribute('data-combo-right', 'daily');
+    graphDiv.setAttribute('data-pie-group-by', 'status');
+    graphDiv.setAttribute('data-api-key', (ViewCustomize && ViewCustomize.context && ViewCustomize.context.user && ViewCustomize.context.user.apiKey) || '');
+
+    graphFieldset.appendChild(legend);
+    graphFieldset.appendChild(graphDiv);
+
+    optionsFieldset.parentNode.insertBefore(graphFieldset, optionsFieldset.nextSibling);
+
+    var script = document.createElement('script');
+    script.src = 'https://kysayo.github.io/redmine-graph/moca-react-graph.iife.js';
+    document.head.appendChild(script);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', insertGraph);
+  } else {
+    insertGraph();
+  }
+})();
 ```
 
-**2. `moca-react-graph-root` のIDを持つ要素が存在しない場合は何もしない**（自動）。
+- `fieldset#options`（オプション折り畳み）が存在するページ（チケット一覧）のみ動作する
+- **`moca-react-graph-root` のIDを持つ要素が存在しない場合は何もしない**（自動）。
 
 ## グラフの設定（data属性）
 
@@ -80,9 +121,10 @@ View Customize で以下のように設定する。
 
 | 属性 | 値 | デフォルト | 説明 |
 |---|---|---|---|
-| `data-combo-left` | `cumulative` / `daily` | `cumulative` | 2軸グラフの左軸の内容 |
-| `data-combo-right` | `cumulative` / `daily` | `daily` | 2軸グラフの右軸の内容 |
+| `data-combo-left` | `cumulative` / `daily` | `cumulative` | 2軸グラフの左軸の初期設定 |
+| `data-combo-right` | `cumulative` / `daily` | `daily` | 2軸グラフの右軸の初期設定 |
 | `data-pie-group-by` | `status` / `tracker` / 任意の文字列 | `status` | 円グラフのグループキー |
+| `data-api-key` | RedmineのAPIキー | `""` | `ViewCustomize.context.user.apiKey` から取得してセットする。空の場合はクッキー認証 |
 
 **設定例（棒グラフと折れ線を入れ替える）**:
 

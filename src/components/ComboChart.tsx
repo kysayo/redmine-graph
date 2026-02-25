@@ -9,27 +9,14 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import type { ComboDataPoint, GraphConfig } from '../types'
+import type { SeriesConfig, SeriesDataPoint } from '../types'
 
 interface Props {
-  data: ComboDataPoint[]
-  config: Pick<GraphConfig, 'comboLeft' | 'comboRight'>
+  data: SeriesDataPoint[]
+  series: SeriesConfig[]
 }
 
-const LABEL: Record<string, string> = {
-  cumulative: '累計チケット数',
-  daily: '日別チケット数',
-}
-
-export function ComboChart({ data, config }: Props) {
-  const leftKey = config.comboLeft
-  const rightKey = config.comboRight
-
-  // 左軸が折れ線、右軸が棒グラフ（または逆）を設定で切り替え
-  // comboLeft が 'cumulative' なら左軸=折れ線(累計)、右軸=棒(日別) がデフォルト
-  // ユーザーが入れ替えた場合はそれぞれの役割が入れ替わる
-  const isLeftLine = leftKey === 'cumulative'
-
+export function ComboChart({ data, series }: Props) {
   return (
     <ResponsiveContainer width="100%" height={320}>
       <ComposedChart data={data} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
@@ -40,44 +27,28 @@ export function ComboChart({ data, config }: Props) {
         <Tooltip />
         <Legend />
 
-        {isLeftLine ? (
-          <>
+        {series.map((s) =>
+          s.chartType === 'line' ? (
             <Line
-              yAxisId="left"
+              key={s.id}
+              yAxisId={s.yAxisId}
               type="monotone"
-              dataKey={leftKey}
-              name={LABEL[leftKey]}
-              stroke="#3b82f6"
+              dataKey={s.id}
+              name={s.label}
+              stroke={s.color}
               dot={false}
               strokeWidth={2}
             />
+          ) : (
             <Bar
-              yAxisId="right"
-              dataKey={rightKey}
-              name={LABEL[rightKey]}
-              fill="#93c5fd"
+              key={s.id}
+              yAxisId={s.yAxisId}
+              dataKey={s.id}
+              name={s.label}
+              fill={s.color}
               barSize={12}
             />
-          </>
-        ) : (
-          <>
-            <Bar
-              yAxisId="left"
-              dataKey={leftKey}
-              name={LABEL[leftKey]}
-              fill="#93c5fd"
-              barSize={12}
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey={rightKey}
-              name={LABEL[rightKey]}
-              stroke="#3b82f6"
-              dot={false}
-              strokeWidth={2}
-            />
-          </>
+          )
         )}
       </ComposedChart>
     </ResponsiveContainer>

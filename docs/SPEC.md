@@ -65,6 +65,22 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **ファイル名**: `dist/moca-react-graph.iife.js`
 - **CSS**: `vite-plugin-css-injected-by-js` によりJSに内包（別ファイル不要）
 - **依存関係**: React・Rechartsを含む（外部CDN不要）
+- **`define`**: `process.env.NODE_ENV` を `"production"` に置換（ブラウザに `process` が存在しないため必須）
+
+## ホスティング・デプロイ
+
+- **配信**: GitHub Pages（https://kysayo.github.io/redmine-graph/moca-react-graph.iife.js）
+- **自動デプロイ**: `master` push → GitHub Actions（[.github/workflows/deploy.yml](../.github/workflows/deploy.yml)）が `npm run build` を実行して `dist/` を配信
+
+## Redmine View Customize への組み込み方
+
+種別: **JavaScript**、挿入位置: 全ページのヘッダ
+
+JavaScriptでチケット一覧の「オプション」折り畳みの直後に「Graph」折り畳みセクションを動的に挿入し、`#moca-react-graph-root` divを作成してからスクリプトをロードする。
+
+- `fieldset#options.collapsible` が存在しないページでは何もしない（チケット一覧以外はスキップ）
+- Rechartsの幅計算のため、Graphセクションは初期状態で展開表示
+- Redmineの `toggleFieldset()` を使って折り畳み動作を実現
 
 ## マウント方法
 

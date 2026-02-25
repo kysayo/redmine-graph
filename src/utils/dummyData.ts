@@ -1,4 +1,4 @@
-import type { ComboDataPoint, PieDataPoint, RedmineFilter } from '../types'
+import type { ComboDataPoint, PieDataPoint, RedmineFilter, SeriesConfig, SeriesDataPoint } from '../types'
 
 /** 日付文字列を YYYY-MM-DD 形式で生成 */
 function formatDate(date: Date): string {
@@ -48,6 +48,49 @@ export function generateComboDummyData(filter: RedmineFilter): ComboDataPoint[] 
       daily,
       cumulative,
     }
+  })
+}
+
+/**
+ * 複数系列対応のダミーデータを生成する
+ * 各系列の aggregation に応じて日別 or 累計値を返す
+ */
+export function generateSeriesDummyData(
+  series: SeriesConfig[],
+  filter: RedmineFilter
+): SeriesDataPoint[] {
+  let fromDate: Date
+  let toDate: Date
+
+  if (filter.createdOn?.from) {
+    fromDate = new Date(filter.createdOn.from)
+  } else {
+    fromDate = new Date()
+    fromDate.setDate(fromDate.getDate() - 29)
+  }
+
+  if (filter.createdOn?.to) {
+    toDate = new Date(filter.createdOn.to)
+  } else {
+    toDate = new Date()
+  }
+
+  const msPerDay = 1000 * 60 * 60 * 24
+  const days = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / msPerDay) + 1)
+  const dates = generateDateRange(fromDate, days)
+
+  // 各系列の累計カウンター
+  const cumulatives: Record<string, number> = {}
+  series.forEach((s) => { cumulatives[s.id] = 0 })
+
+  return dates.map((date) => {
+    const point: SeriesDataPoint = { date: formatDate(date) }
+    series.forEach((s) => {
+      const daily = Math.floor(Math.random() * 8) + 1
+      cumulatives[s.id] += daily
+      point[s.id] = s.aggregation === 'cumulative' ? cumulatives[s.id] : daily
+    })
+    return point
   })
 }
 
