@@ -14,9 +14,9 @@ interface IssueStatusesResponse {
   issue_statuses: RedmineStatus[]
 }
 
-export async function fetchIssueStatuses(): Promise<RedmineStatus[]> {
+export async function fetchIssueStatuses(apiKey: string): Promise<RedmineStatus[]> {
   const response = await fetch('/issue_statuses.json', {
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildHeaders(apiKey),
   })
   if (!response.ok) {
     throw new Error(`Failed to fetch issue statuses: ${response.status}`)

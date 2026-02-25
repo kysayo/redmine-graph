@@ -43,11 +43,11 @@ export function App({ container }: Props) {
   })
 
   useEffect(() => {
-    fetchIssueStatuses()
+    fetchIssueStatuses(apiKey)
       .then(setStatuses)
       .catch(() => setStatuses(FALLBACK_STATUSES))
       .finally(() => setStatusesLoading(false))
-  }, [])
+  }, [apiKey])
 
   useEffect(() => {
     fetchAllIssues(projectId, filter, apiKey)
