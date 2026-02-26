@@ -107,12 +107,22 @@ View Customize（管理 → 表示のカスタマイズ）で以下のように�
     legend.setAttribute('onclick', 'toggleFieldset(this);');
     legend.textContent = 'Graph';
 
+    // CSS 注入: legend の ▼/▶ 矢印スタイル
+    var graphStyle = document.createElement('style');
+    graphStyle.textContent = [
+      '#graph-section legend { cursor: pointer; }',
+      '#graph-section legend::before { content: "\\25BC\\00A0"; }',
+      '#graph-section.collapsed legend::before { content: "\\25B6\\00A0"; }'
+    ].join(' ');
+    document.head.appendChild(graphStyle);
+
     var graphDiv = document.createElement('div');
     graphDiv.id = 'moca-react-graph-root';
     graphDiv.setAttribute('data-combo-left', 'cumulative');
     graphDiv.setAttribute('data-combo-right', 'daily');
     graphDiv.setAttribute('data-pie-group-by', 'status');
     graphDiv.setAttribute('data-api-key', (ViewCustomize && ViewCustomize.context && ViewCustomize.context.user && ViewCustomize.context.user.apiKey) || '');
+    graphDiv.style.display = 'none'; // 初期非表示（toggleFieldset が表示/非表示を制御）
 
     graphFieldset.appendChild(legend);
     graphFieldset.appendChild(graphDiv);
