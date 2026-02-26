@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ComboChart } from './components/ComboChart'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
 import { PieChart } from './components/PieChart'
@@ -48,6 +48,11 @@ export function App({ container }: Props) {
 
   // Graphセクションが開かれたときにフェッチを開始するフラグ
   const [shouldFetch, setShouldFetch] = useState(false)
+
+  // グラフコピー機能
+  type CopyStatus = 'idle' | 'copying' | 'ok' | 'err'
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
+  const comboChartRef = useRef<HTMLDivElement>(null)
 
   // fieldset#graph-section の collapsed クラスを監視し、展開時にフェッチ開始
   useEffect(() => {
@@ -103,6 +108,49 @@ export function App({ container }: Props) {
     saveSettings(next)
   }, [])
 
+  const handleCopyChart = useCallback(async () => {
+    const wrapper = comboChartRef.current
+    if (!wrapper) return
+    const svgEl = wrapper.querySelector('svg')
+    if (!svgEl) return
+    if (typeof ClipboardItem === 'undefined') {
+      setCopyStatus('err')
+      setTimeout(() => setCopyStatus('idle'), 2000)
+      return
+    }
+    setCopyStatus('copying')
+    try {
+      const { width, height } = svgEl.getBoundingClientRect()
+      const svgStr = new XMLSerializer().serializeToString(svgEl)
+      const encoded = btoa(
+        Array.from(new TextEncoder().encode(svgStr)).map(b => String.fromCharCode(b)).join('')
+      )
+      const img = new Image()
+      img.src = 'data:image/svg+xml;base64,' + encoded
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = reject
+      })
+      const canvas = document.createElement('canvas')
+      const dpr = window.devicePixelRatio || 1
+      canvas.width = width * dpr
+      canvas.height = height * dpr
+      const ctx = canvas.getContext('2d')!
+      ctx.scale(dpr, dpr)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(img, 0, 0, width, height)
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
+      if (!blob) throw new Error('toBlob failed')
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      setCopyStatus('ok')
+      setTimeout(() => setCopyStatus('idle'), 2000)
+    } catch {
+      setCopyStatus('err')
+      setTimeout(() => setCopyStatus('idle'), 2000)
+    }
+  }, [])
+
   // チケットデータを系列設定に基づいて集計（取得済みチケットから再計算）
   const comboData = useMemo(() => {
     const options = {
@@ -129,7 +177,25 @@ export function App({ container }: Props) {
         onChange={handleSettingsChange}
       />
 
-      <h2 style={{ fontSize: 16, marginBottom: 12 }}>チケット推移</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <h2 style={{ fontSize: 16, margin: 0 }}>チケット推移</h2>
+        <button
+          type="button"
+          onClick={handleCopyChart}
+          disabled={copyStatus === 'copying'}
+          style={{
+            fontSize: 12,
+            padding: '2px 10px',
+            border: '1px solid #ccc',
+            borderRadius: 3,
+            background: '#fff',
+            cursor: copyStatus === 'copying' ? 'default' : 'pointer',
+            color: copyStatus === 'ok' ? '#059669' : copyStatus === 'err' ? '#dc2626' : '#333',
+          }}
+        >
+          {copyStatus === 'ok' ? 'コピー完了!' : copyStatus === 'err' ? 'コピー失敗' : copyStatus === 'copying' ? 'コピー中...' : 'PNG コピー'}
+        </button>
+      </div>
       {shouldFetch && issueState.loading && (
         <div style={{ padding: '12px 0', color: '#666', fontSize: 13 }}>
           <div style={{ marginBottom: 6 }}>
@@ -159,7 +225,7 @@ export function App({ container }: Props) {
         </div>
       )}
       {shouldFetch && !issueState.loading && (
-        <ComboChart data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} />
+        <ComboChart ref={comboChartRef} data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} />
       )}
 
       <h2 style={{ fontSize: 16, margin: '24px 0 12px' }}>チケット割合</h2>
