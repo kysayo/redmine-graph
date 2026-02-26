@@ -28,3 +28,6 @@ jobs:
           path: ./dist
       - uses: actions/deploy-pages@v4
         id: deployment
+      - name: Purge jsDelivr cache
+        run: |
+          curl -s "https://purge.jsdelivr.net/gh/kysayo/redmine-graph@master/dist/moca-react-graph.iife.js"

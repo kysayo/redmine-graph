@@ -63,11 +63,12 @@ npm run lint
 
 ## ホスティング
 
-ビルド成果物は GitHub Pages で配信している。
+ビルド成果物は GitHub Pages にデプロイし、jsDelivr CDN 経由で配信している。
 
 - **リポジトリ**: https://github.com/kysayo/redmine-graph
-- **配信URL**: https://kysayo.github.io/redmine-graph/moca-react-graph.iife.js
-- **自動デプロイ**: `master` ブランチへの push で GitHub Actions が自動ビルド・デプロイ
+- **GitHub Pages**: https://kysayo.github.io/redmine-graph/moca-react-graph.iife.js
+- **配信URL（jsDelivr）**: https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@master/dist/moca-react-graph.iife.js
+- **自動デプロイ**: `master` ブランチへの push で GitHub Actions が自動ビルド・デプロイ・jsDelivrキャッシュパージ
   （ワークフロー: [.github/workflows/deploy.yml](.github/workflows/deploy.yml)）
 
 ## Redmineへの埋め込み方
@@ -105,7 +106,7 @@ View Customize（管理 → 表示のカスタマイズ）で以下のように�
     optionsFieldset.parentNode.insertBefore(graphFieldset, optionsFieldset.nextSibling);
 
     var script = document.createElement('script');
-    script.src = 'https://kysayo.github.io/redmine-graph/moca-react-graph.iife.js';
+    script.src = 'https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@master/dist/moca-react-graph.iife.js';
     document.head.appendChild(script);
   }
 
