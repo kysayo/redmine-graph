@@ -285,6 +285,21 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 />
                 <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
               </div>
+              {/* 右軸の最大値 */}
+              <div>
+                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>右軸の最大値</label>
+                <input
+                  type="number"
+                  value={settings.yAxisRightMax ?? ''}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    onChange({ ...settings, yAxisRightMax: raw === '' ? undefined : Number(raw) })
+                  }}
+                  placeholder="自動"
+                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 80 }}
+                />
+                <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
+              </div>
             </div>
           </div>
 
