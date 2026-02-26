@@ -53,6 +53,7 @@ export interface UserSettings {
   weeklyMode?: boolean   // true = 週次集計。false/undefined = 日次（従来）
   anchorDay?: number     // 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1
   dateFormat?: 'yyyy-mm-dd' | 'M/D'  // X軸の日付表示形式。デフォルト 'yyyy-mm-dd'
+  chartHeight?: number               // グラフ高さ(px)。未設定=320
 }
 
 // fetchAllIssues の進捗コールバック用

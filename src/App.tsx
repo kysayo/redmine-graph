@@ -109,6 +109,35 @@ export function App({ container }: Props) {
     saveSettings(next)
   }, [])
 
+  const handleDownloadSvg = useCallback(() => {
+    const wrapper = comboChartRef.current
+    if (!wrapper) return
+    const svgEl = wrapper.querySelector('svg')
+    if (!svgEl) return
+    const { width, height } = svgEl.getBoundingClientRect()
+    const origWidth = svgEl.getAttribute('width')
+    const origHeight = svgEl.getAttribute('height')
+    const origViewBox = svgEl.getAttribute('viewBox')
+    svgEl.setAttribute('width', String(width))
+    svgEl.setAttribute('height', String(height))
+    if (!origViewBox) svgEl.setAttribute('viewBox', `0 0 ${width} ${height}`)
+    const svgStr = new XMLSerializer().serializeToString(svgEl)
+    if (origWidth === null) svgEl.removeAttribute('width')
+    else svgEl.setAttribute('width', origWidth)
+    if (origHeight === null) svgEl.removeAttribute('height')
+    else svgEl.setAttribute('height', origHeight)
+    if (!origViewBox) svgEl.removeAttribute('viewBox')
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `redmine-graph-${new Date().toISOString().slice(0, 10)}.svg`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }, [])
+
   const handleCopyChart = useCallback(async () => {
     const wrapper = comboChartRef.current
     if (!wrapper) return
@@ -175,6 +204,21 @@ export function App({ container }: Props) {
         >
           {copyStatus === 'ok' ? 'コピー完了!' : copyStatus === 'err' ? 'コピー失敗' : copyStatus === 'copying' ? 'コピー中...' : 'PNG コピー'}
         </button>
+        <button
+          type="button"
+          onClick={handleDownloadSvg}
+          style={{
+            fontSize: 12,
+            padding: '2px 10px',
+            border: '1px solid #ccc',
+            borderRadius: 3,
+            background: '#fff',
+            cursor: 'pointer',
+            color: '#333',
+          }}
+        >
+          SVG 保存
+        </button>
       </div>
       {shouldFetch && issueState.loading && (
         <div style={{ padding: '12px 0', color: '#666', fontSize: 13 }}>
@@ -205,7 +249,7 @@ export function App({ container }: Props) {
         </div>
       )}
       {shouldFetch && !issueState.loading && (
-        <ComboChart ref={comboChartRef} data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} />
+        <ComboChart ref={comboChartRef} data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} chartHeight={settings.chartHeight} />
       )}
 
       <h2 style={{ fontSize: 16, margin: '24px 0 12px' }}>チケット割合</h2>

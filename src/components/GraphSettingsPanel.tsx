@@ -381,6 +381,22 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 />
                 <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
               </div>
+              {/* グラフ高さ */}
+              <div>
+                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>グラフ高さ (px)</label>
+                <input
+                  type="number"
+                  min={100}
+                  max={800}
+                  step={10}
+                  value={settings.chartHeight ?? 320}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    onChange({ ...settings, chartHeight: raw === '' ? undefined : Number(raw) })
+                  }}
+                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 80 }}
+                />
+              </div>
             </div>
           </div>
 
