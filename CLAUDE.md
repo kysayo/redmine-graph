@@ -116,6 +116,7 @@ View Customize（管理 → 表示のカスタマイズ）で以下のように�
 
     graphFieldset.appendChild(legend);
     graphFieldset.appendChild(graphDiv);
+    graphFieldset.classList.add('collapsed'); // 初期状態を折り畳みにする
 
     optionsFieldset.parentNode.insertBefore(graphFieldset, optionsFieldset.nextSibling);
 
