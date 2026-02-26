@@ -38,7 +38,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **保存先**: `localStorage`
 - **キー形式**: `redmine-graph:settings:{projectId}`（プロジェクトID別に独立）
 - **バージョン管理**: `version: 1`（スキーマ変更時にリセット）
-- 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成
+- 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
 
 ## Redmine APIとの連携
 
@@ -51,15 +51,15 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 
 - **認証**: `X-Redmine-API-Key` ヘッダーに `data-api-key` 属性の値をセット
 - **ページネーション**: `limit=100`、`offset` を増分して `total_count` に達するまで全件取得
-- **フィルタ**: URLパラメータから取得した `created_on` 範囲・`tracker_id` をAPIリクエストに付与
-- **全ステータス取得**: `status_id=*` で closed チケットも含めて取得（`closed_on` 集計のため）
+- **フィルタ**: `window.location.search` をそのままAPIリクエストに転送（`query_id`・`f[]`・`op[]`・`v[][]` 等を含む）
+- **全ステータス取得**: `status_id=*` を強制設定して closed チケットも含めて取得（`closed_on` 集計のため）
 - API接続失敗時（開発環境・認証エラーなど）はダミーデータにフォールバック
 
 ### チケット集計（issueAggregator.ts）
 
 チケット一覧を系列設定に基づいて `SeriesDataPoint[]` に集計する。
 
-- **日付範囲**: URLフィルタの `created_on` 範囲を使用。フィルタなしの場合は取得済みチケットの最古作成日〜今日
+- **日付範囲**: ユーザー指定の `startDate`（デフォルト: 今日の14日前）を優先。未設定時は取得済みチケットの最古作成日〜今日
 - **created_on 系列**: UTC文字列の日付部分（先頭10文字）をそのまま使用
 - **closed_on 系列**: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
@@ -101,33 +101,21 @@ export function utcToJstDate(utcString: string): string {
 
 ## URLパラメータ解析（urlParser.ts）
 
-`window.location` からプロジェクト識別子とRedmineフィルタ条件を取得する。
+`window.location.pathname` からプロジェクト識別子を取得する。
 
 ### プロジェクトID取得
 
-URLパスの `/projects/{id}/` からプロジェクト識別子を抽出する。localStorageのキーにも使用。
+URLパスの `/projects/{id}/` からプロジェクト識別子を抽出する。localStorageのキーおよびAPIパス構築に使用。
 
-### フィルタ条件取得（window.location.search）
+### フィルタ条件（API転送）
 
-Redmine標準のURLフォーマット `f[]`/`f[N]`・`op[field]`・`v[field][]` に対応する。
-
-| URLパラメータ | 対応演算子 | 取得内容 |
-|---|---|---|
-| `f[]=created_on`（または `f[N]=created_on`） | `><`（期間）/ `>=`（以降）/ `<=`（以前）/ `>t-`（過去N日） | 作成日フィルタ（from/to） |
-| `v[created_on][]=YYYY-MM-DD` | — | 作成日の具体的な値 |
-| `f[]=tracker_id` | `=`（等しい） | トラッカーIDフィルタ |
-| `v[tracker_id][]=N` | — | トラッカーIDの値 |
-
-- `>t-N`（相対指定「今日から過去N日」）は絶対日付に変換して使用
-- 旧形式（`created_on=><date>YYYY-MM-DD`、`tracker_id[]=N`）との後方互換性あり
-
-取得したフィルタ条件はAPIリクエストのパラメータおよび集計日付範囲の決定に使用する。
+`window.location.search`（クエリ文字列）をそのままAPIリクエストに転送するため、URLパラメータの解析は行わない。`query_id`・`f[]`・`op[]`・`v[][]` 等のRedmine標準パラメータはそのままAPIに渡される。
 
 ## ダミーデータ（dummyData.ts）
 
 API接続不可時のフォールバック。`issueState.issues === null` の場合に使用される。
 
-- **2軸グラフ**: URLの `created_on` パラメータから日付範囲を取得し、系列設定に応じた乱数データを生成
+- **2軸グラフ**: `startDate`（デフォルト: 今日の14日前）から今日までの期間で、系列設定に応じた乱数データを生成
 - **円グラフ**: `data-pie-group-by` の値に対応するプリセットデータを返す
 
 ## ビルド設定
@@ -140,8 +128,12 @@ API接続不可時のフォールバック。`issueState.issues === null` の場
 
 ## ホスティング・デプロイ
 
-- **配信**: GitHub Pages（https://kysayo.github.io/redmine-graph/moca-react-graph.iife.js）
-- **自動デプロイ**: `master` push → GitHub Actions（[.github/workflows/deploy.yml](../.github/workflows/deploy.yml)）が `npm run build` を実行して `dist/` を配信
+- **配信**: jsDelivr CDN（https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@master/dist/moca-react-graph.iife.js）
+- **自動デプロイ**: `master` push → GitHub Actions（[.github/workflows/deploy.yml](../.github/workflows/deploy.yml)）が以下を実行:
+  1. `npm run build` でビルド
+  2. `dist/moca-react-graph.iife.js` をリポジトリにコミット（jsDelivrはリポジトリのファイルを配信するため必要）
+  3. GitHub Pages にデプロイ
+  4. jsDelivr キャッシュをパージ
 
 ## Redmine View Customize への組み込み方
 

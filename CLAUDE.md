@@ -34,7 +34,7 @@ src/
 │   ├── issueAggregator.ts # チケット一覧を系列設定に基づいて集計
 │   ├── redmineApi.ts     # Redmine API呼び出し（ステータス・チケット一覧取得）
 │   ├── storage.ts        # localStorageによるユーザー設定の永続化
-│   └── urlParser.ts      # URLパラメータ（プロジェクトID・Redmineフィルタ条件）を解析
+│   └── urlParser.ts      # URLパスからプロジェクトIDを取得
 └── types/
     └── index.ts          # 共通型定義
 ```
