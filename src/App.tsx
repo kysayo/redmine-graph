@@ -1,3 +1,4 @@
+import { toPng } from 'html-to-image'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ComboChart } from './components/ComboChart'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
@@ -111,8 +112,6 @@ export function App({ container }: Props) {
   const handleCopyChart = useCallback(async () => {
     const wrapper = comboChartRef.current
     if (!wrapper) return
-    const svgEl = wrapper.querySelector('svg')
-    if (!svgEl) return
     if (typeof ClipboardItem === 'undefined') {
       setCopyStatus('err')
       setTimeout(() => setCopyStatus('idle'), 2000)
@@ -120,42 +119,9 @@ export function App({ container }: Props) {
     }
     setCopyStatus('copying')
     try {
-      const { width, height } = svgEl.getBoundingClientRect()
-      // SVGにwidth/height/viewBox属性を一時設定
-      const origWidth = svgEl.getAttribute('width')
-      const origHeight = svgEl.getAttribute('height')
-      const origViewBox = svgEl.getAttribute('viewBox')
-      svgEl.setAttribute('width', String(width))
-      svgEl.setAttribute('height', String(height))
-      if (!origViewBox) svgEl.setAttribute('viewBox', `0 0 ${width} ${height}`)
-      const svgStr = new XMLSerializer().serializeToString(svgEl)
-      // 元に戻す
-      if (origWidth === null) svgEl.removeAttribute('width')
-      else svgEl.setAttribute('width', origWidth)
-      if (origHeight === null) svgEl.removeAttribute('height')
-      else svgEl.setAttribute('height', origHeight)
-      if (!origViewBox) svgEl.removeAttribute('viewBox')
-      // Blob URLを使う（Data URLよりChromeでSVGが正確に描画される）
-      const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
-      const blobUrl = URL.createObjectURL(svgBlob)
-      const img = new Image()
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve()
-        img.onerror = reject
-        img.src = blobUrl
-      })
-      const canvas = document.createElement('canvas')
-      const dpr = window.devicePixelRatio || 1
-      canvas.width = width * dpr
-      canvas.height = height * dpr
-      const ctx = canvas.getContext('2d')!
-      ctx.scale(dpr, dpr)
-      ctx.fillStyle = '#ffffff'
-      ctx.fillRect(0, 0, width, height)
-      ctx.drawImage(img, 0, 0, width, height)
-      URL.revokeObjectURL(blobUrl)
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
-      if (!blob) throw new Error('toBlob failed')
+      const dataUrl = await toPng(wrapper, { backgroundColor: '#ffffff' })
+      const res = await fetch(dataUrl)
+      const blob = await res.blob()
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       setCopyStatus('ok')
       setTimeout(() => setCopyStatus('idle'), 2000)
