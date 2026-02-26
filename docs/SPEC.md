@@ -63,7 +63,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **created_on 系列**: UTC文字列の日付部分（先頭10文字）をそのまま使用
 - **closed_on 系列**: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
-- **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換
+- **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換。`startDate` 指定時は `startDate` より前のチケット数を初期値として積算（グラフ開始時点の既存チケット数を反映）
 
 ### UTC→JST変換（dateUtils.ts）
 
@@ -128,7 +128,7 @@ API接続不可時のフォールバック。`issueState.issues === null` の場
 
 ## ホスティング・デプロイ
 
-- **配信**: jsDelivr CDN（https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@master/dist/moca-react-graph.iife.js）
+- **配信**: jsDelivr CDN（URLのバージョン指定はCLAUDE.mdの「jsDelivr CDN URLのバージョン指定」を参照）
 - **自動デプロイ**: `master` push → GitHub Actions（[.github/workflows/deploy.yml](../.github/workflows/deploy.yml)）が以下を実行:
   1. `npm run build` でビルド
   2. `dist/moca-react-graph.iife.js` をリポジトリにコミット（jsDelivrはリポジトリのファイルを配信するため必要）

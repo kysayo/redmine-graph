@@ -67,9 +67,23 @@ npm run lint
 
 - **リポジトリ**: https://github.com/kysayo/redmine-graph
 - **GitHub Pages**: https://kysayo.github.io/redmine-graph/moca-react-graph.iife.js
-- **配信URL（jsDelivr）**: https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@master/dist/moca-react-graph.iife.js
 - **自動デプロイ**: `master` ブランチへの push で GitHub Actions が自動ビルド・デプロイ・jsDelivrキャッシュパージ
   （ワークフロー: [.github/workflows/deploy.yml](.github/workflows/deploy.yml)）
+
+### jsDelivr CDN URLのバージョン指定
+
+| 用途 | URL形式 | 特徴 |
+|---|---|---|
+| **開発中（頻繁に更新）** | `@{コミットハッシュ}` | キャッシュを確実に回避。例: `@ae594ce` |
+| 安定運用 | `@master` | 常に最新だがCDNキャッシュ伝播に時間がかかる場合あり |
+| バージョン管理 | `@v1.0.0` | タグ指定で永続キャッシュ（内容が変わらないと保証できる） |
+
+**現在使用中のURL（View Customize設定値）**:
+```
+https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@ae594ce/dist/moca-react-graph.iife.js
+```
+
+> **開発時の更新手順**: `master` push 後に View Customize のコミットハッシュを最新のものに変更する。
 
 ## Redmineへの埋め込み方
 
@@ -106,7 +120,7 @@ View Customize（管理 → 表示のカスタマイズ）で以下のように�
     optionsFieldset.parentNode.insertBefore(graphFieldset, optionsFieldset.nextSibling);
 
     var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@master/dist/moca-react-graph.iife.js';
+    script.src = 'https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@ae594ce/dist/moca-react-graph.iife.js';
     document.head.appendChild(script);
   }
 
