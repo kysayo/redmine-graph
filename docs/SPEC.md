@@ -29,6 +29,11 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - 土日を非表示: チェック時は土日をX軸から除外し、土日分のチケットは月曜に計上
   - 左軸の最小値: Y軸左軸の最小値を指定（空欄=自動スケール）
   - 右軸の最大値: Y軸右軸の最大値を指定（空欄=自動スケール）
+- **プリセット**（グラフ表示設定と系列リストの間に表示）:
+  - 名前を入力して「プリセットとして保存」: 現在の全設定（系列・開始日・土日非表示・軸最小/最大値）を名前付きで保存
+  - ドロップダウンから選択して「読み込む」: 現在のプロジェクトの設定に上書き適用（即時グラフ反映）
+  - 「削除」: 選択中のプリセットを削除
+  - プリセットはプロジェクトを横断して利用可能（グローバルに保存）
 - 各系列に設定できる項目:
   - 色: 系列の色インジケーターをクリックしてカラーパレット（6色）から選択
   - 系列名（ラベル）
@@ -47,6 +52,14 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
 - `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`
 
+### プリセットの永続化（storage.ts）
+
+- **保存先**: `localStorage`
+- **キー**: `redmine-graph:presets`（プロジェクトIDを含まないグローバルキー）
+- **形式**: `Preset[]`（バージョン管理なし）
+- `Preset` 型: `{ id: string, name: string, settings: PresetSettings }`
+- `PresetSettings` 型: `UserSettings` から `version` を除いたもの（`series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`）
+
 ## Redmine APIとの連携
 
 ### 使用エンドポイント（redmineApi.ts）
@@ -61,7 +74,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 3. **`FALLBACK_STATUSES`**: API接続失敗時のハードコードされたフォールバック
 
 - **認証**: `X-Redmine-API-Key` ヘッダーに `data-api-key` 属性の値をセット
-- **ページネーション**: `limit=100`、`offset` を増分して `total_count` に達するまで全件取得
+- **ページネーション**: `limit=100`、`offset` を増分して `total_count` に達するまで全件取得。各ページ取得後に `onProgress` コールバックで進捗（取得済み件数・合計件数）を通知し、UIにプログレスバーを表示
 - **フィルタ**: `window.location.search` をそのままAPIリクエストに転送（`query_id`・`f[]`・`op[]`・`v[][]` 等を含む）
 - **全ステータス取得**: `status_id=*` を強制設定して closed チケットも含めて取得（`closed_on` 集計のため）
 - API接続失敗時（開発環境・認証エラーなど）はダミーデータにフォールバック
