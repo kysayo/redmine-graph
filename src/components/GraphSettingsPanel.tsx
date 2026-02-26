@@ -159,6 +159,7 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, onChange, onD
       {/* 削除ボタン */}
       {canDelete && (
         <button
+          type="button"
           onClick={onDelete}
           style={{
             fontSize: 12,
@@ -301,6 +302,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
           {settings.series.length < 2 && (
             <button
+              type="button"
               onClick={addSeries}
               style={{
                 marginTop: 8,
