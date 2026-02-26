@@ -1,4 +1,4 @@
-import type { RedmineFilter, RedmineIssue, SeriesConfig, SeriesDataPoint } from '../types'
+import type { RedmineIssue, SeriesConfig, SeriesDataPoint } from '../types'
 import { utcToJstDate } from './dateUtils'
 
 function formatDate(date: Date): string {
@@ -53,26 +53,21 @@ interface AggregateOptions {
  *
  * 開始日の優先順位:
  * 1. options.startDate（ユーザー指定）
- * 2. filter.createdOn.from（URLフィルタ）
- * 3. チケットの最古作成日
- * 4. 14日前
+ * 2. チケットの最古作成日
+ * 3. 14日前
  */
 export function aggregateIssues(
   issues: RedmineIssue[],
   series: SeriesConfig[],
-  filter: RedmineFilter,
   options: AggregateOptions = {}
 ): SeriesDataPoint[] {
   const { startDate, hideWeekends = false } = options
 
   // 日付範囲を確定
   let fromDate: Date
-  let toDate: Date
 
   if (startDate) {
     fromDate = new Date(startDate)
-  } else if (filter.createdOn?.from) {
-    fromDate = new Date(filter.createdOn.from)
   } else if (issues.length > 0) {
     // フィルタ未指定の場合は取得済みチケットの最古の作成日を使用
     const minDate = issues.reduce((min, issue) =>
@@ -83,11 +78,7 @@ export function aggregateIssues(
     fromDate.setDate(fromDate.getDate() - 14)
   }
 
-  if (filter.createdOn?.to) {
-    toDate = new Date(filter.createdOn.to)
-  } else {
-    toDate = new Date()
-  }
+  const toDate = new Date()
 
   const dates = generateDateRange(fromDate, toDate, hideWeekends)
 

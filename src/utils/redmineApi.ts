@@ -1,4 +1,4 @@
-import type { RedmineFilter, RedmineIssue, RedmineIssuesResponse, RedmineStatus } from '../types'
+import type { RedmineIssue, RedmineIssuesResponse, RedmineStatus } from '../types'
 
 // 開発環境（localhost）などRedmineに接続できない場合のフォールバック
 export const FALLBACK_STATUSES: RedmineStatus[] = [
@@ -33,40 +33,22 @@ function buildHeaders(apiKey: string): HeadersInit {
   return headers
 }
 
-function buildIssueQueryParams(filter: RedmineFilter, offset: number, limit: number, queryId?: string): URLSearchParams {
-  const params = new URLSearchParams()
+function buildIssueQueryParams(rawSearch: string, offset: number, limit: number): URLSearchParams {
+  const params = new URLSearchParams(rawSearch)
   params.set('status_id', '*')  // 全ステータス（closed_on のあるチケットも含める）
   params.set('limit', String(limit))
   params.set('offset', String(offset))
-
-  if (queryId) {
-    params.set('query_id', queryId)
-  }
-
-  if (filter.createdOn?.from) {
-    params.append('created_on', `><date>${filter.createdOn.from}`)
-  }
-  if (filter.createdOn?.to) {
-    params.append('created_on', `<=${filter.createdOn.to}`)
-  }
-  if (filter.trackerId) {
-    for (const id of filter.trackerId) {
-      params.append('tracker_id', id)
-    }
-  }
-
   return params
 }
 
 async function fetchIssuesPage(
   projectId: string,
-  filter: RedmineFilter,
+  rawSearch: string,
   apiKey: string,
   offset: number,
   limit: number,
-  queryId?: string
 ): Promise<RedmineIssuesResponse> {
-  const params = buildIssueQueryParams(filter, offset, limit, queryId)
+  const params = buildIssueQueryParams(rawSearch, offset, limit)
   const url = `/projects/${projectId}/issues.json?${params.toString()}`
 
   const response = await fetch(url, { headers: buildHeaders(apiKey) })
@@ -82,16 +64,15 @@ async function fetchIssuesPage(
  */
 export async function fetchAllIssues(
   projectId: string,
-  filter: RedmineFilter,
+  rawSearch: string,
   apiKey: string,
-  queryId?: string
 ): Promise<RedmineIssue[]> {
   const limit = 100
   let offset = 0
   let allIssues: RedmineIssue[] = []
 
   while (true) {
-    const data = await fetchIssuesPage(projectId, filter, apiKey, offset, limit, queryId)
+    const data = await fetchIssuesPage(projectId, rawSearch, apiKey, offset, limit)
     allIssues = [...allIssues, ...data.issues]
     if (allIssues.length >= data.total_count || data.issues.length === 0) {
       break

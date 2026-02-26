@@ -1,4 +1,4 @@
-import type { ComboDataPoint, PieDataPoint, RedmineFilter, SeriesConfig, SeriesDataPoint } from '../types'
+import type { ComboDataPoint, PieDataPoint, SeriesConfig, SeriesDataPoint } from '../types'
 
 /** 日付文字列を YYYY-MM-DD 形式で生成 */
 function formatDate(date: Date): string {
@@ -32,28 +32,17 @@ interface DummyDataOptions {
 
 /**
  * 2軸グラフ用ダミーデータを生成する
- * URLパラメータに日付範囲があればその期間、なければ直近14日分
+ * startDate があればその期間、なければ直近14日分
  */
-export function generateComboDummyData(filter: RedmineFilter, options: DummyDataOptions = {}): ComboDataPoint[] {
+export function generateComboDummyData(options: DummyDataOptions = {}): ComboDataPoint[] {
   const { startDate, hideWeekends = false } = options
 
-  let fromDate: Date
-  let toDate: Date
-
-  if (startDate) {
-    fromDate = new Date(startDate)
-  } else if (filter.createdOn?.from) {
-    fromDate = new Date(filter.createdOn.from)
-  } else {
-    fromDate = new Date()
-    fromDate.setDate(fromDate.getDate() - 14)
-  }
-
-  if (filter.createdOn?.to) {
-    toDate = new Date(filter.createdOn.to)
-  } else {
-    toDate = new Date()
-  }
+  const fromDate = startDate ? new Date(startDate) : (() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 14)
+    return d
+  })()
+  const toDate = new Date()
 
   const dates = generateDateRange(fromDate, toDate, hideWeekends)
 
@@ -75,28 +64,16 @@ export function generateComboDummyData(filter: RedmineFilter, options: DummyData
  */
 export function generateSeriesDummyData(
   series: SeriesConfig[],
-  filter: RedmineFilter,
   options: DummyDataOptions = {}
 ): SeriesDataPoint[] {
   const { startDate, hideWeekends = false } = options
 
-  let fromDate: Date
-  let toDate: Date
-
-  if (startDate) {
-    fromDate = new Date(startDate)
-  } else if (filter.createdOn?.from) {
-    fromDate = new Date(filter.createdOn.from)
-  } else {
-    fromDate = new Date()
-    fromDate.setDate(fromDate.getDate() - 14)
-  }
-
-  if (filter.createdOn?.to) {
-    toDate = new Date(filter.createdOn.to)
-  } else {
-    toDate = new Date()
-  }
+  const fromDate = startDate ? new Date(startDate) : (() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 14)
+    return d
+  })()
+  const toDate = new Date()
 
   const dates = generateDateRange(fromDate, toDate, hideWeekends)
 

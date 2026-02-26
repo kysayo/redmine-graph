@@ -8,15 +8,6 @@ export interface GraphConfig {
   pieGroupBy: string
 }
 
-// Redmineフィルタ条件（URLパラメータから取得）
-export interface RedmineFilter {
-  createdOn?: {
-    from?: string  // YYYY-MM-DD
-    to?: string    // YYYY-MM-DD
-  }
-  trackerId?: string[]
-}
-
 // 2軸グラフの1データポイント（後方互換のため残す）
 export interface ComboDataPoint {
   date: string       // YYYY-MM-DD

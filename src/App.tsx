@@ -8,7 +8,7 @@ import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData
 import { aggregateIssues } from './utils/issueAggregator'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses } from './utils/redmineApi'
 import { loadSettings, saveSettings } from './utils/storage'
-import { getProjectId, getQueryId, parseRedmineFilter } from './utils/urlParser'
+import { getProjectId } from './utils/urlParser'
 
 interface Props {
   container: HTMLElement
@@ -22,10 +22,9 @@ interface IssueState {
 
 export function App({ container }: Props) {
   const config = useMemo(() => readConfig(container), [container])
-  const filter = useMemo(() => parseRedmineFilter(), [])
   const apiKey = useMemo(() => container.dataset.apiKey ?? '', [container])
   const projectId = useMemo(() => getProjectId(), [])
-  const queryId = useMemo(() => getQueryId(), [])
+  const rawSearch = window.location.search
 
   // ユーザー設定（localStorageから初期化、なければdata属性からデフォルト生成）
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -51,13 +50,13 @@ export function App({ container }: Props) {
   }, [apiKey])
 
   useEffect(() => {
-    fetchAllIssues(projectId, filter, apiKey, queryId)
+    fetchAllIssues(projectId, rawSearch, apiKey)
       .then((issues) => setIssueState({ loading: false, issues, error: null }))
       .catch((e: Error) => {
         // 開発環境などRedmineに接続できない場合はnullのまま（ダミーデータでフォールバック）
         setIssueState({ loading: false, issues: null, error: e.message })
       })
-  }, [projectId, filter, apiKey, queryId])
+  }, [projectId, rawSearch, apiKey])
 
   const handleSettingsChange = useCallback((next: UserSettings) => {
     setSettings(next)
@@ -71,11 +70,11 @@ export function App({ container }: Props) {
       hideWeekends: settings.hideWeekends ?? false,
     }
     if (issueState.issues !== null) {
-      return aggregateIssues(issueState.issues, settings.series, filter, options)
+      return aggregateIssues(issueState.issues, settings.series, options)
     }
     // Redmineに接続できない場合はダミーデータ
-    return generateSeriesDummyData(settings.series, filter, options)
-  }, [issueState.issues, settings.series, settings.startDate, settings.hideWeekends, filter])
+    return generateSeriesDummyData(settings.series, options)
+  }, [issueState.issues, settings.series, settings.startDate, settings.hideWeekends])
 
   const pieData = useMemo(() => generatePieDummyData(config.pieGroupBy), [config.pieGroupBy])
 
