@@ -121,25 +121,28 @@ export function App({ container }: Props) {
     setCopyStatus('copying')
     try {
       const { width, height } = svgEl.getBoundingClientRect()
-      // SVGにwidth/height属性を一時設定（Imageとして読み込んだときに正しいサイズになるよう）
+      // SVGにwidth/height/viewBox属性を一時設定
       const origWidth = svgEl.getAttribute('width')
       const origHeight = svgEl.getAttribute('height')
+      const origViewBox = svgEl.getAttribute('viewBox')
       svgEl.setAttribute('width', String(width))
       svgEl.setAttribute('height', String(height))
+      if (!origViewBox) svgEl.setAttribute('viewBox', `0 0 ${width} ${height}`)
       const svgStr = new XMLSerializer().serializeToString(svgEl)
       // 元に戻す
       if (origWidth === null) svgEl.removeAttribute('width')
       else svgEl.setAttribute('width', origWidth)
       if (origHeight === null) svgEl.removeAttribute('height')
       else svgEl.setAttribute('height', origHeight)
-      const encoded = btoa(
-        Array.from(new TextEncoder().encode(svgStr)).map(b => String.fromCharCode(b)).join('')
-      )
+      if (!origViewBox) svgEl.removeAttribute('viewBox')
+      // Blob URLを使う（Data URLよりChromeでSVGが正確に描画される）
+      const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+      const blobUrl = URL.createObjectURL(svgBlob)
       const img = new Image()
-      img.src = 'data:image/svg+xml;base64,' + encoded
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve()
         img.onerror = reject
+        img.src = blobUrl
       })
       const canvas = document.createElement('canvas')
       const dpr = window.devicePixelRatio || 1
@@ -150,6 +153,7 @@ export function App({ container }: Props) {
       ctx.fillStyle = '#ffffff'
       ctx.fillRect(0, 0, width, height)
       ctx.drawImage(img, 0, 0, width, height)
+      URL.revokeObjectURL(blobUrl)
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
       if (!blob) throw new Error('toBlob failed')
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
