@@ -50,6 +50,8 @@ export interface UserSettings {
   hideWeekends?: boolean // true のとき土日をX軸から除外し、土日分は月曜に計上
   yAxisLeftMin?: number   // 左軸Y軸の最小値。未設定=自動スケール
   yAxisRightMax?: number  // 右軸Y軸の最大値。未設定=自動スケール
+  weeklyMode?: boolean   // true = 週次集計。false/undefined = 日次（従来）
+  anchorDay?: number     // 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1
 }
 
 // fetchAllIssues の進捗コールバック用

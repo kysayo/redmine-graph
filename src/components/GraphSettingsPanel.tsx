@@ -205,6 +205,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
         hideWeekends: settings.hideWeekends,
         yAxisLeftMin: settings.yAxisLeftMin,
         yAxisRightMax: settings.yAxisRightMax,
+        weeklyMode: settings.weeklyMode,
+        anchorDay: settings.anchorDay,
       },
     }
     const next = [...presets, newPreset]
@@ -306,6 +308,36 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   土日を非表示
                 </label>
               </div>
+              {/* 週次集計 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <input
+                  type="checkbox"
+                  id="weeklyMode"
+                  checked={settings.weeklyMode ?? false}
+                  onChange={(e) => onChange({ ...settings, weeklyMode: e.target.checked })}
+                  style={{ cursor: 'pointer' }}
+                />
+                <label htmlFor="weeklyMode" style={{ fontSize: 12, color: '#555', cursor: 'pointer' }}>
+                  週次集計
+                </label>
+              </div>
+              {/* 基準曜日（週次モード時のみ） */}
+              {(settings.weeklyMode ?? false) && (
+                <div>
+                  <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>基準曜日</label>
+                  <select
+                    value={settings.anchorDay ?? 1}
+                    onChange={(e) => onChange({ ...settings, anchorDay: Number(e.target.value) })}
+                    style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
+                  >
+                    <option value={1}>月曜</option>
+                    <option value={2}>火曜</option>
+                    <option value={3}>水曜</option>
+                    <option value={4}>木曜</option>
+                    <option value={5}>金曜</option>
+                  </select>
+                </div>
+              )}
               {/* 左軸の最小値 */}
               <div>
                 <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>左軸の最小値</label>

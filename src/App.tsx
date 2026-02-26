@@ -108,13 +108,15 @@ export function App({ container }: Props) {
     const options = {
       startDate: settings.startDate,
       hideWeekends: settings.hideWeekends ?? false,
+      weeklyMode: settings.weeklyMode ?? false,
+      anchorDay: settings.anchorDay ?? 1,
     }
     if (issueState.issues !== null) {
       return aggregateIssues(issueState.issues, settings.series, options)
     }
     // Redmineに接続できない場合はダミーデータ
     return generateSeriesDummyData(settings.series, options)
-  }, [issueState.issues, settings.series, settings.startDate, settings.hideWeekends])
+  }, [issueState.issues, settings.series, settings.startDate, settings.hideWeekends, settings.weeklyMode, settings.anchorDay])
 
   const pieData = useMemo(() => generatePieDummyData(config.pieGroupBy), [config.pieGroupBy])
 
@@ -157,7 +159,7 @@ export function App({ container }: Props) {
         </div>
       )}
       {shouldFetch && !issueState.loading && (
-        <ComboChart data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisRightMax={settings.yAxisRightMax} />
+        <ComboChart data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisRightMax={settings.yAxisRightMax} weeklyMode={settings.weeklyMode ?? false} />
       )}
 
       <h2 style={{ fontSize: 16, margin: '24px 0 12px' }}>チケット割合</h2>

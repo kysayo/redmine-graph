@@ -38,11 +38,48 @@ function generateDateRange(from: Date, to: Date, hideWeekends = false): string[]
   return dates
 }
 
+/**
+ * 与えられた日付に対して「その日以降で最初の基準曜日」を返す
+ * anchorDay: 1=月, 2=火, 3=水, 4=木, 5=金（JavaScript の getDay() と対応）
+ */
+function getNextAnchorDate(dateStr: string, anchorDay: number): string {
+  const date = new Date(dateStr)
+  const dayOfWeek = date.getDay()
+  const daysToNext = (anchorDay - dayOfWeek + 7) % 7
+  if (daysToNext !== 0) {
+    date.setDate(date.getDate() + daysToNext)
+  }
+  return formatDate(date)
+}
+
+/**
+ * 週次の基準日配列を生成する
+ * from の日付以降で最初の基準日から始まり、to まで 7 日ずつ進む
+ */
+function generateWeeklyDateRange(from: Date, to: Date, anchorDay: number): string[] {
+  const dates: string[] = []
+  const firstAnchor = getNextAnchorDate(formatDate(from), anchorDay)
+  const current = new Date(firstAnchor)
+  current.setHours(0, 0, 0, 0)
+  const end = new Date(to)
+  end.setHours(0, 0, 0, 0)
+
+  while (current <= end) {
+    dates.push(formatDate(current))
+    current.setDate(current.getDate() + 7)
+  }
+  return dates
+}
+
 interface AggregateOptions {
   /** ユーザー指定のグラフX軸開始日（YYYY-MM-DD）。未設定=自動 */
   startDate?: string
   /** true のとき土日をX軸から除外し、土日分のチケットは月曜に計上 */
   hideWeekends?: boolean
+  /** true = 週次集計モード。false/undefined = 日次（従来） */
+  weeklyMode?: boolean
+  /** 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1 */
+  anchorDay?: number
 }
 
 /**
@@ -52,7 +89,8 @@ interface AggregateOptions {
  * - closed_on 系列: チケットの完了日（utcToJstDate でJST変換）でカウント。closed_on が null のチケットはスキップ
  * - statusIds が空でない場合: 対象ステータスIDに一致するチケットのみカウント
  * - aggregation === 'cumulative': 日別値の累計に変換
- * - hideWeekends === true: 土日をX軸から除外し、土日のチケットは次の月曜に計上
+ * - hideWeekends === true（日次モード時のみ）: 土日をX軸から除外し、土日のチケットは次の月曜に計上
+ * - weeklyMode === true: X軸を週次（anchorDay の曜日が基準）に切り替え
  *
  * 開始日の優先順位:
  * 1. options.startDate（ユーザー指定）
@@ -64,7 +102,7 @@ export function aggregateIssues(
   series: SeriesConfig[],
   options: AggregateOptions = {}
 ): SeriesDataPoint[] {
-  const { startDate, hideWeekends = false } = options
+  const { startDate, hideWeekends = false, weeklyMode = false, anchorDay = 1 } = options
 
   // 日付範囲を確定
   let fromDate: Date
@@ -83,7 +121,9 @@ export function aggregateIssues(
 
   const toDate = new Date()
 
-  const dates = generateDateRange(fromDate, toDate, hideWeekends)
+  const dates = weeklyMode
+    ? generateWeeklyDateRange(fromDate, toDate, anchorDay)
+    : generateDateRange(fromDate, toDate, hideWeekends)
 
   // 系列ごとの日別カウントを初期化（全日付を 0 で埋める）
   const dailyCounts: Record<string, Record<string, number>> = {}
@@ -112,8 +152,11 @@ export function aggregateIssues(
         targetDate = issue.created_on.slice(0, 10)
       }
 
-      // 土日非表示の場合は次の月曜日に振り替える
-      if (hideWeekends) {
+      if (weeklyMode) {
+        // 週次モード: 基準日に振り替える
+        targetDate = getNextAnchorDate(targetDate, anchorDay)
+      } else if (hideWeekends) {
+        // 日次モード: 土日非表示の場合は次の月曜日に振り替える
         targetDate = shiftToMonday(targetDate)
       }
 
@@ -136,9 +179,11 @@ export function aggregateIssues(
   // cumulative（累計）系列を変換
   for (const s of series) {
     if (s.aggregation === 'cumulative') {
-      // startDate が指定されている場合、startDate より前のチケット数を初期値として積算する
+      // startDate が指定されている場合、最初の日付より前のチケット数を初期値として積算する
       let cumulative = 0
-      if (startDate) {
+      if (startDate && dates.length > 0) {
+        // 週次モードでは最初の基準日、日次モードでは startDate を境界として使う
+        const boundary = dates[0]
         for (const issue of issues) {
           if (s.statusIds.length > 0 && !s.statusIds.includes(issue.status.id)) {
             continue
@@ -150,11 +195,13 @@ export function aggregateIssues(
           } else {
             targetDate = issue.created_on.slice(0, 10)
           }
-          if (hideWeekends) {
+          if (weeklyMode) {
+            targetDate = getNextAnchorDate(targetDate, anchorDay)
+          } else if (hideWeekends) {
             targetDate = shiftToMonday(targetDate)
           }
-          // startDate より前（当日は dailyCounts に含まれるため除外）の場合のみ加算
-          if (targetDate < startDate) {
+          // 最初のX軸日付より前のチケットを初期値として加算
+          if (targetDate < boundary) {
             cumulative++
           }
         }

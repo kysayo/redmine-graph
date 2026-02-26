@@ -23,11 +23,33 @@ function generateDateRange(from: Date, to: Date, hideWeekends = false): Date[] {
   return dates
 }
 
+/** 週次の基準日配列を生成（anchorDay: 1=月〜5=金） */
+function generateWeeklyDateRange(from: Date, to: Date, anchorDay: number): Date[] {
+  const dates: Date[] = []
+  const dayOfWeek = from.getDay()
+  const daysToNext = (anchorDay - dayOfWeek + 7) % 7
+  const current = new Date(from)
+  current.setHours(0, 0, 0, 0)
+  current.setDate(current.getDate() + daysToNext)
+  const end = new Date(to)
+  end.setHours(0, 0, 0, 0)
+
+  while (current <= end) {
+    dates.push(new Date(current))
+    current.setDate(current.getDate() + 7)
+  }
+  return dates
+}
+
 interface DummyDataOptions {
   /** ユーザー指定のグラフX軸開始日（YYYY-MM-DD）。未設定=自動 */
   startDate?: string
   /** true のとき土日をX軸から除外 */
   hideWeekends?: boolean
+  /** true = 週次集計モード */
+  weeklyMode?: boolean
+  /** 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1 */
+  anchorDay?: number
 }
 
 /**
@@ -66,7 +88,7 @@ export function generateSeriesDummyData(
   series: SeriesConfig[],
   options: DummyDataOptions = {}
 ): SeriesDataPoint[] {
-  const { startDate, hideWeekends = false } = options
+  const { startDate, hideWeekends = false, weeklyMode = false, anchorDay = 1 } = options
 
   const fromDate = startDate ? new Date(startDate) : (() => {
     const d = new Date()
@@ -75,7 +97,9 @@ export function generateSeriesDummyData(
   })()
   const toDate = new Date()
 
-  const dates = generateDateRange(fromDate, toDate, hideWeekends)
+  const dates = weeklyMode
+    ? generateWeeklyDateRange(fromDate, toDate, anchorDay)
+    : generateDateRange(fromDate, toDate, hideWeekends)
 
   // 各系列の累計カウンター
   const cumulatives: Record<string, number> = {}

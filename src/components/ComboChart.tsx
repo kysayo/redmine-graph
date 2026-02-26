@@ -16,14 +16,15 @@ interface Props {
   series: SeriesConfig[]
   yAxisLeftMin?: number
   yAxisRightMax?: number
+  weeklyMode?: boolean
 }
 
-export function ComboChart({ data, series, yAxisLeftMin, yAxisRightMax }: Props) {
+export function ComboChart({ data, series, yAxisLeftMin, yAxisRightMax, weeklyMode }: Props) {
   return (
     <ResponsiveContainer width="100%" height={320}>
       <ComposedChart data={data} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+        <XAxis dataKey="date" tick={{ fontSize: 11 }} interval={weeklyMode ? 0 : 'preserveStartEnd'} />
         <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11 }} domain={yAxisLeftMin !== undefined ? [yAxisLeftMin, (dataMax: number) => Math.max(dataMax, yAxisLeftMin + 1)] : undefined} allowDataOverflow={yAxisLeftMin !== undefined} />
         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} domain={yAxisRightMax !== undefined ? [(dataMin: number) => Math.min(dataMin, yAxisRightMax - 1), yAxisRightMax] : undefined} allowDataOverflow={yAxisRightMax !== undefined} />
         <Tooltip />
