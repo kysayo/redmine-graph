@@ -82,3 +82,28 @@ export async function fetchAllIssues(
 
   return allIssues
 }
+
+/**
+ * Redmineチケット一覧ページのDOMに埋め込まれた availableFilters から
+ * プロジェクト固有のステータス一覧を取得する。
+ * 取得できない場合（開発環境等）は null を返す。
+ *
+ * availableFilters.status_id.values のフォーマット:
+ *   [["ステータス名", "id文字列"], ...]
+ */
+export function getStatusesFromPage(): RedmineStatus[] | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const af = (window as any).availableFilters
+  const values: unknown = af?.status_id?.values
+  if (!Array.isArray(values) || values.length === 0) {
+    return null
+  }
+  const statuses: RedmineStatus[] = values
+    .filter((v): v is [string, string] => Array.isArray(v) && v.length >= 2)
+    .map(([name, idStr]) => ({
+      id: Number(idStr),
+      name: String(name),
+      is_closed: false,
+    }))
+  return statuses.length > 0 ? statuses : null
+}

@@ -201,7 +201,6 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
   }
 
   function addSeries() {
-    if (settings.series.length >= 2) return
     const colorIndex = settings.series.length % COLOR_PALETTE.length
     const newSeries: SeriesConfig = {
       id: `series-${Date.now()}`,
@@ -315,23 +314,21 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
             />
           ))}
 
-          {settings.series.length < 2 && (
-            <button
-              type="button"
-              onClick={addSeries}
-              style={{
-                marginTop: 8,
-                fontSize: 12,
-                padding: '3px 10px',
-                border: '1px solid #ccc',
-                borderRadius: 3,
-                background: '#fff',
-                cursor: 'pointer',
-              }}
-            >
-              ＋ 系列を追加
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={addSeries}
+            style={{
+              marginTop: 8,
+              fontSize: 12,
+              padding: '3px 10px',
+              border: '1px solid #ccc',
+              borderRadius: 3,
+              background: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            ＋ 系列を追加
+          </button>
         </div>
       )}
     </div>

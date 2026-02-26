@@ -6,7 +6,7 @@ import type { RedmineIssue, RedmineStatus, UserSettings } from './types'
 import { buildDefaultSettings, readConfig } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { aggregateIssues } from './utils/issueAggregator'
-import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses } from './utils/redmineApi'
+import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
 import { loadSettings, saveSettings } from './utils/storage'
 import { getProjectId } from './utils/urlParser'
 
@@ -43,6 +43,12 @@ export function App({ container }: Props) {
   })
 
   useEffect(() => {
+    const pageStatuses = getStatusesFromPage()
+    if (pageStatuses !== null) {
+      setStatuses(pageStatuses)
+      setStatusesLoading(false)
+      return
+    }
     fetchIssueStatuses(apiKey)
       .then(setStatuses)
       .catch(() => setStatuses(FALLBACK_STATUSES))
