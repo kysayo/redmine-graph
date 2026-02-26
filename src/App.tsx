@@ -152,7 +152,7 @@ export function App({ container }: Props) {
     const wrapper = comboChartRef.current
     if (!wrapper) return
     // グラフ全体（凡例含む）を高解像度PNGとして保存
-    const dataUrl = await toPng(wrapper, { backgroundColor: '#ffffff', pixelRatio: 2 })
+    const dataUrl = await toPng(wrapper, { backgroundColor: '#ffffff', pixelRatio: 2, skipFonts: true })
     const a = document.createElement('a')
     a.href = dataUrl
     a.download = `redmine-graph-${new Date().toISOString().slice(0, 10)}.png`
@@ -171,7 +171,7 @@ export function App({ container }: Props) {
     }
     setCopyStatus('copying')
     try {
-      const dataUrl = await toPng(wrapper, { backgroundColor: '#ffffff' })
+      const dataUrl = await toPng(wrapper, { backgroundColor: '#ffffff', skipFonts: true })
       const res = await fetch(dataUrl)
       const blob = await res.blob()
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
