@@ -18,6 +18,8 @@ interface IssueState {
   loading: boolean
   issues: RedmineIssue[] | null
   error: string | null
+  fetchedCount: number
+  totalCount: number | null
 }
 
 export function App({ container }: Props) {
@@ -40,6 +42,8 @@ export function App({ container }: Props) {
     loading: false,
     issues: null,
     error: null,
+    fetchedCount: 0,
+    totalCount: null,
   })
 
   // Graphセクションが開かれたときにフェッチを開始するフラグ
@@ -79,12 +83,18 @@ export function App({ container }: Props) {
 
   useEffect(() => {
     if (!shouldFetch) return
-    setIssueState({ loading: true, issues: null, error: null })
-    fetchAllIssues(projectId, rawSearch, apiKey)
-      .then((issues) => setIssueState({ loading: false, issues, error: null }))
+    setIssueState({ loading: true, issues: null, error: null, fetchedCount: 0, totalCount: null })
+    fetchAllIssues(projectId, rawSearch, apiKey, (progress) => {
+      setIssueState(prev => ({
+        ...prev,
+        fetchedCount: progress.fetched,
+        totalCount: progress.total,
+      }))
+    })
+      .then((issues) => setIssueState({ loading: false, issues, error: null, fetchedCount: issues.length, totalCount: issues.length }))
       .catch((e: Error) => {
         // 開発環境などRedmineに接続できない場合はnullのまま（ダミーデータでフォールバック）
-        setIssueState({ loading: false, issues: null, error: e.message })
+        setIssueState({ loading: false, issues: null, error: e.message, fetchedCount: 0, totalCount: null })
       })
   }, [projectId, rawSearch, apiKey, shouldFetch])
 
@@ -119,7 +129,27 @@ export function App({ container }: Props) {
 
       <h2 style={{ fontSize: 16, marginBottom: 12 }}>チケット推移</h2>
       {shouldFetch && issueState.loading && (
-        <div style={{ padding: '20px 0', color: '#666', fontSize: 13 }}>チケットデータを取得中...</div>
+        <div style={{ padding: '12px 0', color: '#666', fontSize: 13 }}>
+          <div style={{ marginBottom: 6 }}>
+            {issueState.totalCount !== null
+              ? `チケットデータを取得中... (${issueState.fetchedCount}/${issueState.totalCount}件)`
+              : 'チケットデータを取得中...'
+            }
+          </div>
+          {issueState.totalCount !== null && issueState.totalCount > 0 && (
+            <div style={{ background: '#e5e7eb', borderRadius: 4, height: 6, width: '100%', maxWidth: 320 }}>
+              <div
+                style={{
+                  background: '#3b82f6',
+                  borderRadius: 4,
+                  height: '100%',
+                  width: `${Math.min(100, (issueState.fetchedCount / issueState.totalCount) * 100)}%`,
+                  transition: 'width 0.2s ease',
+                }}
+              />
+            </div>
+          )}
+        </div>
       )}
       {shouldFetch && !issueState.loading && issueState.error && issueState.issues === null && (
         <div style={{ padding: '4px 0 8px', color: '#999', fontSize: 11 }}>

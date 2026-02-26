@@ -52,6 +52,21 @@ export interface UserSettings {
   yAxisRightMax?: number  // 右軸Y軸の最大値。未設定=自動スケール
 }
 
+// fetchAllIssues の進捗コールバック用
+export interface FetchProgress {
+  fetched: number       // 取得済み件数
+  total: number | null  // total_count（最初のレスポンス前はnull）
+}
+
+// プリセット（名前付き設定セット）
+export type PresetSettings = Omit<UserSettings, 'version'>
+
+export interface Preset {
+  id: string          // Date.now().toString()
+  name: string        // ユーザー入力名
+  settings: PresetSettings
+}
+
 // 複数系列対応のデータポイント（SeriesConfigのidをキーにした値を持つ）
 export interface SeriesDataPoint {
   date: string

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { RedmineStatus, SeriesConfig, UserSettings } from '../types'
+import type { Preset, RedmineStatus, SeriesConfig, UserSettings } from '../types'
+import { loadPresets, savePresets } from '../utils/storage'
 
 const COLOR_PALETTE = ['#93c5fd', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
@@ -188,6 +189,42 @@ interface Props {
 
 export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange }: Props) {
   const [isOpen, setIsOpen] = useState(false)
+  const [presets, setPresets] = useState<Preset[]>(() => loadPresets())
+  const [presetNameInput, setPresetNameInput] = useState('')
+  const [selectedPresetId, setSelectedPresetId] = useState('')
+
+  function handleSavePreset() {
+    const name = presetNameInput.trim()
+    if (!name) return
+    const newPreset: Preset = {
+      id: String(Date.now()),
+      name,
+      settings: {
+        series: settings.series,
+        startDate: settings.startDate,
+        hideWeekends: settings.hideWeekends,
+        yAxisLeftMin: settings.yAxisLeftMin,
+        yAxisRightMax: settings.yAxisRightMax,
+      },
+    }
+    const next = [...presets, newPreset]
+    setPresets(next)
+    savePresets(next)
+    setPresetNameInput('')
+  }
+
+  function handleLoadPreset() {
+    const preset = presets.find(p => p.id === selectedPresetId)
+    if (!preset) return
+    onChange({ ...settings, ...preset.settings })
+  }
+
+  function handleDeletePreset(id: string) {
+    const next = presets.filter(p => p.id !== id)
+    setPresets(next)
+    savePresets(next)
+    if (selectedPresetId === id) setSelectedPresetId('')
+  }
 
   function updateSeries(index: number, updated: SeriesConfig) {
     const next = [...settings.series]
@@ -300,6 +337,59 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
               </div>
             </div>
+          </div>
+
+          {/* プリセット */}
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>プリセット</div>
+            {/* 保存 */}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+              <input
+                type="text"
+                value={presetNameInput}
+                onChange={(e) => setPresetNameInput(e.target.value)}
+                placeholder="プリセット名"
+                style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 160 }}
+              />
+              <button
+                type="button"
+                onClick={handleSavePreset}
+                disabled={!presetNameInput.trim()}
+                style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: presetNameInput.trim() ? 'pointer' : 'default', color: presetNameInput.trim() ? '#333' : '#aaa' }}
+              >
+                プリセットとして保存
+              </button>
+            </div>
+            {/* 読み込み */}
+            {presets.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <select
+                  value={selectedPresetId}
+                  onChange={(e) => setSelectedPresetId(e.target.value)}
+                  style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
+                >
+                  <option value="">-- プリセットを選択 --</option>
+                  {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleLoadPreset}
+                  disabled={!selectedPresetId}
+                  style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: selectedPresetId ? 'pointer' : 'default', color: selectedPresetId ? '#333' : '#aaa' }}
+                >
+                  読み込む
+                </button>
+                {selectedPresetId && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePreset(selectedPresetId)}
+                    style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                  >
+                    削除
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {settings.series.map((s, i) => (

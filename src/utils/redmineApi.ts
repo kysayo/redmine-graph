@@ -1,4 +1,4 @@
-import type { RedmineIssue, RedmineIssuesResponse, RedmineStatus } from '../types'
+import type { FetchProgress, RedmineIssue, RedmineIssuesResponse, RedmineStatus } from '../types'
 
 // 開発環境（localhost）などRedmineに接続できない場合のフォールバック
 export const FALLBACK_STATUSES: RedmineStatus[] = [
@@ -61,11 +61,13 @@ async function fetchIssuesPage(
 /**
  * 全ページを自動取得してチケット一覧を返す
  * ページネーション: limit=100 で total_count に達するまで繰り返し取得
+ * onProgress: 各ページ取得後に呼ばれる進捗コールバック（省略可）
  */
 export async function fetchAllIssues(
   projectId: string,
   rawSearch: string,
   apiKey: string,
+  onProgress?: (progress: FetchProgress) => void,
 ): Promise<RedmineIssue[]> {
   const limit = 100
   let offset = 0
@@ -74,6 +76,7 @@ export async function fetchAllIssues(
   while (true) {
     const data = await fetchIssuesPage(projectId, rawSearch, apiKey, offset, limit)
     allIssues = [...allIssues, ...data.issues]
+    onProgress?.({ fetched: allIssues.length, total: data.total_count })
     if (allIssues.length >= data.total_count || data.issues.length === 0) {
       break
     }
