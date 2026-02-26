@@ -207,6 +207,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
         yAxisRightMax: settings.yAxisRightMax,
         weeklyMode: settings.weeklyMode,
         anchorDay: settings.anchorDay,
+        dateFormat: settings.dateFormat,
       },
     }
     const next = [...presets, newPreset]
@@ -294,6 +295,18 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 140 }}
                 />
                 <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
+              </div>
+              {/* 日付形式 */}
+              <div>
+                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>日付形式</label>
+                <select
+                  value={settings.dateFormat ?? 'yyyy-mm-dd'}
+                  onChange={(e) => onChange({ ...settings, dateFormat: e.target.value as UserSettings['dateFormat'] })}
+                  style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
+                >
+                  <option value="yyyy-mm-dd">2026-02-10</option>
+                  <option value="M/D">2/10</option>
+                </select>
               </div>
               {/* 土日非表示 */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
