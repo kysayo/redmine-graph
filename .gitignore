@@ -9,7 +9,13 @@ lerna-debug.log*
 
 node_modules
 dist-ssr
+dist/*
+!dist/moca-react-graph.iife.js
 *.local
+
+# Claude Code / Playwright MCP
+.claude/settings.local.json
+.playwright-mcp/
 
 # Editor directories and files
 .vscode/*
