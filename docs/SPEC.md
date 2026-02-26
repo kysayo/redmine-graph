@@ -28,6 +28,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - 開始日: グラフX軸の表示開始日（空欄=自動、デフォルト: 今日の14日前）
   - 土日を非表示: チェック時は土日をX軸から除外し、土日分のチケットは月曜に計上
   - 左軸の最小値: Y軸左軸の最小値を指定（空欄=自動スケール）
+  - 右軸の最大値: Y軸右軸の最大値を指定（空欄=自動スケール）
 - 各系列に設定できる項目:
   - 色: 系列の色インジケーターをクリックしてカラーパレット（6色）から選択
   - 系列名（ラベル）
@@ -44,7 +45,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー形式**: `redmine-graph:settings:{projectId}`（プロジェクトID別に独立）
 - **バージョン管理**: `version: 1`（スキーマ変更時にリセット）
 - 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
-- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`
+- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`
 
 ## Redmine APIとの連携
 
