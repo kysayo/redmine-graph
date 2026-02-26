@@ -133,7 +133,30 @@ export function aggregateIssues(
   // cumulative（累計）系列を変換
   for (const s of series) {
     if (s.aggregation === 'cumulative') {
+      // startDate が指定されている場合、startDate より前のチケット数を初期値として積算する
       let cumulative = 0
+      if (startDate) {
+        for (const issue of issues) {
+          if (s.statusIds.length > 0 && !s.statusIds.includes(issue.status.id)) {
+            continue
+          }
+          let targetDate: string
+          if (s.dateField === 'closed_on') {
+            if (!issue.closed_on) continue
+            targetDate = utcToJstDate(issue.closed_on)
+          } else {
+            targetDate = issue.created_on.slice(0, 10)
+          }
+          if (hideWeekends) {
+            targetDate = shiftToMonday(targetDate)
+          }
+          // startDate より前（当日は dailyCounts に含まれるため除外）の場合のみ加算
+          if (targetDate < startDate) {
+            cumulative++
+          }
+        }
+      }
+
       for (const point of result) {
         cumulative += point[s.id] as number
         point[s.id] = cumulative
