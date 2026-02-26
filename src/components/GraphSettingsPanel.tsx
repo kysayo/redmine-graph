@@ -13,6 +13,8 @@ interface SeriesRowProps {
 }
 
 function SeriesRow({ series, statuses, statusesLoading, canDelete, onChange, onDelete }: SeriesRowProps) {
+  const [colorPickerOpen, setColorPickerOpen] = useState(false)
+
   function update<K extends keyof SeriesConfig>(key: K, value: SeriesConfig[K]) {
     onChange({ ...series, [key]: value })
   }
@@ -45,8 +47,30 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, onChange, onD
 
   return (
     <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', padding: '8px 0', borderBottom: '1px solid #eee', flexWrap: 'wrap' }}>
-      {/* 色インジケーター */}
-      <div style={{ width: 12, height: 12, borderRadius: 2, background: series.color, flexShrink: 0, marginBottom: 4 }} />
+      {/* 色インジケーター＋カラーピッカー */}
+      <div style={{ position: 'relative', flexShrink: 0, marginBottom: 4 }}>
+        <div
+          onClick={() => setColorPickerOpen(!colorPickerOpen)}
+          style={{ width: 14, height: 14, borderRadius: 2, background: series.color, cursor: 'pointer', border: '1px solid #aaa' }}
+        />
+        {colorPickerOpen && (
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+              onClick={() => setColorPickerOpen(false)}
+            />
+            <div style={{ position: 'absolute', top: 18, left: 0, zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: 4, padding: 6, display: 'flex', gap: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+              {COLOR_PALETTE.map((c) => (
+                <div
+                  key={c}
+                  onClick={() => { update('color', c); setColorPickerOpen(false) }}
+                  style={{ width: 16, height: 16, borderRadius: 2, background: c, cursor: 'pointer', border: c === series.color ? '2px solid #333' : '1px solid #aaa' }}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* 系列名 */}
       <div>
@@ -244,6 +268,21 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 <label htmlFor="hideWeekends" style={{ fontSize: 12, color: '#555', cursor: 'pointer' }}>
                   土日を非表示
                 </label>
+              </div>
+              {/* 左軸の最小値 */}
+              <div>
+                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>左軸の最小値</label>
+                <input
+                  type="number"
+                  value={settings.yAxisLeftMin ?? ''}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    onChange({ ...settings, yAxisLeftMin: raw === '' ? undefined : Number(raw) })
+                  }}
+                  placeholder="0"
+                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 80 }}
+                />
+                <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
               </div>
             </div>
           </div>

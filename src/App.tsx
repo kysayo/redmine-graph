@@ -97,7 +97,7 @@ export function App({ container }: Props) {
         </div>
       )}
       {!issueState.loading && (
-        <ComboChart data={comboData} series={settings.series} />
+        <ComboChart data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} />
       )}
 
       <h2 style={{ fontSize: 16, margin: '24px 0 12px' }}>チケット割合</h2>

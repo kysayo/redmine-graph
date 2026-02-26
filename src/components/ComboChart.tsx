@@ -14,15 +14,16 @@ import type { SeriesConfig, SeriesDataPoint } from '../types'
 interface Props {
   data: SeriesDataPoint[]
   series: SeriesConfig[]
+  yAxisLeftMin?: number
 }
 
-export function ComboChart({ data, series }: Props) {
+export function ComboChart({ data, series, yAxisLeftMin }: Props) {
   return (
     <ResponsiveContainer width="100%" height={320}>
       <ComposedChart data={data} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-        <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11 }} />
+        <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11 }} domain={yAxisLeftMin !== undefined ? [yAxisLeftMin, 'auto'] : undefined} />
         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
         <Tooltip />
         <Legend />

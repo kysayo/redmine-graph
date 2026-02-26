@@ -48,6 +48,7 @@ export interface UserSettings {
   series: SeriesConfig[]
   startDate?: string     // グラフX軸の開始日（YYYY-MM-DD）。未設定=自動
   hideWeekends?: boolean // true のとき土日をX軸から除外し、土日分は月曜に計上
+  yAxisLeftMin?: number  // 左軸Y軸の最小値。未設定=自動スケール
 }
 
 // 複数系列対応のデータポイント（SeriesConfigのidをキーにした値を持つ）
