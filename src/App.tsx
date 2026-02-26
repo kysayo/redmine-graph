@@ -109,34 +109,17 @@ export function App({ container }: Props) {
     saveSettings(next)
   }, [])
 
-  const handleDownloadSvg = useCallback(() => {
+  const handleDownloadSvg = useCallback(async () => {
     const wrapper = comboChartRef.current
     if (!wrapper) return
-    // Rechartsのメインチャートのsvgを取得（recharts-surfaceクラスで確実に指定）
-    const svgEl = (wrapper.querySelector('.recharts-surface') ?? wrapper.querySelector('svg')) as SVGElement | null
-    if (!svgEl) return
-    const { width, height } = svgEl.getBoundingClientRect()
-    const origWidth = svgEl.getAttribute('width')
-    const origHeight = svgEl.getAttribute('height')
-    const origViewBox = svgEl.getAttribute('viewBox')
-    svgEl.setAttribute('width', String(width))
-    svgEl.setAttribute('height', String(height))
-    if (!origViewBox) svgEl.setAttribute('viewBox', `0 0 ${width} ${height}`)
-    const svgStr = new XMLSerializer().serializeToString(svgEl)
-    if (origWidth === null) svgEl.removeAttribute('width')
-    else svgEl.setAttribute('width', origWidth)
-    if (origHeight === null) svgEl.removeAttribute('height')
-    else svgEl.setAttribute('height', origHeight)
-    if (!origViewBox) svgEl.removeAttribute('viewBox')
-    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
+    // グラフ全体（凡例含む）を高解像度PNGとして保存
+    const dataUrl = await toPng(wrapper, { backgroundColor: '#ffffff', pixelRatio: 2 })
     const a = document.createElement('a')
-    a.href = url
-    a.download = `redmine-graph-${new Date().toISOString().slice(0, 10)}.svg`
+    a.href = dataUrl
+    a.download = `redmine-graph-${new Date().toISOString().slice(0, 10)}.png`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    URL.revokeObjectURL(url)
   }, [])
 
   const handleCopyChart = useCallback(async () => {
@@ -218,7 +201,7 @@ export function App({ container }: Props) {
             color: '#333',
           }}
         >
-          SVG 保存
+          PNG 保存
         </button>
       </div>
       {shouldFetch && issueState.loading && (
