@@ -121,7 +121,17 @@ export function App({ container }: Props) {
     setCopyStatus('copying')
     try {
       const { width, height } = svgEl.getBoundingClientRect()
+      // SVGにwidth/height属性を一時設定（Imageとして読み込んだときに正しいサイズになるよう）
+      const origWidth = svgEl.getAttribute('width')
+      const origHeight = svgEl.getAttribute('height')
+      svgEl.setAttribute('width', String(width))
+      svgEl.setAttribute('height', String(height))
       const svgStr = new XMLSerializer().serializeToString(svgEl)
+      // 元に戻す
+      if (origWidth === null) svgEl.removeAttribute('width')
+      else svgEl.setAttribute('width', origWidth)
+      if (origHeight === null) svgEl.removeAttribute('height')
+      else svgEl.setAttribute('height', origHeight)
       const encoded = btoa(
         Array.from(new TextEncoder().encode(svgStr)).map(b => String.fromCharCode(b)).join('')
       )
