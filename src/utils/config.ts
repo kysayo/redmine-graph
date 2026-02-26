@@ -15,7 +15,11 @@ export function buildDefaultSettings(container: HTMLElement): UserSettings {
 
   return {
     version: 1,
-    startDate: undefined,
+    startDate: (() => {
+      const d = new Date()
+      d.setDate(d.getDate() - 14)
+      return d.toISOString().slice(0, 10)
+    })(),
     hideWeekends: false,
     series: [
       {
