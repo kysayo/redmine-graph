@@ -23,7 +23,7 @@ export function ComboChart({ data, series, yAxisLeftMin }: Props) {
       <ComposedChart data={data} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-        <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11 }} domain={yAxisLeftMin !== undefined ? [yAxisLeftMin, 'auto'] : undefined} />
+        <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11 }} domain={yAxisLeftMin !== undefined ? [yAxisLeftMin, 'auto'] : undefined} allowDataOverflow={yAxisLeftMin !== undefined} />
         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
         <Tooltip />
         <Legend />
