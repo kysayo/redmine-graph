@@ -55,22 +55,61 @@ export function App({ container }: Props) {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
   const comboChartRef = useRef<HTMLDivElement>(null)
 
-  // fieldset#graph-section の collapsed クラスを監視し、展開時にフェッチ開始
+  // fieldset#graph-section の折り畳み制御（Redmine の toggleFieldset に依存しない独自実装）
   useEffect(() => {
     const fieldset = document.getElementById('graph-section')
-    if (!fieldset || !fieldset.classList.contains('collapsed')) {
-      // fieldsetがない（開発環境）か既に展開済みの場合は即座にフェッチ
+    if (!fieldset) {
+      // 開発環境など graph-section がない場合は即フェッチ
       setShouldFetch(true)
       return
     }
-    const observer = new MutationObserver(() => {
-      if (!fieldset.classList.contains('collapsed')) {
-        setShouldFetch(true)
-        observer.disconnect()
+    if (!fieldset.classList.contains('collapsed')) {
+      // 既に展開済み
+      setShouldFetch(true)
+      return
+    }
+
+    const legend = fieldset.querySelector('legend')
+    if (!legend) {
+      // legend がない場合は MutationObserver で監視（フォールバック）
+      const observer = new MutationObserver(() => {
+        if (!fieldset.classList.contains('collapsed')) {
+          setShouldFetch(true)
+          observer.disconnect()
+        }
+      })
+      observer.observe(fieldset, { attributes: true, attributeFilter: ['class'] })
+      return () => observer.disconnect()
+    }
+
+    // Redmine の toggleFieldset に依存せず自前でトグルを制御
+    // onclick 属性（toggleFieldset(this)）を退避して削除し、二重トグルを防ぐ
+    const origOnclick = legend.getAttribute('onclick')
+    legend.removeAttribute('onclick')
+
+    let fetched = false
+    const handleToggle = () => {
+      const isCollapsed = fieldset.classList.contains('collapsed')
+      fieldset.classList.toggle('collapsed')
+      legend.classList.toggle('icon-collapsed', !isCollapsed)
+      legend.classList.toggle('icon-expanded', isCollapsed)
+      const div = fieldset.querySelector<HTMLElement>(':scope > div')
+      if (div) {
+        if (isCollapsed) {
+          div.classList.remove('hidden')
+          div.style.removeProperty('display')
+          if (!fetched) { fetched = true; setShouldFetch(true) }
+        } else {
+          div.classList.add('hidden')
+        }
       }
-    })
-    observer.observe(fieldset, { attributes: true, attributeFilter: ['class'] })
-    return () => observer.disconnect()
+    }
+
+    legend.addEventListener('click', handleToggle)
+    return () => {
+      legend.removeEventListener('click', handleToggle)
+      if (origOnclick) legend.setAttribute('onclick', origOnclick)
+    }
   }, [])
 
   useEffect(() => {
