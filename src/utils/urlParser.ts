@@ -1,6 +1,15 @@
 import type { RedmineFilter } from '../types'
 
 /**
+ * URLクエリパラメータから Redmine のカスタムクエリIDを取得する
+ * 例: ?query_id=9043 → "9043"
+ */
+export function getQueryId(): string {
+  const params = new URLSearchParams(window.location.search)
+  return params.get('query_id') ?? ''
+}
+
+/**
  * URLパスから Redmine のプロジェクト識別子を取得する
  * 例: /projects/europe/issues → "europe"
  */

@@ -33,11 +33,15 @@ function buildHeaders(apiKey: string): HeadersInit {
   return headers
 }
 
-function buildIssueQueryParams(filter: RedmineFilter, offset: number, limit: number): URLSearchParams {
+function buildIssueQueryParams(filter: RedmineFilter, offset: number, limit: number, queryId?: string): URLSearchParams {
   const params = new URLSearchParams()
   params.set('status_id', '*')  // 全ステータス（closed_on のあるチケットも含める）
   params.set('limit', String(limit))
   params.set('offset', String(offset))
+
+  if (queryId) {
+    params.set('query_id', queryId)
+  }
 
   if (filter.createdOn?.from) {
     params.append('created_on', `><date>${filter.createdOn.from}`)
@@ -59,9 +63,10 @@ async function fetchIssuesPage(
   filter: RedmineFilter,
   apiKey: string,
   offset: number,
-  limit: number
+  limit: number,
+  queryId?: string
 ): Promise<RedmineIssuesResponse> {
-  const params = buildIssueQueryParams(filter, offset, limit)
+  const params = buildIssueQueryParams(filter, offset, limit, queryId)
   const url = `/projects/${projectId}/issues.json?${params.toString()}`
 
   const response = await fetch(url, { headers: buildHeaders(apiKey) })
@@ -78,14 +83,15 @@ async function fetchIssuesPage(
 export async function fetchAllIssues(
   projectId: string,
   filter: RedmineFilter,
-  apiKey: string
+  apiKey: string,
+  queryId?: string
 ): Promise<RedmineIssue[]> {
   const limit = 100
   let offset = 0
   let allIssues: RedmineIssue[] = []
 
   while (true) {
-    const data = await fetchIssuesPage(projectId, filter, apiKey, offset, limit)
+    const data = await fetchIssuesPage(projectId, filter, apiKey, offset, limit, queryId)
     allIssues = [...allIssues, ...data.issues]
     if (allIssues.length >= data.total_count || data.issues.length === 0) {
       break

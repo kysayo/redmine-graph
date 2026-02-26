@@ -8,7 +8,7 @@ import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData
 import { aggregateIssues } from './utils/issueAggregator'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses } from './utils/redmineApi'
 import { loadSettings, saveSettings } from './utils/storage'
-import { getProjectId, parseRedmineFilter } from './utils/urlParser'
+import { getProjectId, getQueryId, parseRedmineFilter } from './utils/urlParser'
 
 interface Props {
   container: HTMLElement
@@ -25,6 +25,7 @@ export function App({ container }: Props) {
   const filter = useMemo(() => parseRedmineFilter(), [])
   const apiKey = useMemo(() => container.dataset.apiKey ?? '', [container])
   const projectId = useMemo(() => getProjectId(), [])
+  const queryId = useMemo(() => getQueryId(), [])
 
   // ユーザー設定（localStorageから初期化、なければdata属性からデフォルト生成）
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -50,13 +51,13 @@ export function App({ container }: Props) {
   }, [apiKey])
 
   useEffect(() => {
-    fetchAllIssues(projectId, filter, apiKey)
+    fetchAllIssues(projectId, filter, apiKey, queryId)
       .then((issues) => setIssueState({ loading: false, issues, error: null }))
       .catch((e: Error) => {
         // 開発環境などRedmineに接続できない場合はnullのまま（ダミーデータでフォールバック）
         setIssueState({ loading: false, issues: null, error: e.message })
       })
-  }, [projectId, filter, apiKey])
+  }, [projectId, filter, apiKey, queryId])
 
   const handleSettingsChange = useCallback((next: UserSettings) => {
     setSettings(next)
