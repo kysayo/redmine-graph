@@ -1,6 +1,45 @@
 import { useState } from 'react'
+import Select from 'react-select'
 import type { FilterField, FilterFieldOption, Preset, RedmineStatus, SeriesCondition, SeriesConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
+
+const fieldSelectStyles = {
+  control: (base: object) => ({
+    ...base,
+    minHeight: 28,
+    fontSize: 12,
+    borderColor: '#ccc',
+    borderRadius: 3,
+    boxShadow: 'none',
+    '&:hover': { borderColor: '#aaa' },
+  }),
+  valueContainer: (base: object) => ({
+    ...base,
+    padding: '0 4px',
+  }),
+  input: (base: object) => ({
+    ...base,
+    margin: 0,
+    padding: 0,
+  }),
+  menu: (base: object) => ({
+    ...base,
+    fontSize: 12,
+    zIndex: 9999,
+  }),
+  option: (base: object) => ({
+    ...base,
+    padding: '4px 8px',
+  }),
+  dropdownIndicator: (base: object) => ({
+    ...base,
+    padding: '0 4px',
+  }),
+  clearIndicator: (base: object) => ({
+    ...base,
+    padding: '0 4px',
+  }),
+}
 
 const COLOR_PALETTE = ['#93c5fd', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
@@ -204,16 +243,19 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields,
         {(series.conditions ?? []).map((cond, idx) => (
           <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
             {/* フィールド選択 */}
-            <select
-              value={cond.field}
-              onChange={(e) => handleConditionFieldChange(idx, e.target.value)}
-              style={{ ...selectStyle, minWidth: 120 }}
-            >
-              <option value="">-- フィールドを選択 --</option>
-              {filterFields.map((f) => (
-                <option key={f.key} value={f.key}>{f.name}</option>
-              ))}
-            </select>
+            <div style={{ minWidth: 160, flex: '0 0 auto' }}>
+              <Select
+                options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                value={cond.field ? { label: filterFields.find(f => f.key === cond.field)?.name ?? cond.field, value: cond.field } : null}
+                onChange={(selected) => handleConditionFieldChange(idx, selected?.value ?? '')}
+                styles={fieldSelectStyles}
+                placeholder="項目を選択..."
+                noOptionsMessage={() => '候補なし'}
+                isClearable
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+              />
+            </div>
             {/* 演算子 */}
             <select
               value={cond.operator}
