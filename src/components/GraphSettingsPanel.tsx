@@ -223,6 +223,34 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     onChange({ ...settings, ...preset.settings })
   }
 
+  function handleDownloadPresetJson() {
+    const name = presetNameInput.trim() || '設定'
+    const teamPreset: TeamPreset = {
+      name,
+      settings: {
+        series: settings.series,
+        startDate: settings.startDate,
+        hideWeekends: settings.hideWeekends,
+        yAxisLeftMin: settings.yAxisLeftMin,
+        yAxisRightMax: settings.yAxisRightMax,
+        weeklyMode: settings.weeklyMode,
+        anchorDay: settings.anchorDay,
+        dateFormat: settings.dateFormat,
+        chartHeight: settings.chartHeight,
+      },
+    }
+    const json = JSON.stringify([teamPreset], null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'redmine-graph-preset.json'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   function handleDeletePreset(id: string) {
     const next = presets.filter(p => p.id !== id)
     setPresets(next)
@@ -447,6 +475,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: presetNameInput.trim() ? 'pointer' : 'default', color: presetNameInput.trim() ? '#333' : '#aaa' }}
               >
                 プリセットとして保存
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadPresetJson}
+                style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #93c5fd', borderRadius: 3, background: '#eff6ff', cursor: 'pointer', color: '#1d4ed8' }}
+              >
+                Preset JSON DL
               </button>
             </div>
             {/* 読み込み */}
