@@ -29,8 +29,13 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - 土日を非表示: チェック時は土日をX軸から除外し、土日分のチケットは月曜に計上
   - 左軸の最小値: Y軸左軸の最小値を指定（空欄=自動スケール）
   - 右軸の最大値: Y軸右軸の最大値を指定（空欄=自動スケール）
-- **プリセット**（グラフ表示設定と系列リストの間に表示）:
-  - 名前を入力して「プリセットとして保存」: 現在の全設定（系列・開始日・土日非表示・軸最小/最大値）を名前付きで保存
+- **チームプリセット**（グラフ表示設定と個人プリセットの間に表示）:
+  - `data-team-presets` 属性に `TeamPreset[]` 形式のJSONが設定されている場合のみ表示（管理者が View Customize で定義）
+  - ボタンクリックで現在の設定に即時適用（削除・保存不可の読取専用）
+  - チームメンバー全員が同じプリセットを使用可能
+- **プリセット**（チームプリセットの下に表示）:
+  - 名前を入力して「プリセットとして保存」: 現在の全設定（系列・開始日・土日非表示・軸最小/最大値等）を名前付きで保存
+  - 「Preset JSON DL」: 現在の設定を `data-team-presets` にそのまま貼り付けられる `TeamPreset[]` 形式のJSONとしてダウンロード。管理者が View Customize に設定するためのワークフロー用
   - ドロップダウンから選択して「読み込む」: 現在のプロジェクトの設定に上書き適用（即時グラフ反映）
   - 「削除」: 選択中のプリセットを削除
   - プリセットはプロジェクトを横断して利用可能（グローバルに保存）
@@ -50,7 +55,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー形式**: `redmine-graph:settings:{projectId}`（プロジェクトID別に独立）
 - **バージョン管理**: `version: 1`（スキーマ変更時にリセット）
 - 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
-- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`
+- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`
 
 ### プリセットの永続化（storage.ts）
 
@@ -58,7 +63,27 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー**: `redmine-graph:presets`（プロジェクトIDを含まないグローバルキー）
 - **形式**: `Preset[]`（バージョン管理なし）
 - `Preset` 型: `{ id: string, name: string, settings: PresetSettings }`
-- `PresetSettings` 型: `UserSettings` から `version` を除いたもの（`series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`）
+- `PresetSettings` 型: `UserSettings` から `version` を除いたもの（`series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`）
+
+### チームプリセット（data-team-presets 属性）
+
+管理者が View Customize の JS コードで `moca-react-graph-root` の `data-team-presets` 属性に定義する共有プリセット。
+
+- **定義場所**: View Customize の JS コード内（`graphDiv.setAttribute('data-team-presets', JSON.stringify([...]))）`
+- **形式**: `TeamPreset[]` の JSON 文字列
+- `TeamPreset` 型: `{ name: string, settings: PresetSettings }`（`id` フィールドなし）
+- ブラウザローカルには保存されない（ページ読み込み時に毎回 data 属性から取得）
+- **Preset JSON DL ボタン**: 現在の設定を `TeamPreset[]` 形式でダウンロードできる。このJSONを View Customize に貼り付けることでチームプリセットを配布できる
+
+**チームプリセット設定ワークフロー**:
+1. グラフ設定パネルで目的の設定に調整する
+2. プリセット名入力欄に名前を入力して「Preset JSON DL」をクリック
+3. ダウンロードした `redmine-graph-preset.json` の内容を View Customize コードに貼り付ける:
+   ```javascript
+   graphDiv.setAttribute('data-team-presets', JSON.stringify([
+     { "name": "週次報告用", "settings": { ... } }
+   ]));
+   ```
 
 ## Redmine APIとの連携
 
@@ -123,6 +148,7 @@ export function utcToJstDate(utcString: string): string {
 | `data-combo-right` | `'cumulative'` \| `'daily'` | `daily` | 右軸系列（series-1）の初期集計方法 |
 | `data-pie-group-by` | `string` | `status` | 円グラフのグループキー |
 | `data-api-key` | `string` | `""` | Redmine APIキー（`ViewCustomize.context.user.apiKey` から取得） |
+| `data-team-presets` | `TeamPreset[]` のJSON文字列 | `""` | チームプリセット定義。設定パネルに「チームプリセット」ボタンとして表示される（読取専用） |
 
 ## URLパラメータ解析（urlParser.ts）
 

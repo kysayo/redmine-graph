@@ -114,6 +114,10 @@ View Customize（管理 → 表示のカスタマイズ）で以下のように�
     graphDiv.setAttribute('data-combo-right', 'daily');
     graphDiv.setAttribute('data-pie-group-by', 'status');
     graphDiv.setAttribute('data-api-key', (ViewCustomize && ViewCustomize.context && ViewCustomize.context.user && ViewCustomize.context.user.apiKey) || '');
+    // チームプリセットを設定する場合は以下のように追加（設定パネルの「Preset JSON DL」でJSONを取得できる）
+    // graphDiv.setAttribute('data-team-presets', JSON.stringify([
+    //   { name: "週次報告用", settings: { weeklyMode: true, hideWeekends: true, anchorDay: 1, series: [...] } }
+    // ]));
     graphDiv.classList.add('hidden'); // 初期非表示（toggleFieldset が hidden クラスを制御）
 
     graphFieldset.appendChild(legend);
@@ -150,6 +154,7 @@ data属性の値はlocalStorageに保存済み設定がない場合の**初期�
 | `data-combo-right` | `cumulative` / `daily` | `daily` | 2軸グラフの右軸の初期設定（右軸: series-1の集計方法） |
 | `data-pie-group-by` | `status` / `tracker` / 任意の文字列 | `status` | 円グラフのグループキー |
 | `data-api-key` | RedmineのAPIキー | `""` | `ViewCustomize.context.user.apiKey` から取得してセットする。空の場合はクッキー認証 |
+| `data-team-presets` | JSON文字列（`TeamPreset[]`） | `""` | チームプリセット定義。設定パネルに「チームプリセット」ボタンとして表示される（読取専用） |
 
 **設定例（棒グラフと折れ線を入れ替える）**:
 
