@@ -42,11 +42,12 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - 各系列に設定できる項目:
   - 色: 系列の色インジケーターをクリックしてカラーパレット（6色）から選択
   - 系列名（ラベル）
-  - 集計対象日付フィールド: `created_on`（作成日）/ `closed_on`（完了日）
+  - 集計対象日付フィールド: `created_on`（作成日）/ `closed_on`（完了日）/ `custom`（特殊な日付）
+    - `custom` 選択時: `window.availableFilters` の `type === 'date'` フィールド（開始日・期日・カスタム日付フィールドなど）から選択するセレクトUIが追加表示される
   - グラフ種類: `bar`（棒）/ `line`（折れ線）
   - 表示軸: `left`（左軸）/ `right`（右軸）
   - 集計方法: `daily`（日別）/ `cumulative`（累計）
-  - 対象ステータス: Redmine APIから取得したステータス一覧から複数選択（空=全ステータス）
+  - 対象ステータス: Redmine APIから取得したステータス一覧から複数選択（空=全ステータス）。集計軸が `custom`（特殊な日付）の場合は非活性（グレーアウト）
   - 絞り込み条件: チケットの項目で絞り込み。フィールド（react-select、テキスト入力補完あり）・演算子（=、!=）・値（`<select multiple>`）の組み合わせ。複数条件はAND。対応フィールド: トラッカー、優先度、カスタムフィールド（リスト系）。ページリロード後も復元のため、マウント時に設定済みフィールドの選択肢を事前取得する
 - 設定変更はlocalStorageに即時保存（プロジェクトIDをキーに）
 
@@ -112,8 +113,10 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 
 - **日付範囲**: ユーザー指定の `startDate`（デフォルト: 今日の14日前）を優先。未設定時は取得済みチケットの最古作成日〜今日
 - **X軸日付生成**: `formatDate()` はローカルタイム（JST）で YYYY-MM-DD を生成。`toISOString()`（UTC基準）を使うとJST環境で1日ずれるため注意
-- **created_on 系列**: UTC文字列の日付部分（先頭10文字）をそのまま使用
-- **closed_on 系列**: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
+- **集計日付の取得**: `getIssueDateForSeries()` ヘルパー関数で系列ごとに一元取得
+  - `created_on` 系列: UTC文字列の日付部分（先頭10文字）をそのまま使用
+  - `closed_on` 系列: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
+  - `custom` 系列: `customDateFieldKey` で指定したフィールドを取得。`cf_{id}` 形式はカスタムフィールドから、`start_date`・`due_date` 等はチケットの直接プロパティから取得。値が空/null/未設定のチケットはスキップ。UTC変換不要（Redmineはカスタム日付をYYYY-MM-DD形式で返す）
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
 - **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `tracker_id`・`priority_id`・`cf_{id}`（カスタムフィールド）
 - **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換。`startDate` 指定時は `startDate` より前のチケット数を初期値として積算（グラフ開始時点の既存チケット数を反映）
@@ -123,6 +126,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 絞り込み条件UIで使用するフィールド一覧と選択肢を取得するユーティリティ。
 
 - **`getAvailableFilterFields()`**: `window.availableFilters`（Redmineページ埋め込みJS変数）からリスト系フィールドを抽出。対象タイプ: `list`, `list_optional`, `list_with_history`, `list_optional_with_history`
+- **`getAvailableDateFilterFields()`**: `window.availableFilters` から日付型フィールドを抽出。対象タイプ: `date`のみ（`date_past` の `created_on`/`closed_on` は除外）。キーに `.` を含むフィールド（バージョン関連）も除外。「特殊な日付」集計軸の選択肢として使用
 - **`fetchFilterFieldOptions(fieldKey, apiKey)`**: 指定フィールドの選択肢を取得。
   - `remote: false` の場合: `availableFilters[key].values` からそのまま返す
   - `remote: true` の場合: `/queries/filter?project_id={id}&type=IssueQuery&name={field}` API を呼び出し（これはRedmine内部エンドポイント、REST APIとは別）
