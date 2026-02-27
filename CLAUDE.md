@@ -14,6 +14,7 @@ My Redmineはサーバー側の設定が変更できないが、View Customize�
 | ビルドツール | Vite（ライブラリモード / iife形式） |
 | UI | React 18 + TypeScript |
 | グラフ | Recharts |
+| セレクトボックス | react-select（絞り込み条件のフィールド選択でテキスト補完） |
 | CSS処理 | vite-plugin-css-injected-by-js（CSSをJSに内包） |
 | Lint | ESLint（Viteデフォルト） |
 
@@ -31,6 +32,7 @@ src/
 │   ├── config.ts         # HTMLのdata属性から設定を読み取る・デフォルト設定生成
 │   ├── dateUtils.ts      # UTC→JST変換ユーティリティ
 │   ├── dummyData.ts      # 開発用ダミーデータ生成（API接続不可時のフォールバック）
+│   ├── filterValues.ts   # window.availableFilters からフィルタフィールド一覧・選択肢取得
 │   ├── issueAggregator.ts # チケット一覧を系列設定に基づいて集計
 │   ├── redmineApi.ts     # Redmine API呼び出し（ステータス・チケット一覧取得）
 │   ├── storage.ts        # localStorageによるユーザー設定の永続化

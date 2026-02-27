@@ -47,6 +47,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - 表示軸: `left`（左軸）/ `right`（右軸）
   - 集計方法: `daily`（日別）/ `cumulative`（累計）
   - 対象ステータス: Redmine APIから取得したステータス一覧から複数選択（空=全ステータス）
+  - 絞り込み条件: チケットの項目で絞り込み。フィールド（react-select、テキスト入力補完あり）・演算子（=、!=）・値（`<select multiple>`）の組み合わせ。複数条件はAND。対応フィールド: トラッカー、優先度、カスタムフィールド（リスト系）
 - 設定変更はlocalStorageに即時保存（プロジェクトIDをキーに）
 
 ### ユーザー設定の永続化（storage.ts）
@@ -92,6 +93,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 | エンドポイント | 用途 |
 |---|---|
 | `GET /projects/{id}/issues.json` | チケット一覧取得（ページネーション対応） |
+| `GET /queries/filter?project_id={id}&type=IssueQuery&name={field}` | 絞り込み条件の選択肢取得（`filterValues.ts`） |
 
 **ステータス一覧の取得方法**（優先順位順）:
 1. **ページDOMから取得**（本番環境）: Redmineチケット一覧ページに埋め込まれた `window.availableFilters.status_id.values` を読み取る。プロジェクト固有のステータスのみが含まれ、追加APIコール不要
@@ -113,7 +115,19 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **created_on 系列**: UTC文字列の日付部分（先頭10文字）をそのまま使用
 - **closed_on 系列**: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
+- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `tracker_id`・`priority_id`・`cf_{id}`（カスタムフィールド）
 - **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換。`startDate` 指定時は `startDate` より前のチケット数を初期値として積算（グラフ開始時点の既存チケット数を反映）
+
+### フィルタフィールド・選択肢取得（filterValues.ts）
+
+絞り込み条件UIで使用するフィールド一覧と選択肢を取得するユーティリティ。
+
+- **`getAvailableFilterFields()`**: `window.availableFilters`（Redmineページ埋め込みJS変数）からリスト系フィールドを抽出。対象タイプ: `list`, `list_optional`, `list_with_history`, `list_optional_with_history`
+- **`fetchFilterFieldOptions(fieldKey, apiKey)`**: 指定フィールドの選択肢を取得。
+  - `remote: false` の場合: `availableFilters[key].values` からそのまま返す
+  - `remote: true` の場合: `/queries/filter?project_id={id}&type=IssueQuery&name={field}` API を呼び出し（これはRedmine内部エンドポイント、REST APIとは別）
+  - レスポンス形式: `["QA","BUG"]`（CF系）または `[["name","id"],...]`（標準フィールド系）
+  - 結果はページライフサイクル内でキャッシュ
 
 ### UTC→JST変換（dateUtils.ts）
 
