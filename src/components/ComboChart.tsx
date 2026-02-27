@@ -61,7 +61,7 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
       <div ref={ref}>
         <ResponsiveContainer width="100%" height={chartHeight ?? 320}>
           <ComposedChart data={data} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="date"
               interval={0}
