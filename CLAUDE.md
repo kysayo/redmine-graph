@@ -82,7 +82,7 @@ npm run lint
 
 **現在使用中のURL（View Customize設定値）**:
 ```
-https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@939c014/dist/moca-react-graph.iife.js
+https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@767aa57/dist/moca-react-graph.iife.js
 ```
 
 > **開発時の更新手順**: `master` push 後に View Customize のコミットハッシュを最新のものに変更する。
@@ -129,7 +129,7 @@ View Customize（管理 → 表示のカスタマイズ）で以下のように�
     optionsFieldset.parentNode.insertBefore(graphFieldset, optionsFieldset.nextSibling);
 
     var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@939c014/dist/moca-react-graph.iife.js';
+    script.src = 'https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@767aa57/dist/moca-react-graph.iife.js';
     document.head.appendChild(script);
   }
 
