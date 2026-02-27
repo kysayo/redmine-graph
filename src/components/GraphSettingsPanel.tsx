@@ -49,12 +49,13 @@ interface SeriesRowProps {
   statusesLoading: boolean
   canDelete: boolean
   filterFields: FilterField[]
+  dateFilterFields: FilterField[]
   getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
   onChange: (updated: SeriesConfig) => void
   onDelete: () => void
 }
 
-function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields, getFieldOptions, onChange, onDelete }: SeriesRowProps) {
+function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete }: SeriesRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
   const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
   const [loadingField, setLoadingField] = useState<string | null>(null)
@@ -181,12 +182,42 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields,
         <label style={labelStyle}>集計軸</label>
         <select
           value={series.dateField}
-          onChange={(e) => update('dateField', e.target.value as SeriesConfig['dateField'])}
+          onChange={(e) => {
+            const newDateField = e.target.value as SeriesConfig['dateField']
+            onChange({
+              ...series,
+              dateField: newDateField,
+              customDateFieldKey: newDateField !== 'custom' ? undefined : series.customDateFieldKey,
+            })
+          }}
           style={selectStyle}
         >
           <option value="created_on">作成日</option>
           <option value="closed_on">完了日</option>
+          <option value="custom">特殊な日付</option>
         </select>
+        {series.dateField === 'custom' && (
+          <div style={{ marginTop: 4, minWidth: 180 }}>
+            <Select
+              options={dateFilterFields.map(f => ({ label: f.name, value: f.key }))}
+              value={
+                series.customDateFieldKey
+                  ? {
+                      label: dateFilterFields.find(f => f.key === series.customDateFieldKey)?.name ?? series.customDateFieldKey,
+                      value: series.customDateFieldKey,
+                    }
+                  : null
+              }
+              onChange={(selected) => update('customDateFieldKey', selected?.value ?? undefined)}
+              styles={fieldSelectStyles}
+              placeholder="日付フィールドを選択..."
+              noOptionsMessage={() => '候補なし'}
+              isClearable
+              menuPortalTarget={document.body}
+              menuPosition="fixed"
+            />
+          </div>
+        )}
       </div>
 
       {/* グラフ種類 */}
@@ -238,7 +269,14 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields,
             multiple
             value={series.statusIds.map(String)}
             onChange={handleStatusChange}
-            style={{ ...selectStyle, height: 72, minWidth: 140 }}
+            disabled={series.dateField === 'custom'}
+            style={{
+              ...selectStyle,
+              height: 72,
+              minWidth: 140,
+              opacity: series.dateField === 'custom' ? 0.4 : 1,
+              cursor: series.dateField === 'custom' ? 'not-allowed' : 'default',
+            }}
           >
             {statuses.map((s) => (
               <option key={s.id} value={s.id}>
@@ -246,6 +284,11 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields,
               </option>
             ))}
           </select>
+        )}
+        {series.dateField === 'custom' && (
+          <span style={{ fontSize: 11, color: '#999', display: 'block', marginTop: 2 }}>
+            ※ 特殊な日付ではステータス絞り込みは無効
+          </span>
         )}
       </div>
 
@@ -343,10 +386,11 @@ interface Props {
   onChange: (settings: UserSettings) => void
   teamPresets?: TeamPreset[]
   filterFields?: FilterField[]
+  dateFilterFields?: FilterField[]
   getFieldOptions?: (key: string) => Promise<FilterFieldOption[]>
 }
 
-export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, teamPresets, filterFields = [], getFieldOptions = async () => [] }: Props) {
+export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, teamPresets, filterFields = [], dateFilterFields = [], getFieldOptions = async () => [] }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [presets, setPresets] = useState<Preset[]>(() => loadPresets())
   const [presetNameInput, setPresetNameInput] = useState('')
@@ -682,6 +726,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               statusesLoading={statusesLoading}
               canDelete={settings.series.length > 1}
               filterFields={filterFields}
+              dateFilterFields={dateFilterFields}
               getFieldOptions={getFieldOptions}
               onChange={(updated) => updateSeries(i, updated)}
               onDelete={() => deleteSeries(i)}

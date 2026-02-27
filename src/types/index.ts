@@ -32,15 +32,16 @@ export interface RedmineStatus {
 
 // 1つのグラフ系列の設定
 export interface SeriesConfig {
-  id: string                              // 系列識別子（例: 'series-0'）
-  label: string                           // 凡例表示名（例: '発生チケット数'）
-  dateField: 'created_on' | 'closed_on'  // 集計に使う日付フィールド
-  statusIds: number[]                     // 対象ステータスID（空 = 全ステータス）
+  id: string                                        // 系列識別子（例: 'series-0'）
+  label: string                                     // 凡例表示名（例: '発生チケット数'）
+  dateField: 'created_on' | 'closed_on' | 'custom' // 集計に使う日付フィールド
+  customDateFieldKey?: string                       // dateField === 'custom' のとき使用（例: 'cf_534', 'start_date'）
+  statusIds: number[]                               // 対象ステータスID（空 = 全ステータス）
   chartType: 'bar' | 'line'
   yAxisId: 'left' | 'right'
   aggregation: 'daily' | 'cumulative'
-  color: string                           // 系列の色（HEX）
-  conditions?: SeriesCondition[]          // 絞り込み条件（省略可 = フィルタなし）
+  color: string                                     // 系列の色（HEX）
+  conditions?: SeriesCondition[]                    // 絞り込み条件（省略可 = フィルタなし）
 }
 
 // ユーザー設定全体（localStorageに保存する形）
@@ -116,6 +117,8 @@ export interface RedmineIssue {
   created_on: string       // UTC ISO文字列（例: "2026-02-05T17:09:11Z"）
   closed_on: string | null // UTC ISO文字列。未完了の場合はnull
   updated_on: string
+  start_date?: string      // YYYY-MM-DD形式。未設定の場合は '' または省略
+  due_date?: string        // YYYY-MM-DD形式。未設定の場合は '' または省略
   custom_fields?: Array<{ id: number; name: string; value: string | string[] | null }>
 }
 

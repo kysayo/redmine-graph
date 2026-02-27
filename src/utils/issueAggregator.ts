@@ -104,6 +104,41 @@ function issueMatchesConditions(issue: RedmineIssue, conditions: SeriesCondition
   return conditions.every(c => conditionMatchesIssue(c, issue))
 }
 
+/**
+ * チケットから系列設定に基づく集計対象日付を取得する
+ * - created_on: UTCの日付部分をそのまま使用
+ * - closed_on: UTC→JST変換。null のチケットは null を返す（スキップ対象）
+ * - custom: customDateFieldKey に基づいてフィールド値を取得
+ *   - 'cf_{id}' 形式: custom_fields から取得
+ *   - その他('start_date', 'due_date' 等): issue の直接プロパティから取得
+ *   - 値が空/null/未設定の場合は null を返す（スキップ対象）
+ */
+function getIssueDateForSeries(issue: RedmineIssue, s: SeriesConfig): string | null {
+  if (s.dateField === 'closed_on') {
+    if (!issue.closed_on) return null
+    return utcToJstDate(issue.closed_on)
+  }
+  if (s.dateField === 'custom') {
+    const key = s.customDateFieldKey
+    if (!key) return null
+    if (key.startsWith('cf_')) {
+      const cfId = Number(key.slice(3))
+      const cf = issue.custom_fields?.find(c => c.id === cfId)
+      const v = cf?.value
+      const dateStr = Array.isArray(v) ? (v[0] ?? null) : v ?? null
+      if (!dateStr || typeof dateStr !== 'string') return null
+      return dateStr  // YYYY-MM-DD（UTC変換不要）
+    }
+    // start_date, due_date などの標準フィールド
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dateStr = (issue as any)[key]
+    if (!dateStr || typeof dateStr !== 'string') return null
+    return dateStr
+  }
+  // created_on（デフォルト）
+  return issue.created_on.slice(0, 10)
+}
+
 interface AggregateOptions {
   /** ユーザー指定のグラフX軸開始日（YYYY-MM-DD）。未設定=自動 */
   startDate?: string
@@ -180,14 +215,9 @@ export function aggregateIssues(
       }
 
       // 集計対象の日付を取得
-      let targetDate: string
-      if (s.dateField === 'closed_on') {
-        if (!issue.closed_on) continue  // closed_on が null のチケットはスキップ
-        targetDate = utcToJstDate(issue.closed_on)
-      } else {
-        // created_on: UTCの日付部分をそのまま使用（Redmineのcreated_onは通常JSTと誤差が少ない）
-        targetDate = issue.created_on.slice(0, 10)
-      }
+      const rawDate = getIssueDateForSeries(issue, s)
+      if (rawDate === null) continue  // 日付なし（closed_on が null、custom で未設定など）はスキップ
+      let targetDate = rawDate
 
       if (weeklyMode) {
         // 週次モード: 基準日に振り替える
@@ -229,13 +259,9 @@ export function aggregateIssues(
           if (s.conditions?.length && !issueMatchesConditions(issue, s.conditions)) {
             continue
           }
-          let targetDate: string
-          if (s.dateField === 'closed_on') {
-            if (!issue.closed_on) continue
-            targetDate = utcToJstDate(issue.closed_on)
-          } else {
-            targetDate = issue.created_on.slice(0, 10)
-          }
+          const rawDate = getIssueDateForSeries(issue, s)
+          if (rawDate === null) continue
+          let targetDate = rawDate
           if (weeklyMode) {
             targetDate = getNextAnchorDate(targetDate, anchorDay)
           } else if (hideWeekends) {

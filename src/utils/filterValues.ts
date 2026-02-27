@@ -24,6 +24,24 @@ export function getAvailableFilterFields(): FilterField[] {
     .map(([key, f]: any) => ({ key, name: f.name as string }))
 }
 
+/**
+ * window.availableFilters から日付型フィールドの一覧を返す
+ * - type === 'date' のフィールドのみ対象（'date_past' の created_on/closed_on は除外）
+ * - キーに '.' が含まれるフィールド（fixed_version.due_date 等）はチケットAPIから
+ *   直接取得できないため除外する
+ * Redmineチケット一覧ページに存在しない場合（開発環境など）は空配列を返す
+ */
+export function getAvailableDateFilterFields(): FilterField[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const af = (window as any).availableFilters
+  if (!af) return []
+  return Object.entries(af)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter(([key, f]: any) => f?.type === 'date' && !key.includes('.'))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map(([key, f]: any) => ({ key, name: f.name as string }))
+}
+
 // フィールドごとの値キャッシュ（ページライフサイクル内で共有）
 const optionCache = new Map<string, FilterFieldOption[]>()
 
