@@ -71,6 +71,12 @@ export interface Preset {
   settings: PresetSettings
 }
 
+// チームプリセット（管理者がView CustomizeのdataAttributeで定義する共有プリセット）
+export interface TeamPreset {
+  name: string
+  settings: PresetSettings
+}
+
 // 複数系列対応のデータポイント（SeriesConfigのidをキーにした値を持つ）
 export interface SeriesDataPoint {
   date: string

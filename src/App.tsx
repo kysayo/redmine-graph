@@ -4,7 +4,7 @@ import { ComboChart } from './components/ComboChart'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
 import { PieChart } from './components/PieChart'
 import type { RedmineIssue, RedmineStatus, UserSettings } from './types'
-import { buildDefaultSettings, readConfig } from './utils/config'
+import { buildDefaultSettings, readConfig, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { aggregateIssues } from './utils/issueAggregator'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
@@ -26,6 +26,7 @@ interface IssueState {
 export function App({ container }: Props) {
   const config = useMemo(() => readConfig(container), [container])
   const apiKey = useMemo(() => container.dataset.apiKey ?? '', [container])
+  const teamPresets = useMemo(() => readTeamPresets(container), [container])
   const projectId = useMemo(() => getProjectId(), [])
   const rawSearch = window.location.search
 
@@ -207,6 +208,7 @@ export function App({ container }: Props) {
         statuses={statuses}
         statusesLoading={statusesLoading}
         onChange={handleSettingsChange}
+        teamPresets={teamPresets}
       />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>

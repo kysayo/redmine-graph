@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Preset, RedmineStatus, SeriesConfig, UserSettings } from '../types'
+import type { Preset, RedmineStatus, SeriesConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const COLOR_PALETTE = ['#93c5fd', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
@@ -185,9 +185,10 @@ interface Props {
   statuses: RedmineStatus[]
   statusesLoading: boolean
   onChange: (settings: UserSettings) => void
+  teamPresets?: TeamPreset[]
 }
 
-export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange }: Props) {
+export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, teamPresets }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [presets, setPresets] = useState<Preset[]>(() => loadPresets())
   const [presetNameInput, setPresetNameInput] = useState('')
@@ -399,6 +400,33 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               </div>
             </div>
           </div>
+
+          {/* チームプリセット（管理者定義・読取専用） */}
+          {teamPresets && teamPresets.length > 0 && (
+            <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
+              <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>チームプリセット</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {teamPresets.map((tp, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => onChange({ ...settings, ...tp.settings })}
+                    style={{
+                      fontSize: 12,
+                      padding: '2px 10px',
+                      border: '1px solid #93c5fd',
+                      borderRadius: 3,
+                      background: '#eff6ff',
+                      cursor: 'pointer',
+                      color: '#1d4ed8',
+                    }}
+                  >
+                    {tp.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* プリセット */}
           <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
