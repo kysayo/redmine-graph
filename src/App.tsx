@@ -3,9 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ComboChart } from './components/ComboChart'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
 import { PieChart } from './components/PieChart'
-import type { RedmineIssue, RedmineStatus, UserSettings } from './types'
+import type { FilterField, RedmineIssue, RedmineStatus, UserSettings } from './types'
 import { buildDefaultSettings, readConfig, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
+import { fetchFilterFieldOptions, getAvailableFilterFields } from './utils/filterValues'
 import { aggregateIssues } from './utils/issueAggregator'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
 import { loadSettings, saveSettings } from './utils/storage'
@@ -38,6 +39,9 @@ export function App({ container }: Props) {
   // Redmineのステータス一覧
   const [statuses, setStatuses] = useState<RedmineStatus[]>([])
   const [statusesLoading, setStatusesLoading] = useState(true)
+
+  // 絞り込み条件のフィールド一覧（window.availableFilters から取得）
+  const [filterFields, setFilterFields] = useState<FilterField[]>([])
 
   // 取得済みチケット一覧（系列設定変更時に再集計するためstateで保持）
   const [issueState, setIssueState] = useState<IssueState>({
@@ -115,6 +119,8 @@ export function App({ container }: Props) {
 
   useEffect(() => {
     if (!shouldFetch) return
+    // フィルタフィールド一覧を取得（window.availableFilters から）
+    setFilterFields(getAvailableFilterFields())
     const pageStatuses = getStatusesFromPage()
     if (pageStatuses !== null) {
       setStatuses(pageStatuses)
@@ -148,6 +154,11 @@ export function App({ container }: Props) {
     setSettings(next)
     saveSettings(next)
   }, [])
+
+  const getFieldOptions = useCallback(
+    (fieldKey: string) => fetchFilterFieldOptions(fieldKey, apiKey),
+    [apiKey]
+  )
 
   const handleDownloadSvg = useCallback(async () => {
     const wrapper = comboChartRef.current
@@ -209,6 +220,8 @@ export function App({ container }: Props) {
         statusesLoading={statusesLoading}
         onChange={handleSettingsChange}
         teamPresets={teamPresets}
+        filterFields={filterFields}
+        getFieldOptions={getFieldOptions}
       />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>

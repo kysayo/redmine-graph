@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Preset, RedmineStatus, SeriesConfig, TeamPreset, UserSettings } from '../types'
+import type { FilterField, FilterFieldOption, Preset, RedmineStatus, SeriesCondition, SeriesConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const COLOR_PALETTE = ['#93c5fd', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
@@ -9,12 +9,16 @@ interface SeriesRowProps {
   statuses: RedmineStatus[]
   statusesLoading: boolean
   canDelete: boolean
+  filterFields: FilterField[]
+  getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
   onChange: (updated: SeriesConfig) => void
   onDelete: () => void
 }
 
-function SeriesRow({ series, statuses, statusesLoading, canDelete, onChange, onDelete }: SeriesRowProps) {
+function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields, getFieldOptions, onChange, onDelete }: SeriesRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
+  const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
+  const [loadingField, setLoadingField] = useState<string | null>(null)
 
   function update<K extends keyof SeriesConfig>(key: K, value: SeriesConfig[K]) {
     onChange({ ...series, [key]: value })
@@ -23,6 +27,43 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, onChange, onD
   function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const selected = Array.from(e.target.selectedOptions, (opt) => Number(opt.value))
     update('statusIds', selected)
+  }
+
+  function addCondition() {
+    const next: SeriesCondition[] = [...(series.conditions ?? []), { field: '', operator: '=', values: [] }]
+    update('conditions', next)
+  }
+
+  function removeCondition(idx: number) {
+    const next = (series.conditions ?? []).filter((_, i) => i !== idx)
+    update('conditions', next.length ? next : undefined)
+  }
+
+  async function handleConditionFieldChange(idx: number, newField: string) {
+    const next: SeriesCondition[] = (series.conditions ?? []).map((c, i) =>
+      i === idx ? { ...c, field: newField, values: [] } : c
+    )
+    update('conditions', next)
+    if (newField && !fieldOptions[newField]) {
+      setLoadingField(newField)
+      const opts = await getFieldOptions(newField)
+      setFieldOptions(prev => ({ ...prev, [newField]: opts }))
+      setLoadingField(null)
+    }
+  }
+
+  function updateConditionOperator(idx: number, operator: SeriesCondition['operator']) {
+    const next: SeriesCondition[] = (series.conditions ?? []).map((c, i) =>
+      i === idx ? { ...c, operator } : c
+    )
+    update('conditions', next)
+  }
+
+  function updateConditionValues(idx: number, values: string[]) {
+    const next: SeriesCondition[] = (series.conditions ?? []).map((c, i) =>
+      i === idx ? { ...c, values } : c
+    )
+    update('conditions', next)
   }
 
   const labelStyle: React.CSSProperties = {
@@ -157,6 +198,67 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, onChange, onD
         )}
       </div>
 
+      {/* 絞り込み条件 */}
+      <div style={{ width: '100%', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
+        <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>絞り込み条件</div>
+        {(series.conditions ?? []).map((cond, idx) => (
+          <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+            {/* フィールド選択 */}
+            <select
+              value={cond.field}
+              onChange={(e) => handleConditionFieldChange(idx, e.target.value)}
+              style={{ ...selectStyle, minWidth: 120 }}
+            >
+              <option value="">-- フィールドを選択 --</option>
+              {filterFields.map((f) => (
+                <option key={f.key} value={f.key}>{f.name}</option>
+              ))}
+            </select>
+            {/* 演算子 */}
+            <select
+              value={cond.operator}
+              onChange={(e) => updateConditionOperator(idx, e.target.value as SeriesCondition['operator'])}
+              style={selectStyle}
+            >
+              <option value="=">=</option>
+              <option value="!">!=</option>
+            </select>
+            {/* 値選択 */}
+            {cond.field && (
+              loadingField === cond.field ? (
+                <span style={{ fontSize: 11, color: '#999' }}>読み込み中...</span>
+              ) : (
+                <select
+                  multiple
+                  value={cond.values}
+                  onChange={(e) => updateConditionValues(idx, Array.from(e.target.selectedOptions, o => o.value))}
+                  style={{ ...selectStyle, height: 60, minWidth: 120 }}
+                >
+                  {(fieldOptions[cond.field] ?? []).map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              )
+            )}
+            {/* 条件削除 */}
+            <button
+              type="button"
+              onClick={() => removeCondition(idx)}
+              style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addCondition}
+          style={{ fontSize: 11, padding: '1px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+        >
+          + 条件を追加
+        </button>
+      </div>
+
       {/* 削除ボタン */}
       {canDelete && (
         <button
@@ -186,9 +288,11 @@ interface Props {
   statusesLoading: boolean
   onChange: (settings: UserSettings) => void
   teamPresets?: TeamPreset[]
+  filterFields?: FilterField[]
+  getFieldOptions?: (key: string) => Promise<FilterFieldOption[]>
 }
 
-export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, teamPresets }: Props) {
+export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, teamPresets, filterFields = [], getFieldOptions = async () => [] }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [presets, setPresets] = useState<Preset[]>(() => loadPresets())
   const [presetNameInput, setPresetNameInput] = useState('')
@@ -523,6 +627,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               statuses={statuses}
               statusesLoading={statusesLoading}
               canDelete={settings.series.length > 1}
+              filterFields={filterFields}
+              getFieldOptions={getFieldOptions}
               onChange={(updated) => updateSeries(i, updated)}
               onDelete={() => deleteSeries(i)}
             />

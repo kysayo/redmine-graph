@@ -1,4 +1,4 @@
-import type { RedmineIssue, SeriesConfig, SeriesDataPoint } from '../types'
+import type { RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint } from '../types'
 import { utcToJstDate } from './dateUtils'
 
 function formatDate(date: Date): string {
@@ -71,6 +71,39 @@ function generateWeeklyDateRange(from: Date, to: Date, anchorDay: number): strin
   return dates
 }
 
+/**
+ * チケットが1つの絞り込み条件にマッチするか判定する
+ * - tracker_id: issue.tracker.id の文字列表現と比較
+ * - priority_id: issue.priority.id の文字列表現と比較
+ * - cf_{id}: issue.custom_fields から id が一致するカスタムフィールドの value と比較
+ * - その他: 非対応フィールドはフィルタしない（true を返す）
+ */
+function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): boolean {
+  const { field, operator, values } = cond
+  let issueValues: string[] = []
+
+  if (field === 'tracker_id') {
+    issueValues = [String(issue.tracker.id)]
+  } else if (field === 'priority_id') {
+    issueValues = issue.priority ? [String(issue.priority.id)] : []
+  } else if (field.startsWith('cf_')) {
+    const cfId = Number(field.slice(3))
+    const cf = issue.custom_fields?.find(c => c.id === cfId)
+    if (!cf) return operator === '!'
+    const v = cf.value
+    issueValues = Array.isArray(v) ? v.filter((x): x is string => x !== null) : v !== null ? [v] : []
+  } else {
+    return true
+  }
+
+  const hasMatch = values.some(v => issueValues.includes(v))
+  return operator === '=' ? hasMatch : !hasMatch
+}
+
+function issueMatchesConditions(issue: RedmineIssue, conditions: SeriesCondition[]): boolean {
+  return conditions.every(c => conditionMatchesIssue(c, issue))
+}
+
 interface AggregateOptions {
   /** ユーザー指定のグラフX軸開始日（YYYY-MM-DD）。未設定=自動 */
   startDate?: string
@@ -141,6 +174,10 @@ export function aggregateIssues(
       if (s.statusIds.length > 0 && !s.statusIds.includes(issue.status.id)) {
         continue
       }
+      // 条件フィルタ
+      if (s.conditions?.length && !issueMatchesConditions(issue, s.conditions)) {
+        continue
+      }
 
       // 集計対象の日付を取得
       let targetDate: string
@@ -186,6 +223,10 @@ export function aggregateIssues(
         const boundary = dates[0]
         for (const issue of issues) {
           if (s.statusIds.length > 0 && !s.statusIds.includes(issue.status.id)) {
+            continue
+          }
+          // 条件フィルタ
+          if (s.conditions?.length && !issueMatchesConditions(issue, s.conditions)) {
             continue
           }
           let targetDate: string

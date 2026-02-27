@@ -40,6 +40,7 @@ export interface SeriesConfig {
   yAxisId: 'left' | 'right'
   aggregation: 'daily' | 'cumulative'
   color: string                           // 系列の色（HEX）
+  conditions?: SeriesCondition[]          // 絞り込み条件（省略可 = フィルタなし）
 }
 
 // ユーザー設定全体（localStorageに保存する形）
@@ -83,6 +84,27 @@ export interface SeriesDataPoint {
   [seriesId: string]: number | string
 }
 
+// --- 系列条件フィルタ ---
+
+// 系列の1絞り込み条件
+export interface SeriesCondition {
+  field: string       // window.availableFilters のキー（例: 'cf_628', 'tracker_id'）
+  operator: '=' | '!'  // '=' = 一致、'!' = 不一致
+  values: string[]    // 選択値の配列（例: ['QA', 'BUG']）
+}
+
+// フィルタフィールド一覧（UIの選択肢表示用）
+export interface FilterField {
+  key: string   // availableFilters のキー
+  name: string  // 表示名（例: 'Type', 'トラッカー'）
+}
+
+// フィールドの選択肢1件
+export interface FilterFieldOption {
+  label: string  // 表示テキスト
+  value: string  // 実際の値
+}
+
 // --- Redmine API レスポンス型 ---
 
 // Redmineチケット（APIレスポンスから必要なフィールドのみ）
@@ -90,9 +112,11 @@ export interface RedmineIssue {
   id: number
   status: { id: number; name: string }
   tracker: { id: number; name: string }
+  priority?: { id: number; name: string }
   created_on: string       // UTC ISO文字列（例: "2026-02-05T17:09:11Z"）
   closed_on: string | null // UTC ISO文字列。未完了の場合はnull
   updated_on: string
+  custom_fields?: Array<{ id: number; name: string; value: string | string[] | null }>
 }
 
 // /issues.json のレスポンス
