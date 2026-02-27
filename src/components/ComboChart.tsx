@@ -27,6 +27,30 @@ function formatDateTick(dateStr: string, fmt: 'yyyy-mm-dd' | 'M/D'): string {
   return `${Number(m)}/${Number(d)}`
 }
 
+interface CustomTickProps {
+  x?: number
+  y?: number
+  payload?: { value: string }
+  index?: number
+  tickInterval: number
+  fmt: 'yyyy-mm-dd' | 'M/D'
+}
+
+function CustomXAxisTick({ x = 0, y = 0, payload, index = 0, tickInterval, fmt }: CustomTickProps) {
+  const showLabel = tickInterval === 0 || index % (tickInterval + 1) === 0
+  const label = payload ? formatDateTick(payload.value, fmt) : ''
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <line x1={0} y1={0} x2={0} y2={6} stroke="#666" strokeWidth={1} />
+      {showLabel && (
+        <text x={0} y={0} dy={16} textAnchor="middle" fill="#666" fontSize={11}>
+          {label}
+        </text>
+      )}
+    </g>
+  )
+}
+
 export const ComboChart = forwardRef<HTMLDivElement, Props>(
   function ComboChart({ data, series, yAxisLeftMin, yAxisRightMax, dateFormat, chartHeight }, ref) {
     const fmt = dateFormat ?? 'yyyy-mm-dd'
@@ -40,9 +64,8 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 11 }}
-              interval={tickInterval}
-              tickFormatter={(v) => formatDateTick(v, fmt)}
+              interval={0}
+              tick={<CustomXAxisTick tickInterval={tickInterval} fmt={fmt} />}
             />
             <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11 }} domain={yAxisLeftMin !== undefined ? [yAxisLeftMin, (dataMax: number) => Math.max(dataMax, yAxisLeftMin + 1)] : undefined} allowDataOverflow={yAxisLeftMin !== undefined} />
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} domain={yAxisRightMax !== undefined ? [(dataMin: number) => Math.min(dataMin, yAxisRightMax - 1), yAxisRightMax] : undefined} allowDataOverflow={yAxisRightMax !== undefined} />
