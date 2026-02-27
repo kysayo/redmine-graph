@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Select from 'react-select'
 import type { FilterField, FilterFieldOption, Preset, RedmineStatus, SeriesCondition, SeriesConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
@@ -58,6 +58,18 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields,
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
   const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
   const [loadingField, setLoadingField] = useState<string | null>(null)
+
+  // マウント時に既存 conditions のフィールド選択肢を事前取得（リロード後の表示復元）
+  useEffect(() => {
+    const fields = [...new Set(
+      (series.conditions ?? []).map(c => c.field).filter(Boolean)
+    )]
+    for (const field of fields) {
+      getFieldOptions(field).then(opts => {
+        setFieldOptions(prev => ({ ...prev, [field]: opts }))
+      })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function update<K extends keyof SeriesConfig>(key: K, value: SeriesConfig[K]) {
     onChange({ ...series, [key]: value })
