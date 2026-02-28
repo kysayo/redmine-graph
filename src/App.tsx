@@ -304,20 +304,26 @@ export function App({ container }: Props) {
       )}
 
       <h2 style={{ fontSize: 16, margin: '24px 0 12px' }}>チケット割合</h2>
-      <div style={{ display: 'flex', gap: '16px' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <PieChart
-            data={pieLeftData}
-            groupBy={filterFields.find(f => f.key === (settings.pieLeft?.groupBy ?? 'status_id'))?.name ?? (settings.pieLeft?.groupBy ?? 'status_id')}
-          />
+      {shouldFetch && issueState.loading ? (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: '#666', fontSize: 13 }}>
+          Now Loading...
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <PieChart
-            data={pieRightData}
-            groupBy={filterFields.find(f => f.key === (settings.pieRight?.groupBy ?? 'tracker_id'))?.name ?? (settings.pieRight?.groupBy ?? 'tracker_id')}
-          />
+      ) : (
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <PieChart
+              data={pieLeftData}
+              groupBy={filterFields.find(f => f.key === (settings.pieLeft?.groupBy ?? 'status_id'))?.name ?? (settings.pieLeft?.groupBy ?? 'status_id')}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <PieChart
+              data={pieRightData}
+              groupBy={filterFields.find(f => f.key === (settings.pieRight?.groupBy ?? 'tracker_id'))?.name ?? (settings.pieRight?.groupBy ?? 'tracker_id')}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
