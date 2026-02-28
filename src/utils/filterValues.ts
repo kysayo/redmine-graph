@@ -7,6 +7,7 @@ const LIST_TYPES = new Set([
   'list_optional',
   'list_with_history',
   'list_optional_with_history',
+  'list_status',  // status_id フィールド用
 ])
 
 /**

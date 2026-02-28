@@ -82,7 +82,9 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
   const { field, operator, values } = cond
   let issueValues: string[] = []
 
-  if (field === 'tracker_id') {
+  if (field === 'status_id') {
+    issueValues = [String(issue.status.id)]
+  } else if (field === 'tracker_id') {
     issueValues = [String(issue.tracker.id)]
   } else if (field === 'priority_id') {
     issueValues = issue.priority ? [String(issue.priority.id)] : []
