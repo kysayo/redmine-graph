@@ -1,4 +1,4 @@
-import type { RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint } from '../types'
+import type { PieDataPoint, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint } from '../types'
 import { utcToJstDate } from './dateUtils'
 
 function formatDate(date: Date): string {
@@ -282,4 +282,43 @@ export function aggregateIssues(
   }
 
   return result
+}
+
+/**
+ * チケットから円グラフ用のグループ値（表示名）を取得する
+ * - status_id: ステータス名
+ * - tracker_id: トラッカー名
+ * - priority_id: 優先度名
+ * - assigned_to_id: 担当者名
+ * - cf_{id}: カスタムフィールド値（文字列）
+ */
+function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null {
+  if (groupBy === 'status_id') return issue.status.name
+  if (groupBy === 'tracker_id') return issue.tracker.name
+  if (groupBy === 'priority_id') return issue.priority?.name ?? null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (groupBy === 'assigned_to_id') return (issue as any).assigned_to?.name ?? null
+  if (groupBy.startsWith('cf_')) {
+    const cfId = Number(groupBy.slice(3))
+    const cf = issue.custom_fields?.find(c => c.id === cfId)
+    const v = cf?.value
+    if (Array.isArray(v)) return (v[0] as string) ?? null
+    return (v as string) ?? null
+  }
+  return null
+}
+
+/**
+ * Redmineチケット一覧を groupBy フィールドでグループ化し、円グラフ用データに集計する
+ */
+export function aggregatePie(issues: RedmineIssue[], groupBy: string): PieDataPoint[] {
+  const counts = new Map<string, number>()
+  for (const issue of issues) {
+    const key = getIssueGroupValue(issue, groupBy)
+    if (key === null || key === '') continue
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return Array.from(counts.entries())
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
 }

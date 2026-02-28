@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { FilterField, FilterFieldOption, Preset, RedmineStatus, SeriesCondition, SeriesConfig, TeamPreset, UserSettings } from '../types'
+import type { FilterField, FilterFieldOption, PieSeriesConfig, Preset, RedmineStatus, SeriesCondition, SeriesConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -443,6 +443,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
         weeklyMode: settings.weeklyMode,
         anchorDay: settings.anchorDay,
         dateFormat: settings.dateFormat,
+        pieLeft: settings.pieLeft,
+        pieRight: settings.pieRight,
       },
     }
     const next = [...presets, newPreset]
@@ -471,6 +473,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
         anchorDay: settings.anchorDay,
         dateFormat: settings.dateFormat,
         chartHeight: settings.chartHeight,
+        pieLeft: settings.pieLeft,
+        pieRight: settings.pieRight,
       },
     }
     const json = JSON.stringify([teamPreset], null, 2)
@@ -666,6 +670,49 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   }}
                   style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 80 }}
                 />
+              </div>
+            </div>
+
+            {/* 円グラフ設定 */}
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+              <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>円グラフ設定</div>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                {/* 左の円グラフ */}
+                <div style={{ minWidth: 200 }}>
+                  <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>左: グループキー</label>
+                  <Select
+                    options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                    value={(() => {
+                      const key = settings.pieLeft?.groupBy ?? 'status_id'
+                      const field = filterFields.find(f => f.key === key)
+                      return field ? { label: field.name, value: key } : { label: key, value: key }
+                    })()}
+                    onChange={(selected) => onChange({ ...settings, pieLeft: { ...(settings.pieLeft ?? {}), groupBy: selected?.value ?? 'status_id' } as PieSeriesConfig })}
+                    styles={fieldSelectStyles}
+                    placeholder="項目を選択..."
+                    noOptionsMessage={() => '候補なし'}
+                    menuPortalTarget={document.body}
+                    menuPosition="fixed"
+                  />
+                </div>
+                {/* 右の円グラフ */}
+                <div style={{ minWidth: 200 }}>
+                  <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>右: グループキー</label>
+                  <Select
+                    options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                    value={(() => {
+                      const key = settings.pieRight?.groupBy ?? 'tracker_id'
+                      const field = filterFields.find(f => f.key === key)
+                      return field ? { label: field.name, value: key } : { label: key, value: key }
+                    })()}
+                    onChange={(selected) => onChange({ ...settings, pieRight: { ...(settings.pieRight ?? {}), groupBy: selected?.value ?? 'tracker_id' } as PieSeriesConfig })}
+                    styles={fieldSelectStyles}
+                    placeholder="項目を選択..."
+                    noOptionsMessage={() => '候補なし'}
+                    menuPortalTarget={document.body}
+                    menuPosition="fixed"
+                  />
+                </div>
               </div>
             </div>
           </div>

@@ -21,6 +21,11 @@ export interface PieDataPoint {
   value: number
 }
 
+// 円グラフ系列設定
+export interface PieSeriesConfig {
+  groupBy: string  // フィールドキー（例: 'status_id', 'tracker_id', 'cf_123'）
+}
+
 // --- 系列設定UI 追加 ---
 
 // Redmineのチケットステータス（APIから取得）
@@ -57,6 +62,8 @@ export interface UserSettings {
   anchorDay?: number     // 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1
   dateFormat?: 'yyyy-mm-dd' | 'M/D'  // X軸の日付表示形式。デフォルト 'yyyy-mm-dd'
   chartHeight?: number               // グラフ高さ(px)。未設定=320
+  pieLeft?: PieSeriesConfig   // 左の円グラフ設定
+  pieRight?: PieSeriesConfig  // 右の円グラフ設定
 }
 
 // fetchAllIssues の進捗コールバック用

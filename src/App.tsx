@@ -4,10 +4,10 @@ import { ComboChart } from './components/ComboChart'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
 import { PieChart } from './components/PieChart'
 import type { FilterField, RedmineIssue, RedmineStatus, UserSettings } from './types'
-import { buildDefaultSettings, readConfig, readTeamPresets } from './utils/config'
+import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
-import { aggregateIssues } from './utils/issueAggregator'
+import { aggregateIssues, aggregatePie } from './utils/issueAggregator'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
 import { loadSettings, saveSettings } from './utils/storage'
 import { getProjectId } from './utils/urlParser'
@@ -25,7 +25,6 @@ interface IssueState {
 }
 
 export function App({ container }: Props) {
-  const config = useMemo(() => readConfig(container), [container])
   const apiKey = useMemo(() => container.dataset.apiKey ?? '', [container])
   const teamPresets = useMemo(() => readTeamPresets(container), [container])
   const projectId = useMemo(() => getProjectId(), [])
@@ -213,7 +212,17 @@ export function App({ container }: Props) {
     return generateSeriesDummyData(settings.series, options)
   }, [issueState.issues, settings.series, settings.startDate, settings.hideWeekends, settings.weeklyMode, settings.anchorDay])
 
-  const pieData = useMemo(() => generatePieDummyData(config.pieGroupBy), [config.pieGroupBy])
+  const pieLeftData = useMemo(() => {
+    const groupBy = settings.pieLeft?.groupBy ?? 'status_id'
+    if (issueState.issues !== null) return aggregatePie(issueState.issues, groupBy)
+    return generatePieDummyData('status')
+  }, [issueState.issues, settings.pieLeft?.groupBy])
+
+  const pieRightData = useMemo(() => {
+    const groupBy = settings.pieRight?.groupBy ?? 'tracker_id'
+    if (issueState.issues !== null) return aggregatePie(issueState.issues, groupBy)
+    return generatePieDummyData('tracker')
+  }, [issueState.issues, settings.pieRight?.groupBy])
 
   return (
     <div style={{ fontFamily: 'sans-serif', padding: '16px' }}>
@@ -295,7 +304,20 @@ export function App({ container }: Props) {
       )}
 
       <h2 style={{ fontSize: 16, margin: '24px 0 12px' }}>チケット割合</h2>
-      <PieChart data={pieData} groupBy={config.pieGroupBy} />
+      <div style={{ display: 'flex', gap: '16px' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <PieChart
+            data={pieLeftData}
+            groupBy={filterFields.find(f => f.key === (settings.pieLeft?.groupBy ?? 'status_id'))?.name ?? (settings.pieLeft?.groupBy ?? 'status_id')}
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <PieChart
+            data={pieRightData}
+            groupBy={filterFields.find(f => f.key === (settings.pieRight?.groupBy ?? 'tracker_id'))?.name ?? (settings.pieRight?.groupBy ?? 'tracker_id')}
+          />
+        </div>
+      </div>
     </div>
   )
 }

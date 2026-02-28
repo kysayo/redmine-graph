@@ -36,6 +36,8 @@ export function buildDefaultSettings(container: HTMLElement): UserSettings {
       return d.toISOString().slice(0, 10)
     })(),
     hideWeekends: false,
+    pieLeft: { groupBy: 'status_id' },
+    pieRight: { groupBy: 'tracker_id' },
     series: [
       {
         id: 'series-0',
