@@ -48,14 +48,18 @@ interface SeriesRowProps {
   statuses: RedmineStatus[]
   statusesLoading: boolean
   canDelete: boolean
+  canMoveUp: boolean
+  canMoveDown: boolean
   filterFields: FilterField[]
   dateFilterFields: FilterField[]
   getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
   onChange: (updated: SeriesConfig) => void
   onDelete: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
 }
 
-function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete }: SeriesRowProps) {
+function SeriesRow({ series, statuses, statusesLoading, canDelete, canMoveUp, canMoveDown, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SeriesRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
   const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
   const [loadingField, setLoadingField] = useState<string | null>(null)
@@ -368,6 +372,22 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields,
         </button>
       </div>
 
+      {/* 上下移動ボタン */}
+      <button
+        type="button"
+        onClick={onMoveUp}
+        disabled={!canMoveUp}
+        style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: canMoveUp ? 'pointer' : 'default', color: canMoveUp ? '#333' : '#ccc', marginBottom: 4 }}
+        title="上へ移動"
+      >↑</button>
+      <button
+        type="button"
+        onClick={onMoveDown}
+        disabled={!canMoveDown}
+        style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: canMoveDown ? 'pointer' : 'default', color: canMoveDown ? '#333' : '#ccc', marginBottom: 4 }}
+        title="下へ移動"
+      >↓</button>
+
       {/* 削除ボタン */}
       {canDelete && (
         <button
@@ -480,6 +500,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
   function deleteSeries(index: number) {
     const next = settings.series.filter((_, i) => i !== index)
+    onChange({ ...settings, series: next })
+  }
+
+  function moveSeries(from: number, to: number) {
+    const next = [...settings.series]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
     onChange({ ...settings, series: next })
   }
 
@@ -737,11 +764,15 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               statuses={statuses}
               statusesLoading={statusesLoading}
               canDelete={settings.series.length > 1}
+              canMoveUp={i > 0}
+              canMoveDown={i < settings.series.length - 1}
               filterFields={filterFields}
               dateFilterFields={dateFilterFields}
               getFieldOptions={getFieldOptions}
               onChange={(updated) => updateSeries(i, updated)}
               onDelete={() => deleteSeries(i)}
+              onMoveUp={() => moveSeries(i, i - 1)}
+              onMoveDown={() => moveSeries(i, i + 1)}
             />
           ))}
 
