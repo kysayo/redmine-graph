@@ -74,7 +74,22 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
             <YAxis yAxisId="left" orientation="left" hide={!hasLeft} tick={{ fontSize: 11 }} domain={yAxisLeftMin !== undefined ? [yAxisLeftMin, (dataMax: number) => Math.max(dataMax, yAxisLeftMin + 1)] : undefined} allowDataOverflow={yAxisLeftMin !== undefined} />
             <YAxis yAxisId="right" orientation="right" hide={!hasRight} tick={{ fontSize: 11 }} domain={yAxisRightMax !== undefined ? [(dataMin: number) => Math.min(dataMin, yAxisRightMax - 1), yAxisRightMax] : undefined} allowDataOverflow={yAxisRightMax !== undefined} />
             <Tooltip />
-            <Legend />
+            <Legend
+              content={() => (
+                <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '4px 16px', padding: '4px 0', fontSize: 12, color: '#666' }}>
+                  {visibleSeries.map((s) => (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {s.chartType === 'line' ? (
+                        <svg width={14} height={14}><line x1={0} y1={7} x2={14} y2={7} stroke={s.color} strokeWidth={2} /></svg>
+                      ) : (
+                        <div style={{ width: 10, height: 10, background: s.color }} />
+                      )}
+                      <span>{s.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            />
 
             {series.map((s) => {
               if (!(s.visible ?? true)) return null
