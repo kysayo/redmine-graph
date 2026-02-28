@@ -23,7 +23,8 @@ export interface PieDataPoint {
 
 // 円グラフ系列設定
 export interface PieSeriesConfig {
-  groupBy: string  // フィールドキー（例: 'status_id', 'tracker_id', 'cf_123'）
+  groupBy: string            // フィールドキー（例: 'status_id', 'tracker_id', 'cf_123'）
+  conditions?: SeriesCondition[]  // 集計対象の絞り込み条件（省略時 = フィルタなし）
 }
 
 // --- 系列設定UI 追加 ---

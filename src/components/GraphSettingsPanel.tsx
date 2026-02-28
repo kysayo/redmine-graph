@@ -43,6 +43,128 @@ const fieldSelectStyles = {
 
 const COLOR_PALETTE = ['#93c5fd', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
+interface ConditionsEditorProps {
+  conditions: SeriesCondition[]
+  filterFields: FilterField[]
+  getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
+  onChange: (next: SeriesCondition[] | undefined) => void
+}
+
+function ConditionsEditor({ conditions, filterFields, getFieldOptions, onChange }: ConditionsEditorProps) {
+  const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
+  const [loadingField, setLoadingField] = useState<string | null>(null)
+
+  // マウント時に既存 conditions のフィールド選択肢を事前取得（リロード後の表示復元）
+  useEffect(() => {
+    const fields = [...new Set(conditions.map(c => c.field).filter(Boolean))]
+    for (const field of fields) {
+      getFieldOptions(field).then(opts => {
+        setFieldOptions(prev => ({ ...prev, [field]: opts }))
+      })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function addCondition() {
+    onChange([...conditions, { field: '', operator: '=', values: [] }])
+  }
+
+  function removeCondition(idx: number) {
+    const next = conditions.filter((_, i) => i !== idx)
+    onChange(next.length ? next : undefined)
+  }
+
+  async function handleConditionFieldChange(idx: number, newField: string) {
+    const next = conditions.map((c, i) => i === idx ? { ...c, field: newField, values: [] } : c)
+    onChange(next)
+    if (newField && !fieldOptions[newField]) {
+      setLoadingField(newField)
+      const opts = await getFieldOptions(newField)
+      setFieldOptions(prev => ({ ...prev, [newField]: opts }))
+      setLoadingField(null)
+    }
+  }
+
+  function updateConditionOperator(idx: number, operator: SeriesCondition['operator']) {
+    onChange(conditions.map((c, i) => i === idx ? { ...c, operator } : c))
+  }
+
+  function updateConditionValues(idx: number, values: string[]) {
+    onChange(conditions.map((c, i) => i === idx ? { ...c, values } : c))
+  }
+
+  const selectStyle: React.CSSProperties = {
+    fontSize: 12,
+    padding: '2px 4px',
+    border: '1px solid #ccc',
+    borderRadius: 3,
+    background: '#fff',
+  }
+
+  return (
+    <div>
+      {conditions.map((cond, idx) => (
+        <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+          {/* フィールド選択 */}
+          <div style={{ minWidth: 160, flex: '0 0 auto' }}>
+            <Select
+              options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+              value={cond.field ? { label: filterFields.find(f => f.key === cond.field)?.name ?? cond.field, value: cond.field } : null}
+              onChange={(selected) => handleConditionFieldChange(idx, selected?.value ?? '')}
+              styles={fieldSelectStyles}
+              placeholder="項目を選択..."
+              noOptionsMessage={() => '候補なし'}
+              isClearable
+              menuPortalTarget={document.body}
+              menuPosition="fixed"
+            />
+          </div>
+          {/* 演算子 */}
+          <select
+            value={cond.operator}
+            onChange={(e) => updateConditionOperator(idx, e.target.value as SeriesCondition['operator'])}
+            style={selectStyle}
+          >
+            <option value="=">=</option>
+            <option value="!">!=</option>
+          </select>
+          {/* 値選択 */}
+          {cond.field && (
+            loadingField === cond.field ? (
+              <span style={{ fontSize: 11, color: '#999' }}>読み込み中...</span>
+            ) : (
+              <select
+                multiple
+                value={cond.values}
+                onChange={(e) => updateConditionValues(idx, Array.from(e.target.selectedOptions, o => o.value))}
+                style={{ ...selectStyle, height: 60, minWidth: 120 }}
+              >
+                {(fieldOptions[cond.field] ?? []).map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            )
+          )}
+          {/* 条件削除 */}
+          <button
+            type="button"
+            onClick={() => removeCondition(idx)}
+            style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addCondition}
+        style={{ fontSize: 11, padding: '1px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+      >
+        + 条件を追加
+      </button>
+    </div>
+  )
+}
+
 interface SeriesRowProps {
   series: SeriesConfig
   statuses: RedmineStatus[]
@@ -61,20 +183,6 @@ interface SeriesRowProps {
 
 function SeriesRow({ series, statuses, statusesLoading, canDelete, canMoveUp, canMoveDown, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SeriesRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
-  const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
-  const [loadingField, setLoadingField] = useState<string | null>(null)
-
-  // マウント時に既存 conditions のフィールド選択肢を事前取得（リロード後の表示復元）
-  useEffect(() => {
-    const fields = [...new Set(
-      (series.conditions ?? []).map(c => c.field).filter(Boolean)
-    )]
-    for (const field of fields) {
-      getFieldOptions(field).then(opts => {
-        setFieldOptions(prev => ({ ...prev, [field]: opts }))
-      })
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function update<K extends keyof SeriesConfig>(key: K, value: SeriesConfig[K]) {
     onChange({ ...series, [key]: value })
@@ -83,43 +191,6 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, canMoveUp, ca
   function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const selected = Array.from(e.target.selectedOptions, (opt) => Number(opt.value))
     update('statusIds', selected)
-  }
-
-  function addCondition() {
-    const next: SeriesCondition[] = [...(series.conditions ?? []), { field: '', operator: '=', values: [] }]
-    update('conditions', next)
-  }
-
-  function removeCondition(idx: number) {
-    const next = (series.conditions ?? []).filter((_, i) => i !== idx)
-    update('conditions', next.length ? next : undefined)
-  }
-
-  async function handleConditionFieldChange(idx: number, newField: string) {
-    const next: SeriesCondition[] = (series.conditions ?? []).map((c, i) =>
-      i === idx ? { ...c, field: newField, values: [] } : c
-    )
-    update('conditions', next)
-    if (newField && !fieldOptions[newField]) {
-      setLoadingField(newField)
-      const opts = await getFieldOptions(newField)
-      setFieldOptions(prev => ({ ...prev, [newField]: opts }))
-      setLoadingField(null)
-    }
-  }
-
-  function updateConditionOperator(idx: number, operator: SeriesCondition['operator']) {
-    const next: SeriesCondition[] = (series.conditions ?? []).map((c, i) =>
-      i === idx ? { ...c, operator } : c
-    )
-    update('conditions', next)
-  }
-
-  function updateConditionValues(idx: number, values: string[]) {
-    const next: SeriesCondition[] = (series.conditions ?? []).map((c, i) =>
-      i === idx ? { ...c, values } : c
-    )
-    update('conditions', next)
   }
 
   const labelStyle: React.CSSProperties = {
@@ -311,65 +382,12 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, canMoveUp, ca
       {/* 絞り込み条件 */}
       <div style={{ width: '100%', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
         <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>絞り込み条件</div>
-        {(series.conditions ?? []).map((cond, idx) => (
-          <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
-            {/* フィールド選択 */}
-            <div style={{ minWidth: 160, flex: '0 0 auto' }}>
-              <Select
-                options={filterFields.map(f => ({ label: f.name, value: f.key }))}
-                value={cond.field ? { label: filterFields.find(f => f.key === cond.field)?.name ?? cond.field, value: cond.field } : null}
-                onChange={(selected) => handleConditionFieldChange(idx, selected?.value ?? '')}
-                styles={fieldSelectStyles}
-                placeholder="項目を選択..."
-                noOptionsMessage={() => '候補なし'}
-                isClearable
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-              />
-            </div>
-            {/* 演算子 */}
-            <select
-              value={cond.operator}
-              onChange={(e) => updateConditionOperator(idx, e.target.value as SeriesCondition['operator'])}
-              style={selectStyle}
-            >
-              <option value="=">=</option>
-              <option value="!">!=</option>
-            </select>
-            {/* 値選択 */}
-            {cond.field && (
-              loadingField === cond.field ? (
-                <span style={{ fontSize: 11, color: '#999' }}>読み込み中...</span>
-              ) : (
-                <select
-                  multiple
-                  value={cond.values}
-                  onChange={(e) => updateConditionValues(idx, Array.from(e.target.selectedOptions, o => o.value))}
-                  style={{ ...selectStyle, height: 60, minWidth: 120 }}
-                >
-                  {(fieldOptions[cond.field] ?? []).map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              )
-            )}
-            {/* 条件削除 */}
-            <button
-              type="button"
-              onClick={() => removeCondition(idx)}
-              style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={addCondition}
-          style={{ fontSize: 11, padding: '1px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
-        >
-          + 条件を追加
-        </button>
+        <ConditionsEditor
+          conditions={series.conditions ?? []}
+          filterFields={filterFields}
+          getFieldOptions={getFieldOptions}
+          onChange={(next) => update('conditions', next)}
+        />
       </div>
 
       {/* 上下移動ボタン */}
@@ -694,6 +712,14 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     menuPortalTarget={document.body}
                     menuPosition="fixed"
                   />
+                  <div style={{ marginTop: 6 }}>
+                    <ConditionsEditor
+                      conditions={settings.pieLeft?.conditions ?? []}
+                      filterFields={filterFields}
+                      getFieldOptions={getFieldOptions}
+                      onChange={(next) => onChange({ ...settings, pieLeft: { ...(settings.pieLeft ?? { groupBy: 'status_id' }), conditions: next } })}
+                    />
+                  </div>
                 </div>
                 {/* 右の円グラフ */}
                 <div style={{ minWidth: 200 }}>
@@ -712,6 +738,14 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     menuPortalTarget={document.body}
                     menuPosition="fixed"
                   />
+                  <div style={{ marginTop: 6 }}>
+                    <ConditionsEditor
+                      conditions={settings.pieRight?.conditions ?? []}
+                      filterFields={filterFields}
+                      getFieldOptions={getFieldOptions}
+                      onChange={(next) => onChange({ ...settings, pieRight: { ...(settings.pieRight ?? { groupBy: 'tracker_id' }), conditions: next } })}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

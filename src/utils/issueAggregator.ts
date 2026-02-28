@@ -310,10 +310,12 @@ function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null
 
 /**
  * Redmineチケット一覧を groupBy フィールドでグループ化し、円グラフ用データに集計する
+ * conditions が指定された場合は一致するチケットのみを集計する
  */
-export function aggregatePie(issues: RedmineIssue[], groupBy: string): PieDataPoint[] {
+export function aggregatePie(issues: RedmineIssue[], groupBy: string, conditions?: SeriesCondition[]): PieDataPoint[] {
   const counts = new Map<string, number>()
   for (const issue of issues) {
+    if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
     const key = getIssueGroupValue(issue, groupBy)
     if (key === null || key === '') continue
     counts.set(key, (counts.get(key) ?? 0) + 1)
