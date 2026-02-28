@@ -16,8 +16,9 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 
 - **グループキー**: `data-pie-group-by` 属性で指定（デフォルト: `status`）
 - ラベルにグループ名とパーセントを表示
-- 対応するプリセット: `status`（ステータス別）、`tracker`（トラッカー別）
-- 現在はダミーデータを表示（Redmine API連携は未実装）
+- 実データ連携済み。Redmine APIからチケット一覧を取得して集計
+- Redmine APIからチケットを取得中は「Now Loading...」を表示（ダミーデータは表示しない）
+- 2枚横並びで表示。各円グラフで独立したグループキーと絞り込み条件を設定可能
 
 ## グラフ設定UI（GraphSettingsPanel）
 
@@ -49,7 +50,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - 表示軸: `left`（左軸）/ `right`（右軸）
   - 集計方法: `daily`（日別）/ `cumulative`（累計）
   - 対象ステータス: Redmine APIから取得したステータス一覧から複数選択（空=全ステータス）。集計軸が `custom`（特殊な日付）の場合は非活性（グレーアウト）
-  - 絞り込み条件: チケットの項目で絞り込み。フィールド（react-select、テキスト入力補完あり）・演算子（=、!=）・値（`<select multiple>`）の組み合わせ。複数条件はAND。対応フィールド: トラッカー、優先度、カスタムフィールド（リスト系）。ページリロード後も復元のため、マウント時に設定済みフィールドの選択肢を事前取得する
+  - 絞り込み条件: チケットの項目で絞り込み。フィールド（react-select、テキスト入力補完あり）・演算子（=、!=）・値（`<select multiple>`）の組み合わせ。複数条件はAND。対応フィールド: ステータス、トラッカー、優先度、カスタムフィールド（リスト系）。ページリロード後も復元のため、マウント時に設定済みフィールドの選択肢を事前取得する
   - 順序変更: ↑↓ ボタンで系列の並び順を変更。先頭の ↑・末尾の ↓ は無効（グレー）。`series` 配列の順序がグラフ凡例の表示順に直結する（凡例はカスタムレンダラーで `visibleSeries` の順序と同期）
 - 設定変更はlocalStorageに即時保存（プロジェクトIDをキーに）
 
@@ -120,14 +121,14 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - `closed_on` 系列: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
   - `custom` 系列: `customDateFieldKey` で指定したフィールドを取得。`cf_{id}` 形式はカスタムフィールドから、`start_date`・`due_date` 等はチケットの直接プロパティから取得。値が空/null/未設定のチケットはスキップ。UTC変換不要（Redmineはカスタム日付をYYYY-MM-DD形式で返す）
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
-- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `tracker_id`・`priority_id`・`cf_{id}`（カスタムフィールド）
+- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`cf_{id}`（カスタムフィールド）
 - **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換。`startDate` 指定時は `startDate` より前のチケット数を初期値として積算（グラフ開始時点の既存チケット数を反映）
 
 ### フィルタフィールド・選択肢取得（filterValues.ts）
 
 絞り込み条件UIで使用するフィールド一覧と選択肢を取得するユーティリティ。
 
-- **`getAvailableFilterFields()`**: `window.availableFilters`（Redmineページ埋め込みJS変数）からリスト系フィールドを抽出。対象タイプ: `list`, `list_optional`, `list_with_history`, `list_optional_with_history`
+- **`getAvailableFilterFields()`**: `window.availableFilters`（Redmineページ埋め込みJS変数）からリスト系フィールドを抽出。対象タイプ: `list`, `list_optional`, `list_with_history`, `list_optional_with_history`, `list_status`（`status_id` フィールド用）
 - **`getAvailableDateFilterFields()`**: `window.availableFilters` から日付型フィールドを抽出。対象タイプ: `date`のみ（`date_past` の `created_on`/`closed_on` は除外）。キーに `.` を含むフィールド（バージョン関連）も除外。「特殊な日付」集計軸の選択肢として使用
 - **`fetchFilterFieldOptions(fieldKey, apiKey)`**: 指定フィールドの選択肢を取得。
   - `remote: false` の場合: `availableFilters[key].values` からそのまま返す
@@ -187,7 +188,7 @@ URLパスの `/projects/{id}/` からプロジェクト識別子を抽出する�
 API接続不可時のフォールバック。`issueState.issues === null` の場合に使用される。
 
 - **2軸グラフ**: `startDate`（デフォルト: 今日の14日前）から今日までの期間で、系列設定に応じた乱数データを生成
-- **円グラフ**: `data-pie-group-by` の値に対応するプリセットデータを返す
+- **円グラフ**: `data-pie-group-by` の値に対応するプリセットデータを返す（Redmine接続失敗時のフォールバックおよび開発環境での表示用。ローディング中はダミーデータではなく「Now Loading...」を表示する）
 
 ## ビルド設定
 
@@ -230,5 +231,4 @@ if (container) {
 
 ## 今後の課題
 
-- 円グラフをRedmine APIの実データに対応させる
 - `data-pie-group-by` に任意のRedmineカスタムフィールドを指定できるようにする
