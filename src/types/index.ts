@@ -42,6 +42,7 @@ export interface SeriesConfig {
   aggregation: 'daily' | 'cumulative'
   color: string                                     // 系列の色（HEX）
   conditions?: SeriesCondition[]                    // 絞り込み条件（省略可 = フィルタなし）
+  visible?: boolean                                 // 表示/非表示（省略時 = true として扱う）
 }
 
 // ユーザー設定全体（localStorageに保存する形）

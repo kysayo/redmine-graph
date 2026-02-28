@@ -140,7 +140,19 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, filterFields,
   }
 
   return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', padding: '8px 0', borderBottom: '1px solid #eee', flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', padding: '8px 0', borderBottom: '1px solid #eee', flexWrap: 'wrap', opacity: (series.visible ?? true) ? 1 : 0.45 }}>
+      {/* 表示/非表示チェックボックス */}
+      <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginBottom: 4 }}>
+        <input
+          type="checkbox"
+          id={`visible-${series.id}`}
+          checked={series.visible ?? true}
+          onChange={(e) => update('visible', e.target.checked)}
+          style={{ cursor: 'pointer', width: 14, height: 14 }}
+          title="系列を表示"
+        />
+      </div>
+
       {/* 色インジケーター＋カラーピッカー */}
       <div style={{ position: 'relative', flexShrink: 0, marginBottom: 4 }}>
         <div

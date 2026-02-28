@@ -57,6 +57,10 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
     const maxTicks = fmt === 'M/D' ? 20 : 10
     const tickInterval = Math.max(0, Math.ceil(data.length / maxTicks) - 1)
 
+    const visibleSeries = series.filter(s => s.visible ?? true)
+    const hasLeft = visibleSeries.some(s => s.yAxisId === 'left')
+    const hasRight = visibleSeries.some(s => s.yAxisId === 'right')
+
     return (
       <div ref={ref}>
         <ResponsiveContainer width="100%" height={chartHeight ?? 320}>
@@ -67,13 +71,14 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
               interval={0}
               tick={<CustomXAxisTick tickInterval={tickInterval} fmt={fmt} />}
             />
-            <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11 }} domain={yAxisLeftMin !== undefined ? [yAxisLeftMin, (dataMax: number) => Math.max(dataMax, yAxisLeftMin + 1)] : undefined} allowDataOverflow={yAxisLeftMin !== undefined} />
-            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} domain={yAxisRightMax !== undefined ? [(dataMin: number) => Math.min(dataMin, yAxisRightMax - 1), yAxisRightMax] : undefined} allowDataOverflow={yAxisRightMax !== undefined} />
+            <YAxis yAxisId="left" orientation="left" hide={!hasLeft} tick={{ fontSize: 11 }} domain={yAxisLeftMin !== undefined ? [yAxisLeftMin, (dataMax: number) => Math.max(dataMax, yAxisLeftMin + 1)] : undefined} allowDataOverflow={yAxisLeftMin !== undefined} />
+            <YAxis yAxisId="right" orientation="right" hide={!hasRight} tick={{ fontSize: 11 }} domain={yAxisRightMax !== undefined ? [(dataMin: number) => Math.min(dataMin, yAxisRightMax - 1), yAxisRightMax] : undefined} allowDataOverflow={yAxisRightMax !== undefined} />
             <Tooltip />
             <Legend />
 
-            {series.map((s) =>
-              s.chartType === 'line' ? (
+            {series.map((s) => {
+              if (!(s.visible ?? true)) return null
+              return s.chartType === 'line' ? (
                 <Line
                   key={s.id}
                   yAxisId={s.yAxisId}
@@ -94,7 +99,7 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
                   barSize={12}
                 />
               )
-            )}
+            })}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
