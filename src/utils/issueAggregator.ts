@@ -242,10 +242,10 @@ export function aggregateIssues(
   // cumulative（累計）系列を変換
   for (const s of series) {
     if (s.aggregation === 'cumulative') {
-      // startDate が指定されている場合、最初の日付より前のチケット数を初期値として積算する
+      // グラフ開始日（dates[0]）より前のチケット数を初期値として積算する
       let cumulative = 0
-      if (startDate && dates.length > 0) {
-        // 週次モードでは最初の基準日、日次モードでは startDate を境界として使う
+      if (dates.length > 0) {
+        // 週次モードでは最初の基準日、日次モードでは dates[0] を境界として使う
         const boundary = dates[0]
         for (const issue of issues) {
           if (s.statusIds.length > 0 && !s.statusIds.includes(issue.status.id)) {
