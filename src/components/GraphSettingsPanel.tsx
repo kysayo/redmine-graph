@@ -54,15 +54,18 @@ function ConditionsEditor({ conditions, filterFields, getFieldOptions, onChange 
   const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
   const [loadingField, setLoadingField] = useState<string | null>(null)
 
-  // マウント時に既存 conditions のフィールド選択肢を事前取得（リロード後の表示復元）
+  // conditions のフィールドが変わったとき（プリセット読み込み含む）、未取得のフィールドの選択肢を取得
+  const fieldsKey = [...new Set(conditions.map(c => c.field).filter(Boolean))].sort().join(',')
   useEffect(() => {
-    const fields = [...new Set(conditions.map(c => c.field).filter(Boolean))]
+    const fields = fieldsKey ? fieldsKey.split(',') : []
     for (const field of fields) {
+      if (fieldOptions[field]) continue
       getFieldOptions(field).then(opts => {
         setFieldOptions(prev => ({ ...prev, [field]: opts }))
       })
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldsKey])
 
   function addCondition() {
     onChange([...conditions, { field: '', operator: '=', values: [] }])
