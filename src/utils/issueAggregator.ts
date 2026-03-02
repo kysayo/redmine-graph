@@ -164,8 +164,7 @@ interface AggregateOptions {
  *
  * 開始日の優先順位:
  * 1. options.startDate（ユーザー指定）
- * 2. チケットの最古作成日
- * 3. 14日前
+ * 2. 今日から14日前（空欄時は毎回自動計算）
  */
 export function aggregateIssues(
   issues: RedmineIssue[],
@@ -179,11 +178,6 @@ export function aggregateIssues(
 
   if (startDate) {
     fromDate = new Date(startDate)
-  } else if (issues.length > 0) {
-    // フィルタ未指定の場合は取得済みチケットの最古の作成日を使用
-    const minDate = issues.reduce((min, issue) =>
-      issue.created_on < min ? issue.created_on : min, issues[0].created_on)
-    fromDate = new Date(minDate.slice(0, 10))
   } else {
     fromDate = new Date()
     fromDate.setDate(fromDate.getDate() - 14)

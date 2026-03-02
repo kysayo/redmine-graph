@@ -580,13 +580,24 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               {/* 開始日 */}
               <div>
                 <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>開始日</label>
-                <input
-                  type="date"
-                  value={settings.startDate ?? ''}
-                  onChange={(e) => onChange({ ...settings, startDate: e.target.value || undefined })}
-                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 140 }}
-                />
-                <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <input
+                    type="date"
+                    value={settings.startDate ?? ''}
+                    onChange={(e) => onChange({ ...settings, startDate: e.target.value || undefined })}
+                    style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 140 }}
+                  />
+                  {settings.startDate && (
+                    <button
+                      onClick={() => onChange({ ...settings, startDate: undefined })}
+                      title="空欄に戻す（自動=14日前）"
+                      style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, cursor: 'pointer', background: '#fff' }}
+                    >
+                      クリア
+                    </button>
+                  )}
+                  <span style={{ fontSize: 11, color: '#999' }}>（空欄=14日前）</span>
+                </div>
               </div>
               {/* 日付形式 */}
               <div>
