@@ -198,9 +198,11 @@ export function aggregateIssues(
     }
   }
 
-  // チケットを集計
+  // チケットを集計（difference 系列はチケット集計をスキップ）
   for (const issue of issues) {
     for (const s of series) {
+      if (s.aggregation === 'difference') continue
+
       // ステータスフィルタ
       if (s.statusIds.length > 0 && !s.statusIds.includes(issue.status.id)) {
         continue
@@ -239,8 +241,9 @@ export function aggregateIssues(
     return point
   })
 
-  // cumulative（累計）系列を変換
+  // cumulative（累計）系列を変換（difference 系列はスキップ）
   for (const s of series) {
+    if (s.aggregation === 'difference') continue
     if (s.aggregation === 'cumulative') {
       // グラフ開始日（dates[0]）より前のチケット数を初期値として積算する
       let cumulative = 0
@@ -274,6 +277,18 @@ export function aggregateIssues(
         cumulative += point[s.id] as number
         point[s.id] = cumulative
       }
+    }
+  }
+
+  // difference（差分）系列を計算: 参照元2系列の値の差を代入
+  for (const s of series) {
+    if (s.aggregation !== 'difference') continue
+    const [idA, idB] = s.refSeriesIds ?? []
+    if (!idA || !idB) continue
+    for (const point of result) {
+      const a = (point[idA] as number) ?? 0
+      const b = (point[idB] as number) ?? 0
+      point[s.id] = a - b
     }
   }
 

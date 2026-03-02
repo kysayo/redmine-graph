@@ -170,6 +170,7 @@ function ConditionsEditor({ conditions, filterFields, getFieldOptions, onChange 
 
 interface SeriesRowProps {
   series: SeriesConfig
+  allSeries: SeriesConfig[]
   statuses: RedmineStatus[]
   statusesLoading: boolean
   canDelete: boolean
@@ -184,7 +185,7 @@ interface SeriesRowProps {
   onMoveDown: () => void
 }
 
-function SeriesRow({ series, statuses, statusesLoading, canDelete, canMoveUp, canMoveDown, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SeriesRowProps) {
+function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, canMoveUp, canMoveDown, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SeriesRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
 
   function update<K extends keyof SeriesConfig>(key: K, value: SeriesConfig[K]) {
@@ -195,6 +196,22 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, canMoveUp, ca
     const selected = Array.from(e.target.selectedOptions, (opt) => Number(opt.value))
     update('statusIds', selected)
   }
+
+  function handleAggregationChange(newAgg: SeriesConfig['aggregation']) {
+    if (newAgg === 'difference') {
+      const candidates = allSeries.filter(s => s.id !== series.id && s.aggregation !== 'difference')
+      onChange({
+        ...series,
+        aggregation: 'difference',
+        refSeriesIds: candidates.length >= 2 ? [candidates[0].id, candidates[1].id] : undefined,
+      })
+    } else {
+      onChange({ ...series, aggregation: newAgg, refSeriesIds: undefined })
+    }
+  }
+
+  // 参照系列の選択肢（自身 + difference 系列を除く）
+  const refCandidates = allSeries.filter(s => s.id !== series.id && s.aggregation !== 'difference')
 
   const labelStyle: React.CSSProperties = {
     fontSize: 12,
@@ -267,48 +284,50 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, canMoveUp, ca
         />
       </div>
 
-      {/* 日付フィールド */}
-      <div>
-        <label style={labelStyle}>集計軸</label>
-        <select
-          value={series.dateField}
-          onChange={(e) => {
-            const newDateField = e.target.value as SeriesConfig['dateField']
-            onChange({
-              ...series,
-              dateField: newDateField,
-              customDateFieldKey: newDateField !== 'custom' ? undefined : series.customDateFieldKey,
-            })
-          }}
-          style={selectStyle}
-        >
-          <option value="created_on">作成日</option>
-          <option value="closed_on">完了日</option>
-          <option value="custom">特殊な日付</option>
-        </select>
-        {series.dateField === 'custom' && (
-          <div style={{ marginTop: 4, minWidth: 180 }}>
-            <Select
-              options={dateFilterFields.map(f => ({ label: f.name, value: f.key }))}
-              value={
-                series.customDateFieldKey
-                  ? {
-                      label: dateFilterFields.find(f => f.key === series.customDateFieldKey)?.name ?? series.customDateFieldKey,
-                      value: series.customDateFieldKey,
-                    }
-                  : null
-              }
-              onChange={(selected) => update('customDateFieldKey', selected?.value ?? undefined)}
-              styles={fieldSelectStyles}
-              placeholder="日付フィールドを選択..."
-              noOptionsMessage={() => '候補なし'}
-              isClearable
-              menuPortalTarget={document.body}
-              menuPosition="fixed"
-            />
-          </div>
-        )}
-      </div>
+      {/* 日付フィールド（difference の場合は非表示） */}
+      {series.aggregation !== 'difference' && (
+        <div>
+          <label style={labelStyle}>集計軸</label>
+          <select
+            value={series.dateField}
+            onChange={(e) => {
+              const newDateField = e.target.value as SeriesConfig['dateField']
+              onChange({
+                ...series,
+                dateField: newDateField,
+                customDateFieldKey: newDateField !== 'custom' ? undefined : series.customDateFieldKey,
+              })
+            }}
+            style={selectStyle}
+          >
+            <option value="created_on">作成日</option>
+            <option value="closed_on">完了日</option>
+            <option value="custom">特殊な日付</option>
+          </select>
+          {series.dateField === 'custom' && (
+            <div style={{ marginTop: 4, minWidth: 180 }}>
+              <Select
+                options={dateFilterFields.map(f => ({ label: f.name, value: f.key }))}
+                value={
+                  series.customDateFieldKey
+                    ? {
+                        label: dateFilterFields.find(f => f.key === series.customDateFieldKey)?.name ?? series.customDateFieldKey,
+                        value: series.customDateFieldKey,
+                      }
+                    : null
+                }
+                onChange={(selected) => update('customDateFieldKey', selected?.value ?? undefined)}
+                styles={fieldSelectStyles}
+                placeholder="日付フィールドを選択..."
+                noOptionsMessage={() => '候補なし'}
+                isClearable
+                menuPortalTarget={document.body}
+                menuPosition="fixed"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* グラフ種類 */}
       <div>
@@ -341,57 +360,89 @@ function SeriesRow({ series, statuses, statusesLoading, canDelete, canMoveUp, ca
         <label style={labelStyle}>集計方法</label>
         <select
           value={series.aggregation}
-          onChange={(e) => update('aggregation', e.target.value as SeriesConfig['aggregation'])}
+          onChange={(e) => handleAggregationChange(e.target.value as SeriesConfig['aggregation'])}
           style={selectStyle}
         >
           <option value="daily">日別</option>
           <option value="cumulative">累計</option>
+          <option value="difference">差 (A − B)</option>
         </select>
       </div>
 
-      {/* 対象ステータス */}
-      <div>
-        <label style={labelStyle}>対象ステータス（未選択=全て）</label>
-        {statusesLoading ? (
-          <span style={{ fontSize: 12, color: '#999' }}>読み込み中...</span>
-        ) : (
-          <select
-            multiple
-            value={series.statusIds.map(String)}
-            onChange={handleStatusChange}
-            disabled={series.dateField === 'custom'}
-            style={{
-              ...selectStyle,
-              height: 72,
-              minWidth: 140,
-              opacity: series.dateField === 'custom' ? 0.4 : 1,
-              cursor: series.dateField === 'custom' ? 'not-allowed' : 'default',
-            }}
-          >
-            {statuses.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        )}
-        {series.dateField === 'custom' && (
-          <span style={{ fontSize: 11, color: '#999', display: 'block', marginTop: 2 }}>
-            ※ 特殊な日付ではステータス絞り込みは無効
-          </span>
-        )}
-      </div>
+      {/* difference の場合: 参照系列選択 */}
+      {series.aggregation === 'difference' && (
+        <>
+          <div>
+            <label style={labelStyle}>系列A（被減数）</label>
+            <select
+              value={series.refSeriesIds?.[0] ?? ''}
+              onChange={(e) => onChange({ ...series, refSeriesIds: [e.target.value, series.refSeriesIds?.[1] ?? ''] as [string, string] })}
+              style={selectStyle}
+            >
+              <option value="">選択...</option>
+              {refCandidates.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>系列B（減数）</label>
+            <select
+              value={series.refSeriesIds?.[1] ?? ''}
+              onChange={(e) => onChange({ ...series, refSeriesIds: [series.refSeriesIds?.[0] ?? '', e.target.value] as [string, string] })}
+              style={selectStyle}
+            >
+              <option value="">選択...</option>
+              {refCandidates.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </div>
+        </>
+      )}
 
-      {/* 絞り込み条件 */}
-      <div style={{ width: '100%', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
-        <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>絞り込み条件</div>
-        <ConditionsEditor
-          conditions={series.conditions ?? []}
-          filterFields={filterFields}
-          getFieldOptions={getFieldOptions}
-          onChange={(next) => update('conditions', next)}
-        />
-      </div>
+      {/* 対象ステータス・絞り込み条件（difference の場合は非表示） */}
+      {series.aggregation !== 'difference' && (
+        <>
+          <div>
+            <label style={labelStyle}>対象ステータス（未選択=全て）</label>
+            {statusesLoading ? (
+              <span style={{ fontSize: 12, color: '#999' }}>読み込み中...</span>
+            ) : (
+              <select
+                multiple
+                value={series.statusIds.map(String)}
+                onChange={handleStatusChange}
+                disabled={series.dateField === 'custom'}
+                style={{
+                  ...selectStyle,
+                  height: 72,
+                  minWidth: 140,
+                  opacity: series.dateField === 'custom' ? 0.4 : 1,
+                  cursor: series.dateField === 'custom' ? 'not-allowed' : 'default',
+                }}
+              >
+                {statuses.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {series.dateField === 'custom' && (
+              <span style={{ fontSize: 11, color: '#999', display: 'block', marginTop: 2 }}>
+                ※ 特殊な日付ではステータス絞り込みは無効
+              </span>
+            )}
+          </div>
+
+          <div style={{ width: '100%', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>絞り込み条件</div>
+            <ConditionsEditor
+              conditions={series.conditions ?? []}
+              filterFields={filterFields}
+              getFieldOptions={getFieldOptions}
+              onChange={(next) => update('conditions', next)}
+            />
+          </div>
+        </>
+      )}
 
       {/* 上下移動ボタン */}
       <button
@@ -856,6 +907,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
             <SeriesRow
               key={s.id}
               series={s}
+              allSeries={settings.series}
               statuses={statuses}
               statusesLoading={statusesLoading}
               canDelete={settings.series.length > 1}
