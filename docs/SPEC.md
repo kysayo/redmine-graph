@@ -15,10 +15,14 @@ Recharts の `ComposedChart` を使用した折れ線と棒グラフの複合グ
 Recharts の `PieChart` を使用した割合表示グラフ。
 
 - **グループキー**: `data-pie-group-by` 属性で指定（デフォルト: `status`）。グラフ設定UIで変更可能
-- ラベルにグループ名とパーセントを表示
+- ラベルにグループ名とパーセントを表示。ツールチップには「スライス名 : N件」の形式で表示
 - 実データ連携済み。Redmine APIからチケット一覧を取得して集計
 - Redmine APIからチケットを取得中は「Now Loading...」を表示（ダミーデータは表示しない）
-- 2枚横並びで表示。各円グラフで独立したグループキーと絞り込み条件を設定可能
+- 任意個数横並びで表示（基本3列グリッド）。各円グラフで独立したグループキーと絞り込み条件を設定可能
+- **スライスクリック・凡例クリック**: グラフのスライスまたは凡例アイテムをクリックすると、そのスライスの条件で新規タブにRedmineチケット一覧を開く（実データ取得済みの場合のみ有効）
+- **レイアウト自動調整**: 凡例アイテム数が10件超のグラフは `gridColumn: 1/-1`（全幅）で表示。10件以下は3列グリッドのまま
+- **wideモード（凡例10件超）**: 円グラフを中央に大きく（`outerRadius=150`）表示し、Recharts凡例の代わりにHTMLのflexbox wrap凡例をフルワイドで表示。スライスの外側ラベルは非表示
+- **通常モード（凡例10件以下）**: 円グラフにスライスの外側ラベル（名前・%・件数）を表示。高さは `Math.max(300, 180 + N×22)` px で動的計算
 - **スライスグルーピング（groupRules）**: 複数の値を1つのスライスに統合するルールを定義可能（例: 「対応中」= ["In Progress", "In Progress(Permanent)"]）。グループに含まれない値は個別スライスとして表示
 - **経過日数グループ化（`elapsed_days`）**: グループキーに `elapsed_days` を指定すると、チケットの最終更新日（`updated_on`、未更新時は `created_on`）からの経過日数（JST換算）でスライスを分類する。バケット定義（ラベル・最小日数・最大日数）で任意の区間に集計。バケットに含まれないチケットは集計対象外
   - バケット例: `[{label: "1日", min: 1, max: 1}, {label: "5日以上", min: 5}]` → 「1日: 5件」「5日以上: 12件」
@@ -34,7 +38,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **グラフ表示設定**（全系列共通）:
   - 開始日: グラフX軸の表示開始日（空欄=自動、デフォルト: 今日の14日前）
   - 土日を非表示: チェック時は土日をX軸から除外し、土日分のチケットは月曜に計上
-  - 左軸の最小値: Y軸左軸の最小値を指定（空欄=自動スケール）
+  - 左軸の最小値: Y軸左軸の最小値を指定（空欄=自動スケール）。「最大値の8割」チェックボックスをオンにすると入力欄が無効になり、左軸系列データの最大値×0.8を `floor(/10)×10`（1の位=0）で計算した値が自動適用される（例: 最大613 → 490）
   - 右軸の最大値: Y軸右軸の最大値を指定（空欄=自動スケール）
 - **チームプリセット**（グラフ表示設定と個人プリセットの間に表示）:
   - `data-team-presets` 属性に `TeamPreset[]` 形式のJSONが設定されている場合のみ表示（管理者が View Customize で定義）
@@ -74,7 +78,8 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー形式**: `redmine-graph:settings:{projectId}`（プロジェクトID別に独立）
 - **バージョン管理**: `version: 1`（スキーマ変更時にリセット）
 - 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
-- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`
+- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`
+  - `yAxisLeftMinAuto?: boolean`: `true` のとき左軸最小値を「最大値の8割」で自動計算（`yAxisLeftMin` より優先）
   - `pies?: PieSeriesConfig[]`: 任意個数の円グラフ設定。各要素は `{ groupBy, label?, conditions?, groupRules?, elapsedDaysBuckets? }`
 
 ### プリセットの永続化（storage.ts）
@@ -83,7 +88,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー**: `redmine-graph:presets`（プロジェクトIDを含まないグローバルキー）
 - **形式**: `Preset[]`（バージョン管理なし）
 - `Preset` 型: `{ id: string, name: string, settings: PresetSettings }`
-- `PresetSettings` 型: `UserSettings` から `version` を除いたもの（`series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`）
+- `PresetSettings` 型: `UserSettings` から `version` を除いたもの（`series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`）
 
 ### チームプリセット（data-team-presets 属性）
 
