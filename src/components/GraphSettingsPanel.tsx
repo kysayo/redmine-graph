@@ -465,7 +465,7 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
               style={{ position: 'fixed', inset: 0, zIndex: 99 }}
               onClick={() => setColorPickerOpen(false)}
             />
-            <div style={{ position: 'absolute', top: 18, left: 0, zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: 4, padding: 6, display: 'flex', gap: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+            <div style={{ position: 'absolute', top: 18, left: 0, zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: 4, padding: 6, display: 'flex', flexWrap: 'wrap', gap: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', width: 156 }}>
               {COLOR_PALETTE.map((c) => (
                 <div
                   key={c}
