@@ -3,12 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ComboChart } from './components/ComboChart'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
 import { PieChart } from './components/PieChart'
-import type { FilterField, RedmineIssue, RedmineStatus, UserSettings } from './types'
+import type { FilterField, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, UserSettings } from './types'
 import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
 import { aggregateIssues, aggregatePie } from './utils/issueAggregator'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
+import { buildRedmineFilterUrl } from './utils/redmineFilterUrl'
 import { loadSettings, saveSettings } from './utils/storage'
 import { getProjectId } from './utils/urlParser'
 
@@ -204,6 +205,17 @@ export function App({ container }: Props) {
     }
   }, [])
 
+  const handlePieSliceClick = useCallback((pie: PieSeriesConfig, slice: PieDataPoint) => {
+    if (!slice.filterValues?.length) return
+    const url = buildRedmineFilterUrl(
+      window.location.pathname,
+      window.location.search,
+      { field: pie.groupBy, operator: '=', values: slice.filterValues },
+      pie.conditions
+    )
+    window.open(url, '_blank', 'noopener')
+  }, [])
+
   // チケットデータを系列設定に基づいて集計（取得済みチケットから再計算）
   const comboData = useMemo(() => {
     const options = {
@@ -318,6 +330,7 @@ export function App({ container }: Props) {
               key={i}
               data={piesData[i] ?? []}
               groupBy={filterFields.find(f => f.key === pie.groupBy)?.name ?? pie.groupBy}
+              onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
             />
           ))}
         </div>

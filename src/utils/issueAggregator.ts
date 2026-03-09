@@ -320,6 +320,30 @@ function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null
 }
 
 /**
+ * チケットから円グラフ用のフィルタ値（ID）を取得する（URLフィルタ構築用）
+ * - status_id: ステータスID
+ * - tracker_id: トラッカーID
+ * - priority_id: 優先度ID
+ * - assigned_to_id: 担当者ID
+ * - cf_{id}: カスタムフィールド値（IDではなく値そのもの）
+ */
+function getIssueGroupFilterValue(issue: RedmineIssue, groupBy: string): string | null {
+  if (groupBy === 'status_id') return String(issue.status.id)
+  if (groupBy === 'tracker_id') return String(issue.tracker.id)
+  if (groupBy === 'priority_id') return issue.priority ? String(issue.priority.id) : null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (groupBy === 'assigned_to_id') return (issue as any).assigned_to ? String((issue as any).assigned_to.id) : null
+  if (groupBy.startsWith('cf_')) {
+    const cfId = Number(groupBy.slice(3))
+    const cf = issue.custom_fields?.find(c => c.id === cfId)
+    const v = cf?.value
+    if (Array.isArray(v)) return (v[0] as string) ?? null
+    return (v as string) ?? null
+  }
+  return null
+}
+
+/**
  * グルーピングルールに基づいて値をグループ名にマッピングする
  * どのルールにも属さない値はそのまま返す
  */
@@ -342,14 +366,24 @@ export function aggregatePie(
   groupRules?: PieGroupRule[]
 ): PieDataPoint[] {
   const counts = new Map<string, number>()
+  const filterValuesMap = new Map<string, Set<string>>()
   for (const issue of issues) {
     if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
     const raw = getIssueGroupValue(issue, groupBy)
     if (raw === null || raw === '') continue
     const key = groupRules?.length ? applyGroupRules(raw, groupRules) : raw
     counts.set(key, (counts.get(key) ?? 0) + 1)
+    const filterVal = getIssueGroupFilterValue(issue, groupBy)
+    if (filterVal !== null) {
+      if (!filterValuesMap.has(key)) filterValuesMap.set(key, new Set())
+      filterValuesMap.get(key)!.add(filterVal)
+    }
   }
   return Array.from(counts.entries())
-    .map(([name, value]) => ({ name, value }))
+    .map(([name, value]) => ({
+      name,
+      value,
+      filterValues: Array.from(filterValuesMap.get(name) ?? []),
+    }))
     .sort((a, b) => b.value - a.value)
 }

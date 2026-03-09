@@ -19,6 +19,7 @@ export interface ComboDataPoint {
 export interface PieDataPoint {
   name: string
   value: number
+  filterValues?: string[]  // URLフィルタ構築用（IDまたはCF値）
 }
 
 // 円グラフ スライスグルーピングルール
