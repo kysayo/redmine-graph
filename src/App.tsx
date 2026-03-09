@@ -346,6 +346,7 @@ export function App({ container }: Props) {
                   data={pieData}
                   groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
                   onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
+                  wide={isWide}
                 />
               </div>
             )
