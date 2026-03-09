@@ -619,21 +619,11 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
   function handleSavePreset() {
     const name = presetNameInput.trim()
     if (!name) return
+    const { version: _version, ...presetSettings } = settings
     const newPreset: Preset = {
       id: String(Date.now()),
       name,
-      settings: {
-        series: settings.series,
-        startDate: settings.startDate,
-        hideWeekends: settings.hideWeekends,
-        yAxisLeftMin: settings.yAxisLeftMin,
-        yAxisRightMax: settings.yAxisRightMax,
-        weeklyMode: settings.weeklyMode,
-        anchorDay: settings.anchorDay,
-        dateFormat: settings.dateFormat,
-        pieLeft: settings.pieLeft,
-        pieRight: settings.pieRight,
-      },
+      settings: presetSettings,
     }
     const next = [...presets, newPreset]
     setPresets(next)
@@ -649,21 +639,10 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
   function handleDownloadPresetJson() {
     const name = presetNameInput.trim() || '設定'
+    const { version: _version, ...presetSettings } = settings
     const teamPreset: TeamPreset = {
       name,
-      settings: {
-        series: settings.series,
-        startDate: settings.startDate,
-        hideWeekends: settings.hideWeekends,
-        yAxisLeftMin: settings.yAxisLeftMin,
-        yAxisRightMax: settings.yAxisRightMax,
-        weeklyMode: settings.weeklyMode,
-        anchorDay: settings.anchorDay,
-        dateFormat: settings.dateFormat,
-        chartHeight: settings.chartHeight,
-        pieLeft: settings.pieLeft,
-        pieRight: settings.pieRight,
-      },
+      settings: presetSettings,
     }
     const json = JSON.stringify([teamPreset], null, 2)
     const blob = new Blob([json], { type: 'application/json' })
