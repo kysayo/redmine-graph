@@ -159,6 +159,7 @@ export function App({ container }: Props) {
 
   const handleResetSettings = useCallback(() => {
     const defaults = buildDefaultSettings(container)
+    defaults.startDate = undefined
     setSettings(defaults)
     saveSettings(defaults)
   }, [container])
