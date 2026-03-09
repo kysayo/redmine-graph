@@ -9,7 +9,7 @@ import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
 import { aggregateIssues, aggregatePie } from './utils/issueAggregator'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
-import { buildRedmineFilterUrl } from './utils/redmineFilterUrl'
+import { buildElapsedDaysBucketFilter, buildRedmineFilterUrl } from './utils/redmineFilterUrl'
 import { loadSettings, saveSettings } from './utils/storage'
 import { getProjectId } from './utils/urlParser'
 
@@ -206,6 +206,18 @@ export function App({ container }: Props) {
   }, [])
 
   const handlePieSliceClick = useCallback((pie: PieSeriesConfig, slice: PieDataPoint) => {
+    if (pie.groupBy === 'elapsed_days') {
+      const bucket = pie.elapsedDaysBuckets?.find(b => b.label === slice.name)
+      if (!bucket) return
+      const url = buildRedmineFilterUrl(
+        window.location.pathname,
+        window.location.search,
+        buildElapsedDaysBucketFilter(bucket),
+        pie.conditions
+      )
+      window.open(url, '_blank', 'noopener')
+      return
+    }
     if (!slice.filterValues?.length) return
     const url = buildRedmineFilterUrl(
       window.location.pathname,

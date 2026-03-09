@@ -1,9 +1,40 @@
-import type { SeriesCondition } from '../types'
+import type { ElapsedDaysBucket, SeriesCondition } from '../types'
+import { utcToJstDate } from './dateUtils'
 
 interface FilterParam {
   field: string
-  operator: '=' | '!'
+  operator: string  // '=' | '!' | '<=' | '><' など任意のRedmine演算子
   values: string[]
+}
+
+/** JST の today から N 日前の YYYY-MM-DD を返す */
+function jstDateNDaysAgo(n: number): string {
+  const today = utcToJstDate(new Date().toISOString())
+  const d = new Date(today + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * ElapsedDaysBucket を updated_on の Redmine フィルタパラメータに変換する。
+ * クリック時の JST 日付を基準に絶対日付で計算する。
+ */
+export function buildElapsedDaysBucketFilter(bucket: ElapsedDaysBucket): {
+  field: string
+  operator: string
+  values: string[]
+} {
+  const { min, max } = bucket
+  if (max === undefined) {
+    // N日以上経過: updated_on <= today - N
+    return { field: 'updated_on', operator: '<=', values: [jstDateNDaysAgo(min)] }
+  }
+  // 範囲（min === max でも >< で統一）: today-max <= updated_on <= today-min
+  return {
+    field: 'updated_on',
+    operator: '><',
+    values: [jstDateNDaysAgo(max), jstDateNDaysAgo(min)],
+  }
 }
 
 /**
@@ -33,7 +64,7 @@ function buildFilterQueryString(filters: FilterParam[]): string {
   const params = new URLSearchParams()
   for (const f of filters) {
     params.append('f[]', f.field)
-    params.set(`op[${f.field}]`, f.operator === '!' ? '!' : '=')
+    params.set(`op[${f.field}]`, f.operator)
     for (const v of f.values) {
       params.append(`v[${f.field}][]`, v)
     }
