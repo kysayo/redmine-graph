@@ -76,6 +76,10 @@ export function buildRedmineFilterUrl(
 
   if (pieConditions?.length) {
     for (const cond of pieConditions) {
+      // elapsed_days はRedmineのURLフィルタに非対応のためスキップ
+      if (cond.field === 'elapsed_days') continue
+      // Redmine URLフィルタは '=' と '!' のみサポート
+      if (cond.operator !== '=' && cond.operator !== '!') continue
       filterMap.set(cond.field, {
         field: cond.field,
         operator: cond.operator,

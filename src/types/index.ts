@@ -110,7 +110,7 @@ export interface SeriesDataPoint {
 // 系列の1絞り込み条件
 export interface SeriesCondition {
   field: string       // window.availableFilters のキー（例: 'cf_628', 'tracker_id'）
-  operator: '=' | '!'  // '=' = 一致、'!' = 不一致
+  operator: '=' | '!' | '>='  // '=' = 一致、'!' = 不一致、'>=' = 以上
   values: string[]    // 選択値の配列（例: ['QA', 'BUG']）
 }
 

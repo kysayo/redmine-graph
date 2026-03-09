@@ -165,12 +165,16 @@ interface ConditionsEditorProps {
   onChange: (next: SeriesCondition[] | undefined) => void
 }
 
+const ELAPSED_DAYS_FIELD: FilterField = { key: 'elapsed_days', name: '経過日数(日)' }
+
 function ConditionsEditor({ conditions, filterFields, getFieldOptions, onChange }: ConditionsEditorProps) {
   const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
   const [loadingField, setLoadingField] = useState<string | null>(null)
 
+  const allFields = [ELAPSED_DAYS_FIELD, ...filterFields]
+
   // conditions のフィールドが変わったとき（プリセット読み込み含む）、未取得のフィールドの選択肢を取得
-  const fieldsKey = [...new Set(conditions.map(c => c.field).filter(Boolean))].sort().join(',')
+  const fieldsKey = [...new Set(conditions.map(c => c.field).filter(f => f && f !== 'elapsed_days'))].sort().join(',')
   useEffect(() => {
     const fields = fieldsKey ? fieldsKey.split(',') : []
     for (const field of fields) {
@@ -225,8 +229,8 @@ function ConditionsEditor({ conditions, filterFields, getFieldOptions, onChange 
           {/* フィールド選択 */}
           <div style={{ minWidth: 160, flex: '0 0 auto' }}>
             <Select
-              options={filterFields.map(f => ({ label: f.name, value: f.key }))}
-              value={cond.field ? { label: filterFields.find(f => f.key === cond.field)?.name ?? cond.field, value: cond.field } : null}
+              options={allFields.map(f => ({ label: f.name, value: f.key }))}
+              value={cond.field ? { label: allFields.find(f => f.key === cond.field)?.name ?? cond.field, value: cond.field } : null}
               onChange={(selected) => handleConditionFieldChange(idx, selected?.value ?? '')}
               styles={fieldSelectStyles}
               placeholder="項目を選択..."
@@ -244,10 +248,20 @@ function ConditionsEditor({ conditions, filterFields, getFieldOptions, onChange 
           >
             <option value="=">=</option>
             <option value="!">!=</option>
+            <option value=">=">&gt;=（以上）</option>
           </select>
           {/* 値選択 */}
           {cond.field && (
-            loadingField === cond.field ? (
+            cond.field === 'elapsed_days' ? (
+              <input
+                type="number"
+                min={0}
+                value={cond.values[0] ?? ''}
+                onChange={(e) => updateConditionValues(idx, e.target.value !== '' ? [e.target.value] : [])}
+                style={{ ...selectStyle, width: 60 }}
+                placeholder="日数"
+              />
+            ) : loadingField === cond.field ? (
               <span style={{ fontSize: 11, color: '#999' }}>読み込み中...</span>
             ) : (
               <select

@@ -1,5 +1,5 @@
 import type { PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint } from '../types'
-import { utcToJstDate } from './dateUtils'
+import { calcElapsedDays, utcToJstDate } from './dateUtils'
 
 function formatDate(date: Date): string {
   const y = date.getFullYear()
@@ -81,6 +81,16 @@ function generateWeeklyDateRange(from: Date, to: Date, anchorDay: number): strin
 function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): boolean {
   const { field, operator, values } = cond
   let issueValues: string[] = []
+
+  if (field === 'elapsed_days') {
+    const baseDate = issue.updated_on || issue.created_on
+    const days = calcElapsedDays(baseDate)
+    const target = parseInt(values[0], 10)
+    if (isNaN(target)) return true
+    if (operator === '=') return days === target
+    if (operator === '>=') return days >= target
+    return true
+  }
 
   if (field === 'status_id') {
     issueValues = [String(issue.status.id)]
