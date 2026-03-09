@@ -90,7 +90,7 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
       <p style={{ textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#111827', margin: '0 4px 8px' }}>{groupBy}</p>
       <div style={{ position: 'relative', width: '100%', height: 300 }}>
         <ResponsiveContainer width="100%" height={300}>
-          <RechartsPieChart margin={{ top: 56, right: 60, bottom: 8, left: 60 }}>
+          <RechartsPieChart margin={{ top: 40, right: 80, bottom: 40, left: 80 }}>
             <Pie
               data={data}
               dataKey="value"
@@ -101,8 +101,33 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
               outerRadius={108}
               startAngle={90}
               endAngle={-270}
-              label={({ name, percent, value }) => (percent ?? 0) >= 0.05 ? `${name}:${value}件:${((percent ?? 0) * 100).toFixed(0)}%` : ''}
-              labelLine={true}
+              label={({ cx, cy, midAngle, outerRadius, name, percent, value, index }) => {
+                if ((percent ?? 0) < 0.05) return null
+                const RADIAN = Math.PI / 180
+                const angle = midAngle ?? 0
+                const cos = Math.cos(-angle * RADIAN)
+                const sin = Math.sin(-angle * RADIAN)
+                const sx = cx + outerRadius * cos
+                const sy = cy + outerRadius * sin
+                // 上方向(70-110°)・下方向(250-290°)は横にずらす
+                let bendAngle = angle
+                if (angle > 70 && angle < 110) bendAngle = angle <= 90 ? 65 : 115
+                else if (angle > 250 && angle < 290) bendAngle = angle <= 270 ? 245 : 295
+                const bcos = Math.cos(-bendAngle * RADIAN)
+                const bsin = Math.sin(-bendAngle * RADIAN)
+                const ex = cx + (outerRadius + 35) * bcos
+                const ey = cy + (outerRadius + 35) * bsin
+                const color = COLORS[(index ?? 0) % COLORS.length]
+                return (
+                  <g>
+                    <line x1={sx} y1={sy} x2={ex} y2={ey} stroke={color} strokeWidth={1} />
+                    <text x={ex + (bcos >= 0 ? 5 : -5)} y={ey} textAnchor={bcos >= 0 ? 'start' : 'end'} dominantBaseline="central" fill={color} fontSize={11}>
+                      {`${name}:${value}件:${((percent ?? 0) * 100).toFixed(0)}%`}
+                    </text>
+                  </g>
+                )
+              }}
+              labelLine={false}
               cursor={onSliceClick ? 'pointer' : undefined}
               onClick={onSliceClick ? (entry) => onSliceClick(entry as PieDataPoint) : undefined}
             >
@@ -113,7 +138,7 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
             <Tooltip content={<CustomPieTooltip />} />
           </RechartsPieChart>
         </ResponsiveContainer>
-        <div style={{ position: 'absolute', top: 168, left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', top: 150, left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
           <div style={{ fontSize: 30, fontWeight: 700, color: '#111827', lineHeight: 1 }}>{total}</div>
           <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>件</div>
         </div>
