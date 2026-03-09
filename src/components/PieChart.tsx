@@ -41,7 +41,7 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
                 <Cell key={index} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value: number | undefined) => [`${value ?? 0}件`, '']} />
+            <Tooltip formatter={(value: number | undefined, name: string | undefined) => [`${value ?? 0}件`, name ?? '']} />
           </RechartsPieChart>
         </ResponsiveContainer>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', padding: '8px 16px', justifyContent: 'center' }}>
@@ -83,7 +83,7 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
               <Cell key={index} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(value: number | undefined) => [`${value ?? 0}件`, '']} />
+          <Tooltip formatter={(value: number | undefined, name: string | undefined) => [`${value ?? 0}件`, name ?? '']} />
           <Legend
             onClick={onSliceClick ? (entry) => {
               const slice = data.find(d => d.name === entry.value)
