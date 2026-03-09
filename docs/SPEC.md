@@ -14,11 +14,15 @@ Recharts の `ComposedChart` を使用した折れ線と棒グラフの複合グ
 
 Recharts の `PieChart` を使用した割合表示グラフ。
 
-- **グループキー**: `data-pie-group-by` 属性で指定（デフォルト: `status`）
+- **グループキー**: `data-pie-group-by` 属性で指定（デフォルト: `status`）。グラフ設定UIで変更可能
 - ラベルにグループ名とパーセントを表示
 - 実データ連携済み。Redmine APIからチケット一覧を取得して集計
 - Redmine APIからチケットを取得中は「Now Loading...」を表示（ダミーデータは表示しない）
 - 2枚横並びで表示。各円グラフで独立したグループキーと絞り込み条件を設定可能
+- **スライスグルーピング（groupRules）**: 複数の値を1つのスライスに統合するルールを定義可能（例: 「対応中」= ["In Progress", "In Progress(Permanent)"]）。グループに含まれない値は個別スライスとして表示
+- **経過日数グループ化（`elapsed_days`）**: グループキーに `elapsed_days` を指定すると、チケットの最終更新日（`updated_on`、未更新時は `created_on`）からの経過日数（JST換算）でスライスを分類する。バケット定義（ラベル・最小日数・最大日数）で任意の区間に集計。バケットに含まれないチケットは集計対象外
+  - バケット例: `[{label: "1日", min: 1, max: 1}, {label: "5日以上", min: 5}]` → 「1日: 5件」「5日以上: 12件」
+  - `elapsed_days` はRedmine URLフィルタ非対応のため、スライスクリック時のリンクURL生成では除外される
 
 ## グラフ設定UI（GraphSettingsPanel）
 
@@ -50,8 +54,16 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - 表示軸: `left`（左軸）/ `right`（右軸）
   - 集計方法: `daily`（日別）/ `cumulative`（累計）
   - 対象ステータス: Redmine APIから取得したステータス一覧から複数選択（空=全ステータス）。集計軸が `custom`（特殊な日付）の場合は非活性（グレーアウト）
-  - 絞り込み条件: チケットの項目で絞り込み。フィールド（react-select、テキスト入力補完あり）・演算子（=、!=）・値（`<select multiple>`）の組み合わせ。複数条件はAND。対応フィールド: ステータス、トラッカー、優先度、カスタムフィールド（リスト系）。ページリロード後も復元のため、マウント時に設定済みフィールドの選択肢を事前取得する
+  - 絞り込み条件: チケットの項目で絞り込み。フィールド（react-select、テキスト入力補完あり）・演算子（=、!=、>=（以上））・値（`<select multiple>` またはテキスト入力）の組み合わせ。複数条件はAND。対応フィールド: ステータス、トラッカー、優先度、カスタムフィールド（リスト系）、経過日数（日）。ページリロード後も復元のため、マウント時に設定済みフィールドの選択肢を事前取得する
+    - **経過日数（`elapsed_days`）フィールド**: 仮想フィールド。`updated_on`（未更新時は `created_on`）からJST換算の経過日数を数値入力で指定。演算子 `=`（ちょうどN日）または `>=`（N日以上）が使用可能。Redmine URLフィルタには変換されない（円グラフ内部フィルタのみ）
   - 順序変更: ↑↓ ボタンで系列の並び順を変更。先頭の ↑・末尾の ↓ は無効（グレー）。`series` 配列の順序がグラフ凡例の表示順に直結する（凡例はカスタムレンダラーで `visibleSeries` の順序と同期）
+- **円グラフ設定**（系列設定パネルの下部）:
+  - グループキー: `window.availableFilters` のリスト系フィールド + 固定フィールド「経過日数(日)」から選択（react-select）
+  - グラフタイトル（省略時 = フィールド表示名）
+  - 絞り込み条件（系列と同様の ConditionsEditor）
+  - スライスグルーピング（`PieGroupRulesEditor`）: グループキーが `elapsed_days` 以外のとき表示。複数値を1スライスにまとめるルールを定義
+  - バケット定義（`ElapsedDaysBucketsEditor`）: グループキーが `elapsed_days` のとき表示。[ラベル] [最小日数] [最大日数（空=以上）] [削除ボタン] の行を追加・削除・並べ替えで定義
+  - 円グラフは任意個数追加可能（`pies[]` 配列）。各円グラフに独立したグループキー・条件・バケット定義を設定可能
 - 設定変更はlocalStorageに即時保存（プロジェクトIDをキーに）
 
 ### ユーザー設定の永続化（storage.ts）
@@ -60,7 +72,8 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー形式**: `redmine-graph:settings:{projectId}`（プロジェクトID別に独立）
 - **バージョン管理**: `version: 1`（スキーマ変更時にリセット）
 - 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
-- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`
+- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`
+  - `pies?: PieSeriesConfig[]`: 任意個数の円グラフ設定。各要素は `{ groupBy, label?, conditions?, groupRules?, elapsedDaysBuckets? }`
 
 ### プリセットの永続化（storage.ts）
 
@@ -121,7 +134,8 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - `closed_on` 系列: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
   - `custom` 系列: `customDateFieldKey` で指定したフィールドを取得。`cf_{id}` 形式はカスタムフィールドから、`start_date`・`due_date` 等はチケットの直接プロパティから取得。値が空/null/未設定のチケットはスキップ。UTC変換不要（Redmineはカスタム日付をYYYY-MM-DD形式で返す）
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
-- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`cf_{id}`（カスタムフィールド）
+- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`cf_{id}`（カスタムフィールド）・`elapsed_days`（経過日数、仮想フィールド）。演算子: `=`（一致）、`!`（不一致）、`>=`（以上）
+- **経過日数バケット集計**: `groupBy === 'elapsed_days'` かつ `elapsedDaysBuckets` が定義されている場合、通常のフィールドグルーピングの代わりにバケット分類を実行。各チケットの `updated_on`（未更新時は `created_on`）からJST換算の経過日数を計算し、最初に条件が合致したバケットに計上。バケット順序はユーザー定義順を維持
 - **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換。`startDate` 指定時は `startDate` より前のチケット数を初期値として積算（グラフ開始時点の既存チケット数を反映）
 
 ### フィルタフィールド・選択肢取得（filterValues.ts）
@@ -136,7 +150,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - レスポンス形式: `["QA","BUG"]`（CF系）または `[["name","id"],...]`（標準フィールド系）
   - 結果はページライフサイクル内でキャッシュ
 
-### UTC→JST変換（dateUtils.ts）
+### UTC→JST変換・経過日数計算（dateUtils.ts）
 
 `closed_on` はRedmineがUTCで返すため、+9時間してJST日付に変換する。
 
@@ -145,6 +159,17 @@ export function utcToJstDate(utcString: string): string {
   const date = new Date(utcString)
   const jstMs = date.getTime() + 9 * 60 * 60 * 1000
   return new Date(jstMs).toISOString().slice(0, 10)
+}
+```
+
+**`calcElapsedDays(utcString: string): number`**: UTC日時文字列をJST日付に変換し、今日（JST）からの経過日数を返す。バケット分類・経過日数フィルタで使用。
+
+```typescript
+export function calcElapsedDays(utcString: string): number {
+  const jstDateStr = utcToJstDate(utcString)
+  const todayJst = utcToJstDate(new Date().toISOString())
+  const ms = new Date(todayJst).getTime() - new Date(jstDateStr).getTime()
+  return Math.floor(ms / (1000 * 60 * 60 * 24))
 }
 ```
 
@@ -229,6 +254,37 @@ if (container) {
 
 `moca-react-graph-root` のIDを持つ要素が存在しない場合は何もしない。
 
+## 型定義（types/index.ts）の主要インターフェース
+
+### `SeriesCondition`
+絞り込み条件の1件。`operator` は `'=' | '!' | '>='`。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `field` | `string` | `availableFilters` のキー（例: `cf_628`, `tracker_id`, `elapsed_days`） |
+| `operator` | `'=' \| '!' \| '>='` | 一致 / 不一致 / 以上 |
+| `values` | `string[]` | 選択値の配列（数値は文字列として格納） |
+
+### `ElapsedDaysBucket`
+経過日数バケット定義。`groupBy === 'elapsed_days'` の円グラフでスライスの区間を定義する。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `label` | `string` | スライス名（例: `"5日以上"`） |
+| `min` | `number` | 最小経過日数（含む） |
+| `max` | `number?` | 最大経過日数（含む）。省略 = 上限なし |
+
+### `PieSeriesConfig`
+円グラフ1枚の設定。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `groupBy` | `string` | グループキー（例: `'status_id'`, `'tracker_id'`, `'cf_123'`, `'elapsed_days'`） |
+| `label` | `string?` | グラフタイトル（省略時 = フィールド表示名） |
+| `conditions` | `SeriesCondition[]?` | 集計対象の絞り込み条件 |
+| `groupRules` | `PieGroupRule[]?` | スライスグルーピングルール（`elapsed_days` 以外で有効） |
+| `elapsedDaysBuckets` | `ElapsedDaysBucket[]?` | バケット定義（`groupBy === 'elapsed_days'` のとき有効） |
+
 ## 今後の課題
 
-- `data-pie-group-by` に任意のRedmineカスタムフィールドを指定できるようにする
+（特になし）
