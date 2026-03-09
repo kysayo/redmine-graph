@@ -615,6 +615,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
   const [presets, setPresets] = useState<Preset[]>(() => loadPresets())
   const [presetNameInput, setPresetNameInput] = useState('')
   const [selectedPresetId, setSelectedPresetId] = useState('')
+  const [showJsonModal, setShowJsonModal] = useState(false)
+  const [jsonModalName, setJsonModalName] = useState('設定')
 
   function handleSavePreset() {
     const name = presetNameInput.trim()
@@ -637,14 +639,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     onChange({ ...settings, ...preset.settings })
   }
 
-  function handleDownloadPresetJson() {
-    const name = presetNameInput.trim() || '設定'
+  function handleDownloadPresetJson(name: string) {
     const { version: _version, ...presetSettings } = settings
     const teamPreset: TeamPreset = {
       name,
       settings: presetSettings,
     }
-    const json = JSON.stringify([teamPreset], null, 2)
+    const json = JSON.stringify(teamPreset)
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -654,6 +655,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+    setShowJsonModal(false)
   }
 
   function handleDeletePreset(id: string) {
@@ -698,6 +700,38 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
   return (
     <div style={{ marginBottom: 16, border: '1px solid #ddd', borderRadius: 4 }}>
+      {/* Preset JSON DL モーダル */}
+      {showJsonModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 6, padding: 24, minWidth: 280, boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
+            <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 'bold' }}>プリセット名</p>
+            <input
+              type="text"
+              value={jsonModalName}
+              onChange={(e) => setJsonModalName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleDownloadPresetJson(jsonModalName.trim() || '設定') }}
+              style={{ width: '100%', padding: '4px 6px', fontSize: 13, border: '1px solid #ccc', borderRadius: 3, boxSizing: 'border-box' }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowJsonModal(false)}
+                style={{ fontSize: 12, padding: '3px 12px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadPresetJson(jsonModalName.trim() || '設定')}
+                style={{ fontSize: 12, padding: '3px 12px', border: '1px solid #93c5fd', borderRadius: 3, background: '#eff6ff', cursor: 'pointer', color: '#1d4ed8' }}
+              >
+                ダウンロード
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ヘッダー */}
       <div
         onClick={() => setIsOpen(!isOpen)}
@@ -921,7 +955,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               </button>
               <button
                 type="button"
-                onClick={handleDownloadPresetJson}
+                onClick={() => { setJsonModalName('設定'); setShowJsonModal(true) }}
                 style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #93c5fd', borderRadius: 3, background: '#eff6ff', cursor: 'pointer', color: '#1d4ed8' }}
               >
                 Preset JSON DL
