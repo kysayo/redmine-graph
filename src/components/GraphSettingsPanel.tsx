@@ -871,76 +871,6 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               </div>
             </div>
 
-            {/* 円グラフ設定 */}
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
-              <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>円グラフ設定</div>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                {/* 左の円グラフ */}
-                <div style={{ minWidth: 200 }}>
-                  <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>左: グループキー</label>
-                  <Select
-                    options={filterFields.map(f => ({ label: f.name, value: f.key }))}
-                    value={(() => {
-                      const key = settings.pieLeft?.groupBy ?? 'status_id'
-                      const field = filterFields.find(f => f.key === key)
-                      return field ? { label: field.name, value: key } : { label: key, value: key }
-                    })()}
-                    onChange={(selected) => onChange({ ...settings, pieLeft: { ...(settings.pieLeft ?? {}), groupBy: selected?.value ?? 'status_id' } as PieSeriesConfig })}
-                    styles={fieldSelectStyles}
-                    placeholder="項目を選択..."
-                    noOptionsMessage={() => '候補なし'}
-                    menuPortalTarget={document.body}
-                    menuPosition="fixed"
-                  />
-                  <div style={{ marginTop: 6 }}>
-                    <ConditionsEditor
-                      conditions={settings.pieLeft?.conditions ?? []}
-                      filterFields={filterFields}
-                      getFieldOptions={getFieldOptions}
-                      onChange={(next) => onChange({ ...settings, pieLeft: { ...(settings.pieLeft ?? { groupBy: 'status_id' }), conditions: next } })}
-                    />
-                  </div>
-                  <PieGroupRulesEditor
-                    groupBy={settings.pieLeft?.groupBy ?? 'status_id'}
-                    groupRules={settings.pieLeft?.groupRules ?? []}
-                    getFieldOptions={getFieldOptions}
-                    onChange={(rules) => onChange({ ...settings, pieLeft: { ...(settings.pieLeft ?? { groupBy: 'status_id' }), groupRules: rules } })}
-                  />
-                </div>
-                {/* 右の円グラフ */}
-                <div style={{ minWidth: 200 }}>
-                  <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>右: グループキー</label>
-                  <Select
-                    options={filterFields.map(f => ({ label: f.name, value: f.key }))}
-                    value={(() => {
-                      const key = settings.pieRight?.groupBy ?? 'tracker_id'
-                      const field = filterFields.find(f => f.key === key)
-                      return field ? { label: field.name, value: key } : { label: key, value: key }
-                    })()}
-                    onChange={(selected) => onChange({ ...settings, pieRight: { ...(settings.pieRight ?? {}), groupBy: selected?.value ?? 'tracker_id' } as PieSeriesConfig })}
-                    styles={fieldSelectStyles}
-                    placeholder="項目を選択..."
-                    noOptionsMessage={() => '候補なし'}
-                    menuPortalTarget={document.body}
-                    menuPosition="fixed"
-                  />
-                  <div style={{ marginTop: 6 }}>
-                    <ConditionsEditor
-                      conditions={settings.pieRight?.conditions ?? []}
-                      filterFields={filterFields}
-                      getFieldOptions={getFieldOptions}
-                      onChange={(next) => onChange({ ...settings, pieRight: { ...(settings.pieRight ?? { groupBy: 'tracker_id' }), conditions: next } })}
-                    />
-                  </div>
-                  <PieGroupRulesEditor
-                    groupBy={settings.pieRight?.groupBy ?? 'tracker_id'}
-                    groupRules={settings.pieRight?.groupRules ?? []}
-                    getFieldOptions={getFieldOptions}
-                    onChange={(rules) => onChange({ ...settings, pieRight: { ...(settings.pieRight ?? { groupBy: 'tracker_id' }), groupRules: rules } })}
-                  />
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* チームプリセット（管理者定義・読取専用） */}
@@ -1030,41 +960,115 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
             )}
           </div>
 
-          {settings.series.map((s, i) => (
-            <SeriesRow
-              key={s.id}
-              series={s}
-              allSeries={settings.series}
-              statuses={statuses}
-              statusesLoading={statusesLoading}
-              canDelete={settings.series.length > 1}
-              canMoveUp={i > 0}
-              canMoveDown={i < settings.series.length - 1}
-              filterFields={filterFields}
-              dateFilterFields={dateFilterFields}
-              getFieldOptions={getFieldOptions}
-              onChange={(updated) => updateSeries(i, updated)}
-              onDelete={() => deleteSeries(i)}
-              onMoveUp={() => moveSeries(i, i - 1)}
-              onMoveDown={() => moveSeries(i, i + 1)}
-            />
-          ))}
+          {/* 2軸グラフ設定 */}
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>2軸グラフ設定</div>
+            {settings.series.map((s, i) => (
+              <SeriesRow
+                key={s.id}
+                series={s}
+                allSeries={settings.series}
+                statuses={statuses}
+                statusesLoading={statusesLoading}
+                canDelete={settings.series.length > 1}
+                canMoveUp={i > 0}
+                canMoveDown={i < settings.series.length - 1}
+                filterFields={filterFields}
+                dateFilterFields={dateFilterFields}
+                getFieldOptions={getFieldOptions}
+                onChange={(updated) => updateSeries(i, updated)}
+                onDelete={() => deleteSeries(i)}
+                onMoveUp={() => moveSeries(i, i - 1)}
+                onMoveDown={() => moveSeries(i, i + 1)}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={addSeries}
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                padding: '3px 10px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                background: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              ＋ 系列を追加
+            </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={addSeries}
-            style={{
-              marginTop: 8,
-              fontSize: 12,
-              padding: '3px 10px',
-              border: '1px solid #ccc',
-              borderRadius: 3,
-              background: '#fff',
-              cursor: 'pointer',
-            }}
-          >
-            ＋ 系列を追加
-          </button>
+          {/* 円グラフ設定 */}
+          <div>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>円グラフ設定</div>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              {/* 左の円グラフ */}
+              <div style={{ minWidth: 200 }}>
+                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>左: グループキー</label>
+                <Select
+                  options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                  value={(() => {
+                    const key = settings.pieLeft?.groupBy ?? 'status_id'
+                    const field = filterFields.find(f => f.key === key)
+                    return field ? { label: field.name, value: key } : { label: key, value: key }
+                  })()}
+                  onChange={(selected) => onChange({ ...settings, pieLeft: { ...(settings.pieLeft ?? {}), groupBy: selected?.value ?? 'status_id' } as PieSeriesConfig })}
+                  styles={fieldSelectStyles}
+                  placeholder="項目を選択..."
+                  noOptionsMessage={() => '候補なし'}
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                />
+                <div style={{ marginTop: 6 }}>
+                  <ConditionsEditor
+                    conditions={settings.pieLeft?.conditions ?? []}
+                    filterFields={filterFields}
+                    getFieldOptions={getFieldOptions}
+                    onChange={(next) => onChange({ ...settings, pieLeft: { ...(settings.pieLeft ?? { groupBy: 'status_id' }), conditions: next } })}
+                  />
+                </div>
+                <PieGroupRulesEditor
+                  groupBy={settings.pieLeft?.groupBy ?? 'status_id'}
+                  groupRules={settings.pieLeft?.groupRules ?? []}
+                  getFieldOptions={getFieldOptions}
+                  onChange={(rules) => onChange({ ...settings, pieLeft: { ...(settings.pieLeft ?? { groupBy: 'status_id' }), groupRules: rules } })}
+                />
+              </div>
+              {/* 右の円グラフ */}
+              <div style={{ minWidth: 200 }}>
+                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>右: グループキー</label>
+                <Select
+                  options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                  value={(() => {
+                    const key = settings.pieRight?.groupBy ?? 'tracker_id'
+                    const field = filterFields.find(f => f.key === key)
+                    return field ? { label: field.name, value: key } : { label: key, value: key }
+                  })()}
+                  onChange={(selected) => onChange({ ...settings, pieRight: { ...(settings.pieRight ?? {}), groupBy: selected?.value ?? 'tracker_id' } as PieSeriesConfig })}
+                  styles={fieldSelectStyles}
+                  placeholder="項目を選択..."
+                  noOptionsMessage={() => '候補なし'}
+                  menuPortalTarget={document.body}
+                  menuPosition="fixed"
+                />
+                <div style={{ marginTop: 6 }}>
+                  <ConditionsEditor
+                    conditions={settings.pieRight?.conditions ?? []}
+                    filterFields={filterFields}
+                    getFieldOptions={getFieldOptions}
+                    onChange={(next) => onChange({ ...settings, pieRight: { ...(settings.pieRight ?? { groupBy: 'tracker_id' }), conditions: next } })}
+                  />
+                </div>
+                <PieGroupRulesEditor
+                  groupBy={settings.pieRight?.groupBy ?? 'tracker_id'}
+                  groupRules={settings.pieRight?.groupRules ?? []}
+                  getFieldOptions={getFieldOptions}
+                  onChange={(rules) => onChange({ ...settings, pieRight: { ...(settings.pieRight ?? { groupBy: 'tracker_id' }), groupRules: rules } })}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
