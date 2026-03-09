@@ -357,40 +357,37 @@ export function App({ container }: Props) {
         )}
       </div>
 
-      <div style={{ ...card, marginBottom: 0 }}>
-        <h2 style={{ fontSize: 15, margin: '0 0 16px', fontWeight: 600, color: '#111827' }}>チケット割合</h2>
-        {shouldFetch && issueState.loading ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#666', fontSize: 13 }}>
-            Now Loading...
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-            {(settings.pies ?? []).map((pie, i) => {
-              const pieData = piesData[i] ?? []
-              const isWide = pieData.length > 10
-              return (
-                <div
-                  key={i}
-                  style={{
-                    ...(isWide ? { gridColumn: '1 / -1' } : {}),
-                    background: '#f9fafb',
-                    borderRadius: 18,
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-                    padding: '12px 8px',
-                  }}
-                >
-                  <PieChart
-                    data={pieData}
-                    groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
-                    onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
-                    wide={isWide}
-                  />
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      {shouldFetch && issueState.loading ? (
+        <div style={{ ...card, marginBottom: 0, textAlign: 'center', padding: '40px 24px', color: '#666', fontSize: 13 }}>
+          Now Loading...
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          {(settings.pies ?? []).map((pie, i) => {
+            const pieData = piesData[i] ?? []
+            const isWide = pieData.length > 10
+            return (
+              <div
+                key={i}
+                style={{
+                  ...(isWide ? { gridColumn: '1 / -1' } : {}),
+                  background: '#fff',
+                  borderRadius: 20,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  padding: '20px 16px',
+                }}
+              >
+                <PieChart
+                  data={pieData}
+                  groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
+                  onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
+                  wide={isWide}
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
