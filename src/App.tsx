@@ -271,8 +271,16 @@ export function App({ container }: Props) {
     })
   }, [issueState.issues, settings.pies])
 
+  const card: React.CSSProperties = {
+    background: '#fff',
+    borderRadius: 12,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    padding: '20px 24px',
+    marginBottom: 16,
+  }
+
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '16px' }}>
+    <div style={{ fontFamily: 'sans-serif', padding: '16px', background: '#f3f4f6', borderRadius: 8 }}>
       <GraphSettingsPanel
         settings={settings}
         statuses={statuses}
@@ -285,91 +293,104 @@ export function App({ container }: Props) {
         getFieldOptions={getFieldOptions}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15, margin: 0, fontWeight: 600, color: '#111827' }}>チケット推移</h2>
-        <button
-          type="button"
-          onClick={handleCopyChart}
-          disabled={copyStatus === 'copying'}
-          {...copyBtnHover}
-          style={{
-            ...btnBase,
-            background: copyBtnHover.hovered && copyStatus === 'idle' ? '#f3f4f6' : '#fff',
-            cursor: copyStatus === 'copying' ? 'default' : 'pointer',
-            color: copyStatus === 'ok' ? '#059669' : copyStatus === 'err' ? '#dc2626' : '#374151',
-            borderColor: copyStatus === 'ok' ? '#6ee7b7' : copyStatus === 'err' ? '#fca5a5' : '#d1d5db',
-          }}
-        >
-          {copyStatus === 'ok' ? 'コピー完了!' : copyStatus === 'err' ? 'コピー失敗' : copyStatus === 'copying' ? 'コピー中...' : 'PNG コピー'}
-        </button>
-        <button
-          type="button"
-          onClick={handleDownloadSvg}
-          {...saveBtnHover}
-          style={{
-            ...btnBase,
-            background: saveBtnHover.hovered ? '#f3f4f6' : '#fff',
-            color: '#374151',
-          }}
-        >
-          PNG 保存
-        </button>
-      </div>
-      {shouldFetch && issueState.loading && (
-        <div style={{ padding: '12px 0', color: '#666', fontSize: 13 }}>
-          <div style={{ marginBottom: 6 }}>
-            {issueState.totalCount !== null
-              ? `チケットデータを取得中... (${issueState.fetchedCount}/${issueState.totalCount}件)`
-              : 'チケットデータを取得中...'
-            }
-          </div>
-          {issueState.totalCount !== null && issueState.totalCount > 0 && (
-            <div style={{ background: '#e5e7eb', borderRadius: 4, height: 6, width: '100%', maxWidth: 320 }}>
-              <div
-                style={{
-                  background: '#3b82f6',
-                  borderRadius: 4,
-                  height: '100%',
-                  width: `${Math.min(100, (issueState.fetchedCount / issueState.totalCount) * 100)}%`,
-                  transition: 'width 0.2s ease',
-                }}
-              />
+      <div style={card}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <h2 style={{ fontSize: 15, margin: 0, fontWeight: 600, color: '#111827' }}>チケット推移</h2>
+          <button
+            type="button"
+            onClick={handleCopyChart}
+            disabled={copyStatus === 'copying'}
+            {...copyBtnHover}
+            style={{
+              ...btnBase,
+              background: copyBtnHover.hovered && copyStatus === 'idle' ? '#f3f4f6' : '#fff',
+              cursor: copyStatus === 'copying' ? 'default' : 'pointer',
+              color: copyStatus === 'ok' ? '#059669' : copyStatus === 'err' ? '#dc2626' : '#374151',
+              borderColor: copyStatus === 'ok' ? '#6ee7b7' : copyStatus === 'err' ? '#fca5a5' : '#d1d5db',
+            }}
+          >
+            {copyStatus === 'ok' ? 'コピー完了!' : copyStatus === 'err' ? 'コピー失敗' : copyStatus === 'copying' ? 'コピー中...' : 'PNG コピー'}
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadSvg}
+            {...saveBtnHover}
+            style={{
+              ...btnBase,
+              background: saveBtnHover.hovered ? '#f3f4f6' : '#fff',
+              color: '#374151',
+            }}
+          >
+            PNG 保存
+          </button>
+        </div>
+        {shouldFetch && issueState.loading && (
+          <div style={{ padding: '12px 0', color: '#666', fontSize: 13 }}>
+            <div style={{ marginBottom: 6 }}>
+              {issueState.totalCount !== null
+                ? `チケットデータを取得中... (${issueState.fetchedCount}/${issueState.totalCount}件)`
+                : 'チケットデータを取得中...'
+              }
             </div>
-          )}
-        </div>
-      )}
-      {shouldFetch && !issueState.loading && issueState.error && issueState.issues === null && (
-        <div style={{ padding: '4px 0 8px', color: '#999', fontSize: 11 }}>
-          ※ Redmineに接続できないため、サンプルデータを表示しています
-        </div>
-      )}
-      {shouldFetch && !issueState.loading && (
-        <ComboChart ref={comboChartRef} data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisLeftMinAuto={settings.yAxisLeftMinAuto} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} chartHeight={settings.chartHeight} />
-      )}
-
-      <h2 style={{ fontSize: 15, margin: '28px 0 12px', paddingTop: 20, borderTop: '1px solid #e5e7eb', fontWeight: 600, color: '#111827' }}>チケット割合</h2>
-      {shouldFetch && issueState.loading ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#666', fontSize: 13 }}>
-          Now Loading...
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-          {(settings.pies ?? []).map((pie, i) => {
-            const pieData = piesData[i] ?? []
-            const isWide = pieData.length > 10
-            return (
-              <div key={i} style={isWide ? { gridColumn: '1 / -1' } : undefined}>
-                <PieChart
-                  data={pieData}
-                  groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
-                  onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
-                  wide={isWide}
+            {issueState.totalCount !== null && issueState.totalCount > 0 && (
+              <div style={{ background: '#e5e7eb', borderRadius: 4, height: 6, width: '100%', maxWidth: 320 }}>
+                <div
+                  style={{
+                    background: '#3b82f6',
+                    borderRadius: 4,
+                    height: '100%',
+                    width: `${Math.min(100, (issueState.fetchedCount / issueState.totalCount) * 100)}%`,
+                    transition: 'width 0.2s ease',
+                  }}
                 />
               </div>
-            )
-          })}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+        {shouldFetch && !issueState.loading && issueState.error && issueState.issues === null && (
+          <div style={{ padding: '4px 0 8px', color: '#999', fontSize: 11 }}>
+            ※ Redmineに接続できないため、サンプルデータを表示しています
+          </div>
+        )}
+        {shouldFetch && !issueState.loading && (
+          <ComboChart ref={comboChartRef} data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisLeftMinAuto={settings.yAxisLeftMinAuto} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} chartHeight={settings.chartHeight} />
+        )}
+      </div>
+
+      <div style={{ ...card, marginBottom: 0 }}>
+        <h2 style={{ fontSize: 15, margin: '0 0 16px', fontWeight: 600, color: '#111827' }}>チケット割合</h2>
+        {shouldFetch && issueState.loading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#666', fontSize: 13 }}>
+            Now Loading...
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+            {(settings.pies ?? []).map((pie, i) => {
+              const pieData = piesData[i] ?? []
+              const isWide = pieData.length > 10
+              return (
+                <div
+                  key={i}
+                  style={{
+                    ...(isWide ? { gridColumn: '1 / -1' } : {}),
+                    background: '#f9fafb',
+                    borderRadius: 10,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                    padding: '12px 8px',
+                  }}
+                >
+                  <PieChart
+                    data={pieData}
+                    groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
+                    onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
+                    wide={isWide}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
