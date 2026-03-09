@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, useMemo } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -16,6 +16,7 @@ interface Props {
   data: SeriesDataPoint[]
   series: SeriesConfig[]
   yAxisLeftMin?: number
+  yAxisLeftMinAuto?: boolean
   yAxisRightMax?: number
   dateFormat?: 'yyyy-mm-dd' | 'M/D'
   chartHeight?: number
@@ -52,7 +53,7 @@ function CustomXAxisTick({ x = 0, y = 0, payload, index = 0, tickInterval, fmt }
 }
 
 export const ComboChart = forwardRef<HTMLDivElement, Props>(
-  function ComboChart({ data, series, yAxisLeftMin, yAxisRightMax, dateFormat, chartHeight }, ref) {
+  function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxisRightMax, dateFormat, chartHeight }, ref) {
     const fmt = dateFormat ?? 'yyyy-mm-dd'
     const maxTicks = fmt === 'M/D' ? 20 : 10
     const tickInterval = Math.max(0, Math.ceil(data.length / maxTicks) - 1)
@@ -60,6 +61,21 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
     const visibleSeries = series.filter(s => s.visible ?? true)
     const hasLeft = visibleSeries.some(s => s.yAxisId === 'left')
     const hasRight = visibleSeries.some(s => s.yAxisId === 'right')
+
+    const autoLeftMin = useMemo(() => {
+      if (!yAxisLeftMinAuto) return undefined
+      const leftSeriesIds = series
+        .filter(s => s.yAxisId === 'left' && (s.visible ?? true))
+        .map(s => s.id)
+      if (leftSeriesIds.length === 0) return undefined
+      const dataMax = data.reduce((max, point) => {
+        const vals = leftSeriesIds.map(id => (point[id] as number) ?? 0)
+        return Math.max(max, ...vals)
+      }, 0)
+      return Math.floor(dataMax * 0.8 / 10) * 10
+    }, [yAxisLeftMinAuto, data, series])
+
+    const effectiveLeftMin = yAxisLeftMinAuto ? autoLeftMin : yAxisLeftMin
 
     return (
       <div ref={ref}>
@@ -71,7 +87,7 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
               interval={0}
               tick={<CustomXAxisTick tickInterval={tickInterval} fmt={fmt} />}
             />
-            <YAxis yAxisId="left" orientation="left" hide={!hasLeft} tick={{ fontSize: 11 }} domain={yAxisLeftMin !== undefined ? [yAxisLeftMin, (dataMax: number) => Math.max(dataMax, yAxisLeftMin + 1)] : undefined} allowDataOverflow={yAxisLeftMin !== undefined} />
+            <YAxis yAxisId="left" orientation="left" hide={!hasLeft} tick={{ fontSize: 11 }} domain={effectiveLeftMin !== undefined ? [effectiveLeftMin, (dataMax: number) => Math.max(dataMax, effectiveLeftMin + 1)] : undefined} allowDataOverflow={effectiveLeftMin !== undefined} />
             <YAxis yAxisId="right" orientation="right" hide={!hasRight} tick={{ fontSize: 11 }} domain={yAxisRightMax !== undefined ? [(dataMin: number) => Math.min(dataMin, yAxisRightMax - 1), yAxisRightMax] : undefined} allowDataOverflow={yAxisRightMax !== undefined} />
             <Tooltip />
             <Legend

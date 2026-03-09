@@ -953,17 +953,28 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               {/* 左軸の最小値 */}
               <div>
                 <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>左軸の最小値</label>
-                <input
-                  type="number"
-                  value={settings.yAxisLeftMin ?? ''}
-                  onChange={(e) => {
-                    const raw = e.target.value
-                    onChange({ ...settings, yAxisLeftMin: raw === '' ? undefined : Number(raw) })
-                  }}
-                  placeholder="0"
-                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 80 }}
-                />
-                <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={settings.yAxisLeftMinAuto ?? false}
+                      onChange={(e) => onChange({ ...settings, yAxisLeftMinAuto: e.target.checked })}
+                    />
+                    最大値の8割
+                  </label>
+                  <input
+                    type="number"
+                    value={settings.yAxisLeftMinAuto ? '' : (settings.yAxisLeftMin ?? '')}
+                    disabled={settings.yAxisLeftMinAuto ?? false}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      onChange({ ...settings, yAxisLeftMin: raw === '' ? undefined : Number(raw) })
+                    }}
+                    placeholder="0"
+                    style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 80, opacity: settings.yAxisLeftMinAuto ? 0.4 : 1 }}
+                  />
+                  <span style={{ fontSize: 11, color: '#999' }}>（空欄=自動）</span>
+                </div>
               </div>
               {/* 右軸の最大値 */}
               <div>
