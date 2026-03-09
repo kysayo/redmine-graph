@@ -683,6 +683,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     onChange({ ...settings, series: next })
   }
 
+  function movePie(from: number, to: number) {
+    const pies = [...(settings.pies ?? [])]
+    const [item] = pies.splice(from, 1)
+    pies.splice(to, 0, item)
+    onChange({ ...settings, pies })
+  }
+
   function addSeries() {
     const colorIndex = settings.series.length % COLOR_PALETTE.length
     const newSeries: SeriesConfig = {
@@ -1042,23 +1049,31 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   <div key={i} style={{ minWidth: 200 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
                       <label style={{ fontSize: 12, color: '#555' }}>円グラフ {i + 1}</label>
-                      {pies.length > 1 && (
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                         <button
                           type="button"
-                          onClick={() => onChange({ ...settings, pies: pies.filter((_, j) => j !== i) })}
-                          style={{
-                            fontSize: 11,
-                            padding: '1px 6px',
-                            border: '1px solid #ccc',
-                            borderRadius: 3,
-                            background: '#fff',
-                            cursor: 'pointer',
-                            color: '#666',
-                          }}
-                        >
-                          ×
-                        </button>
-                      )}
+                          onClick={() => movePie(i, i - 1)}
+                          disabled={i === 0}
+                          style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i > 0 ? 'pointer' : 'default', color: i > 0 ? '#333' : '#ccc' }}
+                          title="左へ移動"
+                        >←</button>
+                        <button
+                          type="button"
+                          onClick={() => movePie(i, i + 1)}
+                          disabled={i === pies.length - 1}
+                          style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i < pies.length - 1 ? 'pointer' : 'default', color: i < pies.length - 1 ? '#333' : '#ccc' }}
+                          title="右へ移動"
+                        >→</button>
+                        {pies.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => onChange({ ...settings, pies: pies.filter((_, j) => j !== i) })}
+                            style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#666' }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div style={{ marginBottom: 4 }}>
                       <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>タイトル（省略可）</label>

@@ -18,7 +18,7 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 
 export function PieChart({ data, groupBy, onSliceClick }: Props) {
   const total = data.reduce((sum, d) => sum + d.value, 0)
-  const title = `チケット割合（${groupBy}別） ${total}件`
+  const title = `${groupBy} ${total}件`
 
   return (
     <div style={{ width: '100%' }}>
