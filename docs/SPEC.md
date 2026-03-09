@@ -22,7 +22,9 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **スライスグルーピング（groupRules）**: 複数の値を1つのスライスに統合するルールを定義可能（例: 「対応中」= ["In Progress", "In Progress(Permanent)"]）。グループに含まれない値は個別スライスとして表示
 - **経過日数グループ化（`elapsed_days`）**: グループキーに `elapsed_days` を指定すると、チケットの最終更新日（`updated_on`、未更新時は `created_on`）からの経過日数（JST換算）でスライスを分類する。バケット定義（ラベル・最小日数・最大日数）で任意の区間に集計。バケットに含まれないチケットは集計対象外
   - バケット例: `[{label: "1日", min: 1, max: 1}, {label: "5日以上", min: 5}]` → 「1日: 5件」「5日以上: 12件」
-  - `elapsed_days` はRedmine URLフィルタ非対応のため、スライスクリック時のリンクURL生成では除外される
+  - スライスクリック時は `updated_on` フィルタ（絶対 JST 日付）に変換して Redmine チケット一覧を開く
+    - `{min: N, max: undefined}` → `op=<=, v=[today-N]`（N日以上経過）
+    - `{min: N, max: M}` → `op=><, v=[today-M, today-N]`（範囲、両端含む）
 
 ## グラフ設定UI（GraphSettingsPanel）
 
