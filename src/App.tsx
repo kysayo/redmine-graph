@@ -157,6 +157,12 @@ export function App({ container }: Props) {
     saveSettings(next)
   }, [])
 
+  const handleResetSettings = useCallback(() => {
+    const defaults = buildDefaultSettings(container)
+    setSettings(defaults)
+    saveSettings(defaults)
+  }, [container])
+
   const getFieldOptions = useCallback(
     (fieldKey: string) => fetchFilterFieldOptions(fieldKey, apiKey),
     [apiKey]
@@ -226,6 +232,7 @@ export function App({ container }: Props) {
         statuses={statuses}
         statusesLoading={statusesLoading}
         onChange={handleSettingsChange}
+        onReset={handleResetSettings}
         teamPresets={teamPresets}
         filterFields={filterFields}
         dateFilterFields={dateFilterFields}

@@ -603,13 +603,14 @@ interface Props {
   statuses: RedmineStatus[]
   statusesLoading: boolean
   onChange: (settings: UserSettings) => void
+  onReset?: () => void
   teamPresets?: TeamPreset[]
   filterFields?: FilterField[]
   dateFilterFields?: FilterField[]
   getFieldOptions?: (key: string) => Promise<FilterFieldOption[]>
 }
 
-export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, teamPresets, filterFields = [], dateFilterFields = [], getFieldOptions = async () => [] }: Props) {
+export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, onReset, teamPresets, filterFields = [], dateFilterFields = [], getFieldOptions = async () => [] }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [presets, setPresets] = useState<Preset[]>(() => loadPresets())
   const [presetNameInput, setPresetNameInput] = useState('')
@@ -737,7 +738,26 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
         }}
       >
         <span>グラフ設定</span>
-        <span style={{ fontSize: 11, color: '#888' }}>{isOpen ? '▲ 閉じる' : '▼ 開く'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {onReset && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onReset() }}
+              style={{
+                fontSize: 11,
+                padding: '2px 8px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                background: '#fff',
+                cursor: 'pointer',
+                color: '#666',
+              }}
+            >
+              全条件をクリア
+            </button>
+          )}
+          <span style={{ fontSize: 11, color: '#888' }}>{isOpen ? '▲ 閉じる' : '▼ 開く'}</span>
+        </div>
       </div>
 
       {/* パネル本体 */}
