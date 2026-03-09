@@ -21,10 +21,17 @@ export interface PieDataPoint {
   value: number
 }
 
+// 円グラフ スライスグルーピングルール
+export interface PieGroupRule {
+  name: string      // グループ名（例: "対応中"）
+  values: string[]  // グループ対象の値リスト（例: ["In Progress", "In Progress(Permanent)"]）
+}
+
 // 円グラフ系列設定
 export interface PieSeriesConfig {
   groupBy: string            // フィールドキー（例: 'status_id', 'tracker_id', 'cf_123'）
   conditions?: SeriesCondition[]  // 集計対象の絞り込み条件（省略時 = フィルタなし）
+  groupRules?: PieGroupRule[] // スライスグルーピングルール（空配列/未設定 = グルーピングなし）
 }
 
 // --- 系列設定UI 追加 ---

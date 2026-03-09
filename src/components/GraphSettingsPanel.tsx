@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { FilterField, FilterFieldOption, PieSeriesConfig, Preset, RedmineStatus, SeriesCondition, SeriesConfig, TeamPreset, UserSettings } from '../types'
+import type { FilterField, FilterFieldOption, PieGroupRule, PieSeriesConfig, Preset, RedmineStatus, SeriesCondition, SeriesConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -42,6 +42,121 @@ const fieldSelectStyles = {
 }
 
 const COLOR_PALETTE = ['#93c5fd', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+
+interface PieGroupRulesEditorProps {
+  groupBy: string
+  groupRules: PieGroupRule[]
+  getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
+  onChange: (rules: PieGroupRule[] | undefined) => void
+}
+
+function PieGroupRulesEditor({ groupBy, groupRules, getFieldOptions, onChange }: PieGroupRulesEditorProps) {
+  const [options, setOptions] = useState<FilterFieldOption[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const enabled = groupRules.length > 0
+
+  // groupBy が変わったら選択肢を取得
+  useEffect(() => {
+    if (!groupBy) return
+    setLoading(true)
+    getFieldOptions(groupBy).then(opts => {
+      setOptions(opts)
+      setLoading(false)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupBy])
+
+  function handleToggle(checked: boolean) {
+    if (checked) {
+      onChange([{ name: '', values: [] }])
+    } else {
+      onChange(undefined)
+    }
+  }
+
+  function addRule() {
+    onChange([...groupRules, { name: '', values: [] }])
+  }
+
+  function removeRule(idx: number) {
+    const next = groupRules.filter((_, i) => i !== idx)
+    onChange(next.length ? next : undefined)
+  }
+
+  function updateRuleName(idx: number, name: string) {
+    onChange(groupRules.map((r, i) => i === idx ? { ...r, name } : r))
+  }
+
+  function updateRuleValues(idx: number, values: string[]) {
+    onChange(groupRules.map((r, i) => i === idx ? { ...r, values } : r))
+  }
+
+  const selectStyle: React.CSSProperties = {
+    fontSize: 12,
+    padding: '2px 4px',
+    border: '1px solid #ccc',
+    borderRadius: 3,
+    background: '#fff',
+  }
+
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: enabled ? 6 : 0 }}>
+        <input
+          type="checkbox"
+          id={`pie-group-${groupBy}`}
+          checked={enabled}
+          onChange={(e) => handleToggle(e.target.checked)}
+          style={{ cursor: 'pointer', width: 13, height: 13 }}
+        />
+        <label htmlFor={`pie-group-${groupBy}`} style={{ fontSize: 12, color: '#555', cursor: 'pointer' }}>
+          グルーピングを使用
+        </label>
+      </div>
+      {enabled && (
+        <div>
+          {loading && <span style={{ fontSize: 11, color: '#999' }}>選択肢を読み込み中...</span>}
+          {groupRules.map((rule, idx) => (
+            <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                value={rule.name}
+                onChange={(e) => updateRuleName(idx, e.target.value)}
+                placeholder="グループ名"
+                style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 110 }}
+              />
+              <select
+                multiple
+                value={rule.values}
+                onChange={(e) => updateRuleValues(idx, Array.from(e.target.selectedOptions, o => o.value))}
+                style={{ ...selectStyle, height: 60, minWidth: 130 }}
+              >
+                {options.map((opt) => (
+                  <option key={opt.value} value={opt.label}>{opt.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => removeRule(idx)}
+                style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addRule}
+            style={{ fontSize: 11, padding: '1px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+          >
+            + グループを追加
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface ConditionsEditorProps {
   conditions: SeriesCondition[]
@@ -785,6 +900,12 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       onChange={(next) => onChange({ ...settings, pieLeft: { ...(settings.pieLeft ?? { groupBy: 'status_id' }), conditions: next } })}
                     />
                   </div>
+                  <PieGroupRulesEditor
+                    groupBy={settings.pieLeft?.groupBy ?? 'status_id'}
+                    groupRules={settings.pieLeft?.groupRules ?? []}
+                    getFieldOptions={getFieldOptions}
+                    onChange={(rules) => onChange({ ...settings, pieLeft: { ...(settings.pieLeft ?? { groupBy: 'status_id' }), groupRules: rules } })}
+                  />
                 </div>
                 {/* 右の円グラフ */}
                 <div style={{ minWidth: 200 }}>
@@ -811,6 +932,12 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       onChange={(next) => onChange({ ...settings, pieRight: { ...(settings.pieRight ?? { groupBy: 'tracker_id' }), conditions: next } })}
                     />
                   </div>
+                  <PieGroupRulesEditor
+                    groupBy={settings.pieRight?.groupBy ?? 'tracker_id'}
+                    groupRules={settings.pieRight?.groupRules ?? []}
+                    getFieldOptions={getFieldOptions}
+                    onChange={(rules) => onChange({ ...settings, pieRight: { ...(settings.pieRight ?? { groupBy: 'tracker_id' }), groupRules: rules } })}
+                  />
                 </div>
               </div>
             </div>

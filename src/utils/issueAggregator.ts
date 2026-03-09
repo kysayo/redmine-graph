@@ -1,4 +1,4 @@
-import type { PieDataPoint, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint } from '../types'
+import type { PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint } from '../types'
 import { utcToJstDate } from './dateUtils'
 
 function formatDate(date: Date): string {
@@ -320,15 +320,33 @@ function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null
 }
 
 /**
+ * グルーピングルールに基づいて値をグループ名にマッピングする
+ * どのルールにも属さない値はそのまま返す
+ */
+function applyGroupRules(value: string, groupRules: PieGroupRule[]): string {
+  for (const rule of groupRules) {
+    if (rule.name && rule.values.includes(value)) return rule.name
+  }
+  return value
+}
+
+/**
  * Redmineチケット一覧を groupBy フィールドでグループ化し、円グラフ用データに集計する
  * conditions が指定された場合は一致するチケットのみを集計する
+ * groupRules が指定された場合はスライスをグルーピングする
  */
-export function aggregatePie(issues: RedmineIssue[], groupBy: string, conditions?: SeriesCondition[]): PieDataPoint[] {
+export function aggregatePie(
+  issues: RedmineIssue[],
+  groupBy: string,
+  conditions?: SeriesCondition[],
+  groupRules?: PieGroupRule[]
+): PieDataPoint[] {
   const counts = new Map<string, number>()
   for (const issue of issues) {
     if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
-    const key = getIssueGroupValue(issue, groupBy)
-    if (key === null || key === '') continue
+    const raw = getIssueGroupValue(issue, groupBy)
+    if (raw === null || raw === '') continue
+    const key = groupRules?.length ? applyGroupRules(raw, groupRules) : raw
     counts.set(key, (counts.get(key) ?? 0) + 1)
   }
   return Array.from(counts.entries())

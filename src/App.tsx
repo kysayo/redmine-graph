@@ -214,15 +214,15 @@ export function App({ container }: Props) {
 
   const pieLeftData = useMemo(() => {
     const groupBy = settings.pieLeft?.groupBy ?? 'status_id'
-    if (issueState.issues !== null) return aggregatePie(issueState.issues, groupBy, settings.pieLeft?.conditions)
+    if (issueState.issues !== null) return aggregatePie(issueState.issues, groupBy, settings.pieLeft?.conditions, settings.pieLeft?.groupRules)
     return generatePieDummyData('status')
-  }, [issueState.issues, settings.pieLeft?.groupBy, settings.pieLeft?.conditions])
+  }, [issueState.issues, settings.pieLeft?.groupBy, settings.pieLeft?.conditions, settings.pieLeft?.groupRules])
 
   const pieRightData = useMemo(() => {
     const groupBy = settings.pieRight?.groupBy ?? 'tracker_id'
-    if (issueState.issues !== null) return aggregatePie(issueState.issues, groupBy, settings.pieRight?.conditions)
+    if (issueState.issues !== null) return aggregatePie(issueState.issues, groupBy, settings.pieRight?.conditions, settings.pieRight?.groupRules)
     return generatePieDummyData('tracker')
-  }, [issueState.issues, settings.pieRight?.groupBy, settings.pieRight?.conditions])
+  }, [issueState.issues, settings.pieRight?.groupBy, settings.pieRight?.conditions, settings.pieRight?.groupRules])
 
   return (
     <div style={{ fontFamily: 'sans-serif', padding: '16px' }}>
