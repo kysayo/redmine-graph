@@ -13,7 +13,7 @@ interface FilterParam {
  */
 function parseRawSearchFilters(rawSearch: string): FilterParam[] {
   const params = new URLSearchParams(rawSearch)
-  const fields = params.getAll('f[]')
+  const fields = params.getAll('f[]').filter(f => f !== '')
   if (fields.length === 0) return []
 
   return fields.map((field) => {
