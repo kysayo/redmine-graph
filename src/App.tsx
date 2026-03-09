@@ -329,7 +329,7 @@ export function App({ container }: Props) {
             <PieChart
               key={i}
               data={piesData[i] ?? []}
-              groupBy={filterFields.find(f => f.key === pie.groupBy)?.name ?? pie.groupBy}
+              groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
               onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
             />
           ))}

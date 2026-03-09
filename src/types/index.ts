@@ -31,6 +31,7 @@ export interface PieGroupRule {
 // 円グラフ系列設定
 export interface PieSeriesConfig {
   groupBy: string            // フィールドキー（例: 'status_id', 'tracker_id', 'cf_123'）
+  label?: string             // グラフタイトル（省略時 = フィールド表示名）
   conditions?: SeriesCondition[]  // 集計対象の絞り込み条件（省略時 = フィルタなし）
   groupRules?: PieGroupRule[] // スライスグルーピングルール（空配列/未設定 = グルーピングなし）
 }

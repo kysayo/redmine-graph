@@ -1041,7 +1041,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 return (
                   <div key={i} style={{ minWidth: 200 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <label style={{ fontSize: 12, color: '#555' }}>円グラフ {i + 1}: グループキー</label>
+                      <label style={{ fontSize: 12, color: '#555' }}>円グラフ {i + 1}</label>
                       {pies.length > 1 && (
                         <button
                           type="button"
@@ -1060,6 +1060,20 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         </button>
                       )}
                     </div>
+                    <div style={{ marginBottom: 4 }}>
+                      <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>タイトル（省略可）</label>
+                      <input
+                        type="text"
+                        value={pie.label ?? ''}
+                        onChange={(e) => {
+                          const next = pies.map((p, j) => j === i ? { ...p, label: e.target.value || undefined } : p)
+                          onChange({ ...settings, pies: next })
+                        }}
+                        placeholder={filterFields.find(f => f.key === pie.groupBy)?.name ?? pie.groupBy}
+                        style={{ width: '100%', fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>グループキー</label>
                     <Select
                       options={filterFields.map(f => ({ label: f.name, value: f.key }))}
                       value={(() => {
