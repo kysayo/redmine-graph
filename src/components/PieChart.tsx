@@ -23,8 +23,8 @@ export function PieChart({ data, groupBy, onSliceClick }: Props) {
   return (
     <div style={{ width: '100%' }}>
       <p style={{ textAlign: 'center', fontSize: 13, margin: '0 0 4px' }}>{title}</p>
-      <ResponsiveContainer width="100%" height={280}>
-        <RechartsPieChart>
+      <ResponsiveContainer width="100%" height={300}>
+        <RechartsPieChart margin={{ top: 30, right: 100, bottom: 10, left: 100 }}>
           <Pie
             data={data}
             dataKey="value"
