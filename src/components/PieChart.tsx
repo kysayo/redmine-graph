@@ -88,8 +88,8 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
   return (
     <div style={{ width: '100%' }}>
       <p style={{ textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#111827', margin: '0 4px 8px' }}>{groupBy}</p>
-      <style>{`.moca-donut .recharts-wrapper svg { overflow: visible; }`}</style>
-      <div className="moca-donut" style={{ position: 'relative', width: '100%', height: 280 }}>
+      <style>{`.moca-donut .recharts-wrapper, .moca-donut .recharts-wrapper svg { overflow: visible; }`}</style>
+      <div className="moca-donut" style={{ position: 'relative', width: '100%', height: 280, overflow: 'visible' }}>
         <ResponsiveContainer width="100%" height={280}>
           <RechartsPieChart margin={{ top: 16, right: 60, bottom: 16, left: 60 }}>
             <Pie
