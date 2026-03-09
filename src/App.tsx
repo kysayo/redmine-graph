@@ -273,7 +273,7 @@ export function App({ container }: Props) {
 
   const card: React.CSSProperties = {
     background: '#fff',
-    borderRadius: 12,
+    borderRadius: 20,
     boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
     padding: '20px 24px',
     marginBottom: 16,
@@ -374,7 +374,7 @@ export function App({ container }: Props) {
                   style={{
                     ...(isWide ? { gridColumn: '1 / -1' } : {}),
                     background: '#f9fafb',
-                    borderRadius: 10,
+                    borderRadius: 18,
                     boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
                     padding: '12px 8px',
                   }}

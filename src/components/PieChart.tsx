@@ -3,7 +3,7 @@ import {
   Pie,
   Cell,
   Tooltip,
-  Legend,
+  Label,
   ResponsiveContainer,
 } from 'recharts'
 import type { PieDataPoint } from '../types'
@@ -86,39 +86,62 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
     )
   }
 
-  const chartHeight = Math.max(300, 180 + data.length * 22)
-
   return (
     <div style={{ width: '100%' }}>
-      <p style={{ textAlign: 'center', fontSize: 13, margin: '0 0 4px' }}>{title}</p>
-      <ResponsiveContainer width="100%" height={chartHeight}>
-        <RechartsPieChart margin={{ top: 30, right: 100, bottom: 10, left: 100 }}>
+      <p style={{ textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#111827', margin: '0 4px 8px' }}>{groupBy}</p>
+      <ResponsiveContainer width="100%" height={240}>
+        <RechartsPieChart>
           <Pie
             data={data}
             dataKey="value"
             nameKey="name"
             cx="50%"
             cy="50%"
-            outerRadius={100}
-            label={({ name, percent, value }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}% ${value}件`}
-            labelLine={true}
+            innerRadius={72}
+            outerRadius={108}
+            startAngle={90}
+            endAngle={-270}
             cursor={onSliceClick ? 'pointer' : undefined}
             onClick={onSliceClick ? (entry) => onSliceClick(entry as PieDataPoint) : undefined}
           >
             {data.map((_, index) => (
               <Cell key={index} fill={COLORS[index % COLORS.length]} />
             ))}
+            <Label
+              content={({ viewBox }) => {
+                const { cx, cy } = viewBox as { cx: number; cy: number }
+                return (
+                  <g>
+                    <text x={cx} y={cy - 4} textAnchor="middle" fill="#111827" fontSize={30} fontWeight={700}>{total}</text>
+                    <text x={cx} y={cy + 20} textAnchor="middle" fill="#9ca3af" fontSize={13}>件</text>
+                  </g>
+                )
+              }}
+              position="center"
+            />
           </Pie>
           <Tooltip content={<CustomPieTooltip />} />
-          <Legend
-            onClick={onSliceClick ? (entry) => {
-              const slice = data.find(d => d.name === entry.value)
-              if (slice) onSliceClick(slice)
-            } : undefined}
-            style={{ cursor: onSliceClick ? 'pointer' : undefined }}
-          />
         </RechartsPieChart>
       </ResponsiveContainer>
+      <div style={{ padding: '4px 8px' }}>
+        {data.map((item, index) => (
+          <div
+            key={index}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '6px 4px',
+              borderBottom: index < data.length - 1 ? '1px solid #f3f4f6' : 'none',
+              cursor: onSliceClick ? 'pointer' : undefined,
+            }}
+            onClick={() => onSliceClick?.(item)}
+          >
+            <span style={{ width: 12, height: 12, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0, marginRight: 10 }} />
+            <span style={{ flex: 1, color: '#374151', fontSize: 13 }}>{item.name}</span>
+            <span style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{item.value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
