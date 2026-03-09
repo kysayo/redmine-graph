@@ -9,8 +9,39 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  Brush,
 } from 'recharts'
+import type { TooltipProps } from 'recharts'
 import type { SeriesConfig, SeriesDataPoint } from '../types'
+
+interface TooltipEntry {
+  name: string
+  value: number
+  color: string
+}
+
+function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid #e5e7eb',
+      borderRadius: 8,
+      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+      padding: '8px 12px',
+      fontSize: 12,
+      minWidth: 120,
+    }}>
+      <p style={{ margin: '0 0 6px', fontWeight: 600, color: '#374151', fontSize: 11 }}>{label}</p>
+      {(payload as TooltipEntry[]).map((entry, i) => (
+        <p key={i} style={{ margin: '2px 0', color: entry.color, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <span>{entry.name}</span>
+          <span style={{ fontWeight: 600 }}>{entry.value}</span>
+        </p>
+      ))}
+    </div>
+  )
+}
 
 interface Props {
   data: SeriesDataPoint[]
@@ -20,6 +51,7 @@ interface Props {
   yAxisRightMax?: number
   dateFormat?: 'yyyy-mm-dd' | 'M/D'
   chartHeight?: number
+  showBrush?: boolean
 }
 
 function formatDateTick(dateStr: string, fmt: 'yyyy-mm-dd' | 'M/D'): string {
@@ -53,10 +85,11 @@ function CustomXAxisTick({ x = 0, y = 0, payload, index = 0, tickInterval, fmt }
 }
 
 export const ComboChart = forwardRef<HTMLDivElement, Props>(
-  function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxisRightMax, dateFormat, chartHeight }, ref) {
+  function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxisRightMax, dateFormat, chartHeight, showBrush }, ref) {
     const fmt = dateFormat ?? 'yyyy-mm-dd'
     const maxTicks = fmt === 'M/D' ? 20 : 10
     const tickInterval = Math.max(0, Math.ceil(data.length / maxTicks) - 1)
+    const brushEnabled = showBrush ?? data.length > 30
 
     const visibleSeries = series.filter(s => s.visible ?? true)
     const hasLeft = visibleSeries.some(s => s.yAxisId === 'left')
@@ -79,7 +112,7 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
 
     return (
       <div ref={ref}>
-        <ResponsiveContainer width="100%" height={chartHeight ?? 320}>
+        <ResponsiveContainer width="100%" height={(chartHeight ?? 320) + (brushEnabled ? 40 : 0)}>
           <ComposedChart data={data} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis
@@ -89,7 +122,7 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
             />
             <YAxis yAxisId="left" orientation="left" hide={!hasLeft} tick={{ fontSize: 11 }} domain={effectiveLeftMin !== undefined ? [effectiveLeftMin, (dataMax: number) => Math.max(dataMax, effectiveLeftMin + 1)] : undefined} allowDataOverflow={effectiveLeftMin !== undefined} />
             <YAxis yAxisId="right" orientation="right" hide={!hasRight} tick={{ fontSize: 11 }} domain={yAxisRightMax !== undefined ? [(dataMin: number) => Math.min(dataMin, yAxisRightMax - 1), yAxisRightMax] : undefined} allowDataOverflow={yAxisRightMax !== undefined} />
-            <Tooltip />
+            <Tooltip content={<CustomTooltip />} />
             <Legend
               content={() => (
                 <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '4px 16px', padding: '4px 0', fontSize: 12, color: '#666' }}>
@@ -106,6 +139,17 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
                 </div>
               )}
             />
+
+            {brushEnabled && (
+              <Brush
+                dataKey="date"
+                height={24}
+                stroke="#d1d5db"
+                fill="#f9fafb"
+                travellerWidth={6}
+                tickFormatter={(v: string) => formatDateTick(v, fmt)}
+              />
+            )}
 
             {series.map((s) => {
               if (!(s.visible ?? true)) return null

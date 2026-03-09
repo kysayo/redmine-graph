@@ -1,5 +1,24 @@
 import { toPng } from 'html-to-image'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+function useHover() {
+  const [hovered, setHovered] = useState(false)
+  return {
+    hovered,
+    onMouseEnter: () => setHovered(true),
+    onMouseLeave: () => setHovered(false),
+  }
+}
+
+const btnBase: React.CSSProperties = {
+  fontSize: 12,
+  padding: '3px 12px',
+  border: '1px solid #d1d5db',
+  borderRadius: 6,
+  cursor: 'pointer',
+  transition: 'background 0.15s, border-color 0.15s',
+  fontFamily: 'sans-serif',
+}
 import { ComboChart } from './components/ComboChart'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
 import { PieChart } from './components/PieChart'
@@ -61,6 +80,8 @@ export function App({ container }: Props) {
   type CopyStatus = 'idle' | 'copying' | 'ok' | 'err'
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
   const comboChartRef = useRef<HTMLDivElement>(null)
+  const copyBtnHover = useHover()
+  const saveBtnHover = useHover()
 
   // fieldset#graph-section の折り畳み制御（Redmine の toggleFieldset に依存しない独自実装）
   useEffect(() => {
@@ -264,20 +285,19 @@ export function App({ container }: Props) {
         getFieldOptions={getFieldOptions}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <h2 style={{ fontSize: 16, margin: 0 }}>チケット推移</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <h2 style={{ fontSize: 15, margin: 0, fontWeight: 600, color: '#111827' }}>チケット推移</h2>
         <button
           type="button"
           onClick={handleCopyChart}
           disabled={copyStatus === 'copying'}
+          {...copyBtnHover}
           style={{
-            fontSize: 12,
-            padding: '2px 10px',
-            border: '1px solid #ccc',
-            borderRadius: 3,
-            background: '#fff',
+            ...btnBase,
+            background: copyBtnHover.hovered && copyStatus === 'idle' ? '#f3f4f6' : '#fff',
             cursor: copyStatus === 'copying' ? 'default' : 'pointer',
-            color: copyStatus === 'ok' ? '#059669' : copyStatus === 'err' ? '#dc2626' : '#333',
+            color: copyStatus === 'ok' ? '#059669' : copyStatus === 'err' ? '#dc2626' : '#374151',
+            borderColor: copyStatus === 'ok' ? '#6ee7b7' : copyStatus === 'err' ? '#fca5a5' : '#d1d5db',
           }}
         >
           {copyStatus === 'ok' ? 'コピー完了!' : copyStatus === 'err' ? 'コピー失敗' : copyStatus === 'copying' ? 'コピー中...' : 'PNG コピー'}
@@ -285,14 +305,11 @@ export function App({ container }: Props) {
         <button
           type="button"
           onClick={handleDownloadSvg}
+          {...saveBtnHover}
           style={{
-            fontSize: 12,
-            padding: '2px 10px',
-            border: '1px solid #ccc',
-            borderRadius: 3,
-            background: '#fff',
-            cursor: 'pointer',
-            color: '#333',
+            ...btnBase,
+            background: saveBtnHover.hovered ? '#f3f4f6' : '#fff',
+            color: '#374151',
           }}
         >
           PNG 保存
@@ -330,7 +347,7 @@ export function App({ container }: Props) {
         <ComboChart ref={comboChartRef} data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisLeftMinAuto={settings.yAxisLeftMinAuto} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} chartHeight={settings.chartHeight} />
       )}
 
-      <h2 style={{ fontSize: 16, margin: '24px 0 12px' }}>チケット割合</h2>
+      <h2 style={{ fontSize: 15, margin: '28px 0 12px', paddingTop: 20, borderTop: '1px solid #e5e7eb', fontWeight: 600, color: '#111827' }}>チケット割合</h2>
       {shouldFetch && issueState.loading ? (
         <div style={{ textAlign: 'center', padding: '40px 0', color: '#666', fontSize: 13 }}>
           Now Loading...
