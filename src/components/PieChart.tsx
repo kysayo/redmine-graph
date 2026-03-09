@@ -20,10 +20,12 @@ export function PieChart({ data, groupBy, onSliceClick }: Props) {
   const total = data.reduce((sum, d) => sum + d.value, 0)
   const title = `${groupBy} ${total}件`
 
+  const chartHeight = Math.max(300, 180 + data.length * 22)
+
   return (
     <div style={{ width: '100%' }}>
       <p style={{ textAlign: 'center', fontSize: 13, margin: '0 0 4px' }}>{title}</p>
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <RechartsPieChart margin={{ top: 30, right: 100, bottom: 10, left: 100 }}>
           <Pie
             data={data}
@@ -42,7 +44,13 @@ export function PieChart({ data, groupBy, onSliceClick }: Props) {
             ))}
           </Pie>
           <Tooltip formatter={(value: number | undefined) => [`${value ?? 0}件`, '']} />
-          <Legend />
+          <Legend
+            onClick={onSliceClick ? (entry) => {
+              const slice = data.find(d => d.name === entry.value)
+              if (slice) onSliceClick(slice)
+            } : undefined}
+            style={{ cursor: onSliceClick ? 'pointer' : undefined }}
+          />
         </RechartsPieChart>
       </ResponsiveContainer>
     </div>

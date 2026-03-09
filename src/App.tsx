@@ -337,14 +337,19 @@ export function App({ container }: Props) {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-          {(settings.pies ?? []).map((pie, i) => (
-            <PieChart
-              key={i}
-              data={piesData[i] ?? []}
-              groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
-              onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
-            />
-          ))}
+          {(settings.pies ?? []).map((pie, i) => {
+            const pieData = piesData[i] ?? []
+            const isWide = pieData.length > 10
+            return (
+              <div key={i} style={isWide ? { gridColumn: '1 / -1' } : undefined}>
+                <PieChart
+                  data={pieData}
+                  groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
+                  onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
+                />
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
