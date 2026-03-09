@@ -28,12 +28,20 @@ export interface PieGroupRule {
   values: string[]  // グループ対象の値リスト（例: ["In Progress", "In Progress(Permanent)"]）
 }
 
+// 円グラフ 経過日数バケット（groupBy === 'elapsed_days' のときのスライス定義）
+export interface ElapsedDaysBucket {
+  label: string   // スライス名（例: "5日以上"）
+  min: number     // 最小経過日数（含む）
+  max?: number    // 最大経過日数（含む）。省略 = 以上（上限なし）
+}
+
 // 円グラフ系列設定
 export interface PieSeriesConfig {
-  groupBy: string            // フィールドキー（例: 'status_id', 'tracker_id', 'cf_123'）
+  groupBy: string            // フィールドキー（例: 'status_id', 'tracker_id', 'cf_123', 'elapsed_days'）
   label?: string             // グラフタイトル（省略時 = フィールド表示名）
   conditions?: SeriesCondition[]  // 集計対象の絞り込み条件（省略時 = フィルタなし）
   groupRules?: PieGroupRule[] // スライスグルーピングルール（空配列/未設定 = グルーピングなし）
+  elapsedDaysBuckets?: ElapsedDaysBucket[]  // groupBy === 'elapsed_days' のときのバケット定義
 }
 
 // --- 系列設定UI 追加 ---

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { FilterField, FilterFieldOption, PieGroupRule, Preset, RedmineStatus, SeriesCondition, SeriesConfig, TeamPreset, UserSettings } from '../types'
+import type { ElapsedDaysBucket, FilterField, FilterFieldOption, PieGroupRule, Preset, RedmineStatus, SeriesCondition, SeriesConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -42,6 +42,79 @@ const fieldSelectStyles = {
 }
 
 const COLOR_PALETTE = ['#93c5fd', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+
+interface ElapsedDaysBucketsEditorProps {
+  buckets: ElapsedDaysBucket[]
+  onChange: (buckets: ElapsedDaysBucket[]) => void
+}
+
+function ElapsedDaysBucketsEditor({ buckets, onChange }: ElapsedDaysBucketsEditorProps) {
+  const inputStyle: React.CSSProperties = {
+    fontSize: 12,
+    padding: '2px 4px',
+    border: '1px solid #ccc',
+    borderRadius: 3,
+    background: '#fff',
+  }
+
+  function addBucket() {
+    onChange([...buckets, { label: '', min: 0 }])
+  }
+
+  function removeBucket(idx: number) {
+    onChange(buckets.filter((_, i) => i !== idx))
+  }
+
+  function updateBucket(idx: number, patch: Partial<ElapsedDaysBucket>) {
+    onChange(buckets.map((b, i) => i === idx ? { ...b, ...patch } : b))
+  }
+
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>バケット定義</div>
+      {buckets.map((bucket, idx) => (
+        <div key={idx} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            value={bucket.label}
+            onChange={(e) => updateBucket(idx, { label: e.target.value })}
+            placeholder="ラベル"
+            style={{ ...inputStyle, width: 80 }}
+          />
+          <span style={{ fontSize: 11, color: '#777' }}>最小</span>
+          <input
+            type="number"
+            min={0}
+            value={bucket.min}
+            onChange={(e) => updateBucket(idx, { min: Number(e.target.value) })}
+            style={{ ...inputStyle, width: 50 }}
+          />
+          <span style={{ fontSize: 11, color: '#777' }}>最大</span>
+          <input
+            type="number"
+            min={0}
+            value={bucket.max ?? ''}
+            onChange={(e) => updateBucket(idx, { max: e.target.value !== '' ? Number(e.target.value) : undefined })}
+            placeholder="以上"
+            style={{ ...inputStyle, width: 50 }}
+          />
+          <button
+            type="button"
+            onClick={() => removeBucket(idx)}
+            style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+          >×</button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addBucket}
+        style={{ fontSize: 11, padding: '1px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+      >
+        + バケットを追加
+      </button>
+    </div>
+  )
+}
 
 interface PieGroupRulesEditorProps {
   groupBy: string
@@ -1104,9 +1177,10 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     </div>
                     <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>グループキー</label>
                     <Select
-                      options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                      options={[ELAPSED_DAYS_FIELD, ...filterFields].map(f => ({ label: f.name, value: f.key }))}
                       value={(() => {
-                        const field = filterFields.find(f => f.key === pie.groupBy)
+                        const allGroupByFields = [ELAPSED_DAYS_FIELD, ...filterFields]
+                        const field = allGroupByFields.find(f => f.key === pie.groupBy)
                         return field ? { label: field.name, value: pie.groupBy } : { label: pie.groupBy, value: pie.groupBy }
                       })()}
                       onChange={(selected) => {
@@ -1130,15 +1204,25 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         }}
                       />
                     </div>
-                    <PieGroupRulesEditor
-                      groupBy={pie.groupBy}
-                      groupRules={pie.groupRules ?? []}
-                      getFieldOptions={getFieldOptions}
-                      onChange={(rules) => {
-                        const updated = pies.map((p, j) => j === i ? { ...p, groupRules: rules } : p)
-                        onChange({ ...settings, pies: updated })
-                      }}
-                    />
+                    {pie.groupBy === 'elapsed_days' ? (
+                      <ElapsedDaysBucketsEditor
+                        buckets={pie.elapsedDaysBuckets ?? []}
+                        onChange={(buckets) => {
+                          const updated = pies.map((p, j) => j === i ? { ...p, elapsedDaysBuckets: buckets } : p)
+                          onChange({ ...settings, pies: updated })
+                        }}
+                      />
+                    ) : (
+                      <PieGroupRulesEditor
+                        groupBy={pie.groupBy}
+                        groupRules={pie.groupRules ?? []}
+                        getFieldOptions={getFieldOptions}
+                        onChange={(rules) => {
+                          const updated = pies.map((p, j) => j === i ? { ...p, groupRules: rules } : p)
+                          onChange({ ...settings, pies: updated })
+                        }}
+                      />
+                    )}
                   </div>
                 )
               })}

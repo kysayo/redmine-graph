@@ -1,4 +1,4 @@
-import type { PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint } from '../types'
+import type { ElapsedDaysBucket, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint } from '../types'
 import { calcElapsedDays, utcToJstDate } from './dateUtils'
 
 function formatDate(date: Date): string {
@@ -368,13 +368,36 @@ function applyGroupRules(value: string, groupRules: PieGroupRule[]): string {
  * Redmineチケット一覧を groupBy フィールドでグループ化し、円グラフ用データに集計する
  * conditions が指定された場合は一致するチケットのみを集計する
  * groupRules が指定された場合はスライスをグルーピングする
+ * groupBy === 'elapsed_days' かつ elapsedDaysBuckets が指定された場合は経過日数バケットで集計する
  */
 export function aggregatePie(
   issues: RedmineIssue[],
   groupBy: string,
   conditions?: SeriesCondition[],
-  groupRules?: PieGroupRule[]
+  groupRules?: PieGroupRule[],
+  elapsedDaysBuckets?: ElapsedDaysBucket[]
 ): PieDataPoint[] {
+  // 経過日数バケット集計モード
+  if (groupBy === 'elapsed_days' && elapsedDaysBuckets?.length) {
+    const bucketCounts = new Map<string, number>()
+    for (const bucket of elapsedDaysBuckets) {
+      bucketCounts.set(bucket.label, 0)
+    }
+    for (const issue of issues) {
+      if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
+      const baseDate = issue.updated_on || issue.created_on
+      const days = calcElapsedDays(baseDate)
+      const bucket = elapsedDaysBuckets.find(b =>
+        days >= b.min && (b.max === undefined || days <= b.max)
+      )
+      if (!bucket) continue
+      bucketCounts.set(bucket.label, (bucketCounts.get(bucket.label) ?? 0) + 1)
+    }
+    return Array.from(bucketCounts.entries())
+      .map(([name, value]) => ({ name, value, filterValues: [] }))
+      .filter(p => p.value > 0)
+  }
+
   const counts = new Map<string, number>()
   const filterValuesMap = new Map<string, Set<string>>()
   for (const issue of issues) {
