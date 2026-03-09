@@ -11,16 +11,13 @@ import {
   ResponsiveContainer,
   Brush,
 } from 'recharts'
-import type { TooltipProps } from 'recharts'
 import type { SeriesConfig, SeriesDataPoint } from '../types'
 
-interface TooltipEntry {
-  name: string
-  value: number
-  color: string
-}
-
-function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
+function CustomTooltip({ active, payload, label }: {
+  active?: boolean
+  payload?: { name: string; value: number; color: string }[]
+  label?: string
+}) {
   if (!active || !payload?.length) return null
   return (
     <div style={{
@@ -33,7 +30,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
       minWidth: 120,
     }}>
       <p style={{ margin: '0 0 6px', fontWeight: 600, color: '#374151', fontSize: 11 }}>{label}</p>
-      {(payload as TooltipEntry[]).map((entry, i) => (
+      {payload.map((entry, i) => (
         <p key={i} style={{ margin: '2px 0', color: entry.color, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <span>{entry.name}</span>
           <span style={{ fontWeight: 600 }}>{entry.value}</span>
