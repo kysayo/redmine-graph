@@ -88,9 +88,9 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
   return (
     <div style={{ width: '100%' }}>
       <p style={{ textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#111827', margin: '0 4px 8px' }}>{groupBy}</p>
-      <div style={{ position: 'relative', width: '100%', height: 240 }}>
-        <ResponsiveContainer width="100%" height={240}>
-          <RechartsPieChart>
+      <div style={{ position: 'relative', width: '100%', height: 280 }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <RechartsPieChart margin={{ top: 16, right: 60, bottom: 16, left: 60 }}>
             <Pie
               data={data}
               dataKey="value"
@@ -101,6 +101,8 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
               outerRadius={108}
               startAngle={90}
               endAngle={-270}
+              label={({ name, percent, value }) => (percent ?? 0) >= 0.05 ? `${name}:${value}件:${((percent ?? 0) * 100).toFixed(0)}%` : ''}
+              labelLine={true}
               cursor={onSliceClick ? 'pointer' : undefined}
               onClick={onSliceClick ? (entry) => onSliceClick(entry as PieDataPoint) : undefined}
             >
