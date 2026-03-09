@@ -68,15 +68,17 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
             <Tooltip content={<CustomPieTooltip />} />
           </RechartsPieChart>
         </ResponsiveContainer>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', padding: '8px 16px', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', padding: '8px 16px', justifyContent: 'center' }}>
           {data.map((item, index) => (
             <span
               key={index}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: onSliceClick ? 'pointer' : undefined }}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: onSliceClick ? 'pointer' : undefined }}
               onClick={() => onSliceClick?.(item)}
             >
               <span style={{ width: 12, height: 12, background: COLORS[index % COLORS.length], display: 'inline-block', borderRadius: 2, flexShrink: 0 }} />
-              {item.name}
+              <span style={{ color: '#374151' }}>{item.name}</span>
+              <span style={{ color: '#6b7280' }}>{((item.value / total) * 100).toFixed(0)}%</span>
+              <span style={{ fontWeight: 600, color: '#111827' }}>{item.value}件</span>
             </span>
           ))}
         </div>
