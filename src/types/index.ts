@@ -71,8 +71,9 @@ export interface UserSettings {
   anchorDay?: number     // 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1
   dateFormat?: 'yyyy-mm-dd' | 'M/D'  // X軸の日付表示形式。デフォルト 'yyyy-mm-dd'
   chartHeight?: number               // グラフ高さ(px)。未設定=320
-  pieLeft?: PieSeriesConfig   // 左の円グラフ設定
-  pieRight?: PieSeriesConfig  // 右の円グラフ設定
+  pieLeft?: PieSeriesConfig   // deprecated: pies に移行済み
+  pieRight?: PieSeriesConfig  // deprecated: pies に移行済み
+  pies?: PieSeriesConfig[]    // 任意個数の円グラフ設定
 }
 
 // fetchAllIssues の進捗コールバック用

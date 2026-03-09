@@ -1,4 +1,4 @@
-import type { Preset, UserSettings } from '../types'
+import type { PieSeriesConfig, Preset, UserSettings } from '../types'
 import { getProjectId } from './urlParser'
 
 const STORAGE_VERSION = 1
@@ -13,6 +13,13 @@ export function loadSettings(): UserSettings | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as UserSettings
     if (parsed.version !== STORAGE_VERSION) return null
+    // pieLeft/pieRight から pies 配列へのインラインマイグレーション
+    if (!parsed.pies) {
+      const arr: PieSeriesConfig[] = []
+      if (parsed.pieLeft) arr.push(parsed.pieLeft)
+      if (parsed.pieRight) arr.push(parsed.pieRight)
+      if (arr.length > 0) parsed.pies = arr
+    }
     return parsed
   } catch {
     return null

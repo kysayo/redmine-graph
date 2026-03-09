@@ -212,17 +212,12 @@ export function App({ container }: Props) {
     return generateSeriesDummyData(settings.series, options)
   }, [issueState.issues, settings.series, settings.startDate, settings.hideWeekends, settings.weeklyMode, settings.anchorDay])
 
-  const pieLeftData = useMemo(() => {
-    const groupBy = settings.pieLeft?.groupBy ?? 'status_id'
-    if (issueState.issues !== null) return aggregatePie(issueState.issues, groupBy, settings.pieLeft?.conditions, settings.pieLeft?.groupRules)
-    return generatePieDummyData('status')
-  }, [issueState.issues, settings.pieLeft?.groupBy, settings.pieLeft?.conditions, settings.pieLeft?.groupRules])
-
-  const pieRightData = useMemo(() => {
-    const groupBy = settings.pieRight?.groupBy ?? 'tracker_id'
-    if (issueState.issues !== null) return aggregatePie(issueState.issues, groupBy, settings.pieRight?.conditions, settings.pieRight?.groupRules)
-    return generatePieDummyData('tracker')
-  }, [issueState.issues, settings.pieRight?.groupBy, settings.pieRight?.conditions, settings.pieRight?.groupRules])
+  const piesData = useMemo(() => {
+    return (settings.pies ?? []).map((pie, i) => {
+      if (issueState.issues !== null) return aggregatePie(issueState.issues, pie.groupBy, pie.conditions, pie.groupRules)
+      return generatePieDummyData(i === 0 ? 'status' : 'tracker')
+    })
+  }, [issueState.issues, settings.pies])
 
   return (
     <div style={{ fontFamily: 'sans-serif', padding: '16px' }}>
@@ -309,19 +304,14 @@ export function App({ container }: Props) {
           Now Loading...
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          {(settings.pies ?? []).map((pie, i) => (
             <PieChart
-              data={pieLeftData}
-              groupBy={filterFields.find(f => f.key === (settings.pieLeft?.groupBy ?? 'status_id'))?.name ?? (settings.pieLeft?.groupBy ?? 'status_id')}
+              key={i}
+              data={piesData[i] ?? []}
+              groupBy={filterFields.find(f => f.key === pie.groupBy)?.name ?? pie.groupBy}
             />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <PieChart
-              data={pieRightData}
-              groupBy={filterFields.find(f => f.key === (settings.pieRight?.groupBy ?? 'tracker_id'))?.name ?? (settings.pieRight?.groupBy ?? 'tracker_id')}
-            />
-          </div>
+          ))}
         </div>
       )}
     </div>

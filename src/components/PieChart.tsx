@@ -16,7 +16,8 @@ interface Props {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
 
 export function PieChart({ data, groupBy }: Props) {
-  const title = `チケット割合（${groupBy}別）`
+  const total = data.reduce((sum, d) => sum + d.value, 0)
+  const title = `チケット割合（${groupBy}別） ${total}件`
 
   return (
     <div style={{ width: '100%' }}>
@@ -30,7 +31,7 @@ export function PieChart({ data, groupBy }: Props) {
             cx="50%"
             cy="50%"
             outerRadius={100}
-            label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+            label={({ name, percent, value }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}% ${value}件`}
             labelLine={true}
           >
             {data.map((_, index) => (
