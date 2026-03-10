@@ -163,6 +163,15 @@ interface AggregateOptions {
 }
 
 /**
+ * 条件に合致するチケット数を返す
+ * conditions が空の場合は全チケット数を返す
+ */
+export function countIssues(issues: RedmineIssue[], conditions: SeriesCondition[]): number {
+  if (!conditions.length) return issues.length
+  return issues.filter(issue => issueMatchesConditions(issue, conditions)).length
+}
+
+/**
  * Redmineチケット一覧を系列設定に基づいて SeriesDataPoint[] に集計する
  *
  * - created_on 系列: チケットの作成日（UTC文字列の日付部分）でカウント

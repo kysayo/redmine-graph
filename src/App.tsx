@@ -22,7 +22,8 @@ const btnBase: React.CSSProperties = {
 import { ComboChart } from './components/ComboChart'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
 import { PieChart } from './components/PieChart'
-import type { FilterField, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, UserSettings } from './types'
+import { SummaryCards } from './components/SummaryCards'
+import type { FilterField, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, UserSettings } from './types'
 import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
@@ -249,6 +250,16 @@ export function App({ container }: Props) {
     window.open(url, '_blank', 'noopener')
   }, [])
 
+  const handleSummaryCardClick = useCallback((conditions: SeriesCondition[]) => {
+    const url = buildRedmineFilterUrl(
+      window.location.pathname,
+      window.location.search,
+      undefined,
+      conditions
+    )
+    window.open(url, '_blank', 'noopener')
+  }, [])
+
   // チケットデータを系列設定に基づいて集計（取得済みチケットから再計算）
   const comboData = useMemo(() => {
     const options = {
@@ -292,6 +303,15 @@ export function App({ container }: Props) {
         dateFilterFields={dateFilterFields}
         getFieldOptions={getFieldOptions}
       />
+
+      {(settings.summaryCards?.length ?? 0) > 0 && (
+        <SummaryCards
+          cards={settings.summaryCards!}
+          issues={issueState.issues}
+          onNumeratorClick={handleSummaryCardClick}
+          onDenominatorClick={handleSummaryCardClick}
+        />
+      )}
 
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>

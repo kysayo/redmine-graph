@@ -35,6 +35,14 @@ export interface ElapsedDaysBucket {
   max?: number    // 最大経過日数（含む）。省略 = 以上（上限なし）
 }
 
+// 集計カード設定
+export interface SummaryCardConfig {
+  title: string
+  color: string  // HEX accent color（カード上辺ボーダー + 数値テキスト色）
+  numerator: { conditions: SeriesCondition[] }    // 分子: 条件に合致するチケット数
+  denominator?: { conditions: SeriesCondition[] } // 分母: 省略可。指定時は「分子 / 分母」形式で表示
+}
+
 // 円グラフ系列設定
 export interface PieSeriesConfig {
   groupBy: string            // フィールドキー（例: 'status_id', 'tracker_id', 'cf_123', 'elapsed_days'）
@@ -85,6 +93,7 @@ export interface UserSettings {
   pieLeft?: PieSeriesConfig   // deprecated: pies に移行済み
   pieRight?: PieSeriesConfig  // deprecated: pies に移行済み
   pies?: PieSeriesConfig[]    // 任意個数の円グラフ設定
+  summaryCards?: SummaryCardConfig[]  // 集計カード設定
 }
 
 // fetchAllIssues の進捗コールバック用

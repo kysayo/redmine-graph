@@ -92,7 +92,7 @@ function buildFilterQueryString(filters: FilterParam[]): string {
 export function buildRedmineFilterUrl(
   basePathname: string,
   rawSearch: string,
-  sliceFilter: FilterParam,
+  sliceFilter: FilterParam | undefined,
   pieConditions?: SeriesCondition[]
 ): string {
   // rawSearch から明示的フィルタをパース（query_id は除外）
@@ -120,7 +120,9 @@ export function buildRedmineFilterUrl(
   }
 
   // sliceFilter を最高優先で上書き
-  filterMap.set(sliceFilter.field, sliceFilter)
+  if (sliceFilter) {
+    filterMap.set(sliceFilter.field, sliceFilter)
+  }
 
   const filters = Array.from(filterMap.values())
   const filterQs = buildFilterQueryString(filters)

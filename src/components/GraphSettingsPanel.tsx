@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { ElapsedDaysBucket, FilterField, FilterFieldOption, PieGroupRule, Preset, RedmineStatus, SeriesCondition, SeriesConfig, TeamPreset, UserSettings } from '../types'
+import type { ElapsedDaysBucket, FilterField, FilterFieldOption, PieGroupRule, Preset, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -688,6 +688,126 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
   )
 }
 
+interface SummaryCardEditorRowProps {
+  card: SummaryCardConfig
+  filterFields: FilterField[]
+  getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
+  onChange: (updated: SummaryCardConfig) => void
+  onDelete: () => void
+}
+
+function SummaryCardEditorRow({ card, filterFields, getFieldOptions, onChange, onDelete }: SummaryCardEditorRowProps) {
+  const [colorPickerOpen, setColorPickerOpen] = useState(false)
+  const [showDenominator, setShowDenominator] = useState(!!card.denominator)
+
+  const labelStyle: React.CSSProperties = { fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }
+  const inputStyle: React.CSSProperties = { fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', width: 140 }
+
+  function handleToggleDenominator(checked: boolean) {
+    setShowDenominator(checked)
+    if (!checked) {
+      onChange({ ...card, denominator: undefined })
+    } else {
+      onChange({ ...card, denominator: { conditions: [] } })
+    }
+  }
+
+  return (
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: '8px 10px', marginBottom: 8, borderLeft: `4px solid ${card.color}` }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        {/* 色インジケーター＋カラーピッカー */}
+        <div style={{ position: 'relative', flexShrink: 0, paddingTop: 18 }}>
+          <div
+            onClick={() => setColorPickerOpen(!colorPickerOpen)}
+            style={{ width: 14, height: 14, borderRadius: 2, background: card.color, cursor: 'pointer', border: '1px solid #aaa' }}
+          />
+          {colorPickerOpen && (
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                onClick={() => setColorPickerOpen(false)}
+              />
+              <div style={{ position: 'absolute', top: 32, left: 0, zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: 4, padding: 6, display: 'flex', flexWrap: 'wrap', gap: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', width: 156 }}>
+                {COLOR_PALETTE.map((c) => (
+                  <div
+                    key={c}
+                    onClick={() => { onChange({ ...card, color: c }); setColorPickerOpen(false) }}
+                    style={{ width: 16, height: 16, borderRadius: 2, background: c, cursor: 'pointer', border: c === card.color ? '2px solid #333' : '1px solid #aaa' }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* タイトル */}
+        <div>
+          <label style={labelStyle}>タイトル</label>
+          <input
+            type="text"
+            value={card.title}
+            onChange={(e) => onChange({ ...card, title: e.target.value })}
+            placeholder="未完了チケット"
+            style={inputStyle}
+          />
+        </div>
+
+        {/* 削除ボタン */}
+        <div style={{ marginLeft: 'auto', paddingTop: 16 }}>
+          <button
+            type="button"
+            onClick={onDelete}
+            style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+          >
+            削除
+          </button>
+        </div>
+      </div>
+
+      {/* 分子条件 */}
+      <div style={{ marginTop: 8 }}>
+        <div style={{ fontSize: 11, color: '#555', marginBottom: 4, fontWeight: 'bold' }}>分子（件数）の絞り込み条件</div>
+        <ConditionsEditor
+          conditions={card.numerator.conditions}
+          filterFields={filterFields}
+          getFieldOptions={getFieldOptions}
+          onChange={(next) => onChange({ ...card, numerator: { conditions: next ?? [] } })}
+        />
+      </div>
+
+      {/* 分母トグル */}
+      <div style={{ marginTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: showDenominator ? 6 : 0 }}>
+          <input
+            type="checkbox"
+            id={`denom-toggle-${card.title}-${card.color}`}
+            checked={showDenominator}
+            onChange={(e) => handleToggleDenominator(e.target.checked)}
+            style={{ cursor: 'pointer', width: 13, height: 13 }}
+          />
+          <label
+            htmlFor={`denom-toggle-${card.title}-${card.color}`}
+            style={{ fontSize: 11, color: '#555', cursor: 'pointer' }}
+          >
+            分母の条件を指定する（指定時は「分子 / 分母」形式で表示）
+          </label>
+        </div>
+        {showDenominator && (
+          <div style={{ marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: '#555', marginBottom: 4, fontWeight: 'bold' }}>分母の絞り込み条件</div>
+            <ConditionsEditor
+              conditions={card.denominator?.conditions ?? []}
+              filterFields={filterFields}
+              getFieldOptions={getFieldOptions}
+              onChange={(next) => onChange({ ...card, denominator: { conditions: next ?? [] } })}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 interface Props {
   settings: UserSettings
   statuses: RedmineStatus[]
@@ -793,6 +913,27 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
       color: COLOR_PALETTE[colorIndex],
     }
     onChange({ ...settings, series: [...settings.series, newSeries] })
+  }
+
+  function addSummaryCard() {
+    const colorIndex = (settings.summaryCards?.length ?? 0) % COLOR_PALETTE.length
+    const newCard: SummaryCardConfig = {
+      title: '',
+      color: COLOR_PALETTE[colorIndex],
+      numerator: { conditions: [] },
+    }
+    onChange({ ...settings, summaryCards: [...(settings.summaryCards ?? []), newCard] })
+  }
+
+  function updateSummaryCard(index: number, updated: SummaryCardConfig) {
+    const next = [...(settings.summaryCards ?? [])]
+    next[index] = updated
+    onChange({ ...settings, summaryCards: next })
+  }
+
+  function deleteSummaryCard(index: number) {
+    const next = (settings.summaryCards ?? []).filter((_, i) => i !== index)
+    onChange({ ...settings, summaryCards: next.length ? next : undefined })
   }
 
   return (
@@ -1137,6 +1278,36 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               }}
             >
               ＋ 系列を追加
+            </button>
+          </div>
+
+          {/* 集計カード設定 */}
+          <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>集計カード設定</div>
+            {(settings.summaryCards ?? []).map((card, i) => (
+              <SummaryCardEditorRow
+                key={i}
+                card={card}
+                filterFields={filterFields}
+                getFieldOptions={getFieldOptions}
+                onChange={(updated) => updateSummaryCard(i, updated)}
+                onDelete={() => deleteSummaryCard(i)}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={addSummaryCard}
+              style={{
+                marginTop: 4,
+                fontSize: 12,
+                padding: '3px 10px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                background: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              ＋ カードを追加
             </button>
           </div>
 
