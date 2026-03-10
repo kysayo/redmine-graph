@@ -63,6 +63,17 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - 絞り込み条件: チケットの項目で絞り込み。フィールド（react-select、テキスト入力補完あり）・演算子（=、!=、>=（以上））・値（`<select multiple>` またはテキスト入力）の組み合わせ。複数条件はAND。対応フィールド: ステータス、トラッカー、優先度、カスタムフィールド（リスト系）、経過日数（日）。ページリロード後も復元のため、マウント時に設定済みフィールドの選択肢を事前取得する
     - **経過日数（`elapsed_days`）フィールド**: 仮想フィールド。`updated_on`（未更新時は `created_on`）からJST換算の経過日数を数値入力で指定。演算子 `=`（ちょうどN日）または `>=`（N日以上）が使用可能。Redmine URLフィルタには変換されない（円グラフ内部フィルタのみ）
   - 順序変更: ↑↓ ボタンで系列の並び順を変更。先頭の ↑・末尾の ↓ は無効（グレー）。`series` 配列の順序がグラフ凡例の表示順に直結する（凡例はカスタムレンダラーで `visibleSeries` の順序と同期）
+- **集計カード設定**（系列設定パネルの上部、2軸グラフの上に表示）:
+  - 「＋ カードを追加」ボタンで任意個数追加可能
+  - 各カードに設定できる項目:
+    - アクセントカラー: カード上辺ボーダー色 + 数値テキスト色（12色パレットから選択）
+    - タイトル: カードの見出しテキスト
+    - 分子条件: 系列と同様の ConditionsEditor（条件に合致するチケット数を大きく表示）
+    - 分母条件: 省略可能（「分母条件を追加」ボタンで表示）。指定時は「分子 / 分母」形式で表示
+    - ↑↓ ボタンで並び順を変更。削除ボタンでカードを削除
+  - カードクリック: 分子数値クリック→分子条件でRedmineチケット一覧を新タブで開く / 分母数値クリック→分母条件で開く
+  - データ未取得中（ローディング）は「—」を表示
+  - 設定は `localStorage` の `UserSettings.summaryCards` へ保存
 - **円グラフ設定**（系列設定パネルの下部）:
   - グループキー: `window.availableFilters` のリスト系フィールド + 固定フィールド「経過日数(日)」から選択（react-select）
   - グラフタイトル（省略時 = フィールド表示名）
@@ -78,9 +89,10 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー形式**: `redmine-graph:settings:{projectId}`（プロジェクトID別に独立）
 - **バージョン管理**: `version: 1`（スキーマ変更時にリセット）
 - 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
-- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`
+- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`, `summaryCards?`
   - `yAxisLeftMinAuto?: boolean`: `true` のとき左軸最小値を「最大値の8割」で自動計算（`yAxisLeftMin` より優先）
   - `pies?: PieSeriesConfig[]`: 任意個数の円グラフ設定。各要素は `{ groupBy, label?, conditions?, groupRules?, elapsedDaysBuckets? }`
+  - `summaryCards?: SummaryCardConfig[]`: 任意個数の集計カード設定。各要素は `{ title, color, numerator: { conditions }, denominator?: { conditions } }`
 
 ### プリセットの永続化（storage.ts）
 
@@ -141,7 +153,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - `closed_on` 系列: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
   - `custom` 系列: `customDateFieldKey` で指定したフィールドを取得。`cf_{id}` 形式はカスタムフィールドから、`start_date`・`due_date` 等はチケットの直接プロパティから取得。値が空/null/未設定のチケットはスキップ。UTC変換不要（Redmineはカスタム日付をYYYY-MM-DD形式で返す）
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
-- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`cf_{id}`（カスタムフィールド）・`elapsed_days`（経過日数、仮想フィールド）。演算子: `=`（一致）、`!`（不一致）、`>=`（以上）
+- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`assigned_to_id`・`category_id`・`fixed_version_id`・`cf_{id}`（カスタムフィールド）・`elapsed_days`（経過日数、仮想フィールド）。演算子: `=`（一致）、`!`（不一致）、`>=`（以上）
 - **経過日数バケット集計**: `groupBy === 'elapsed_days'` かつ `elapsedDaysBuckets` が定義されている場合、通常のフィールドグルーピングの代わりにバケット分類を実行。各チケットの `updated_on`（未更新時は `created_on`）からJST換算の経過日数を計算し、最初に条件が合致したバケットに計上。バケット順序はユーザー定義順を維持
 - **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換。`startDate` 指定時は `startDate` より前のチケット数を初期値として積算（グラフ開始時点の既存チケット数を反映）
 
@@ -280,6 +292,16 @@ if (container) {
 | `label` | `string` | スライス名（例: `"5日以上"`） |
 | `min` | `number` | 最小経過日数（含む） |
 | `max` | `number?` | 最大経過日数（含む）。省略 = 上限なし |
+
+### `SummaryCardConfig`
+集計カード1枚の設定。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `title` | `string` | カードの見出しテキスト |
+| `color` | `string` | アクセントカラー（HEX）。カード上辺ボーダーと数値テキスト色に使用 |
+| `numerator` | `{ conditions: SeriesCondition[] }` | 分子の絞り込み条件 |
+| `denominator` | `{ conditions: SeriesCondition[] }?` | 分母の絞り込み条件（省略時 = 分母なし） |
 
 ### `PieSeriesConfig`
 円グラフ1枚の設定。
