@@ -85,7 +85,29 @@ npm run lint
 https://cdn.jsdelivr.net/gh/kysayo/redmine-graph@a90f907/dist/moca-react-graph.iife.js
 ```
 
-> **開発時の更新手順**: `master` push 後に View Customize のコミットハッシュを最新のものに変更する。
+> **開発時の更新手順**: `master` push 後、GitHub Actions の Job Summary に表示される新しいコミットハッシュを View Customize の URL に貼り替える。
+
+### dist ファイルのコミットルール
+
+**`dist/moca-react-graph.iife.js` は手元で絶対にコミットしないこと。**
+
+理由と仕組み：
+
+- `@master` URL は jsDelivr CDN にキャッシュされるため、push 直後に反映されない場合がある（バグか伝播遅延かの区別がつかない）
+- `@{コミットハッシュ}` URL は jsDelivr がハッシュ単位でキャッシュするため、**新しいハッシュ = 必ず新しいファイル** が保証される
+- このため開発中は `@{ハッシュ}` を View Customize に指定することでキャッシュ問題を完全に回避している
+- `@{ハッシュ}` URL が機能するには **Actions が dist をコミットした `[skip ci]` コミットのハッシュ** を使う必要がある
+
+**正しいフロー**:
+```
+src/ のみコミット & push
+  → GitHub Actions が npm run build を実行
+  → dist の差分あり → [skip ci] コミット（新ハッシュ生成）
+  → Job Summary に新ハッシュが表示される
+  → View Customize の URL を新ハッシュに更新
+```
+
+手元で dist をコミットしてしまうと Actions が差分を検知できず `[skip ci]` コミットが作られず、ハッシュが変わらない。
 
 ## Redmineへの埋め込み方
 
