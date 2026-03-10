@@ -694,9 +694,11 @@ interface SummaryCardEditorRowProps {
   getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
   onChange: (updated: SummaryCardConfig) => void
   onDelete: () => void
+  onMoveUp?: () => void
+  onMoveDown?: () => void
 }
 
-function SummaryCardEditorRow({ card, filterFields, getFieldOptions, onChange, onDelete }: SummaryCardEditorRowProps) {
+function SummaryCardEditorRow({ card, filterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SummaryCardEditorRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
   const [showDenominator, setShowDenominator] = useState(!!card.denominator)
 
@@ -752,8 +754,22 @@ function SummaryCardEditorRow({ card, filterFields, getFieldOptions, onChange, o
           />
         </div>
 
-        {/* 削除ボタン */}
-        <div style={{ marginLeft: 'auto', paddingTop: 16 }}>
+        {/* ↑↓・削除ボタン */}
+        <div style={{ marginLeft: 'auto', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <button
+            type="button"
+            onClick={onMoveUp}
+            disabled={!onMoveUp}
+            style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: onMoveUp ? 'pointer' : 'default', color: onMoveUp ? '#333' : '#ccc' }}
+            title="上へ移動"
+          >↑</button>
+          <button
+            type="button"
+            onClick={onMoveDown}
+            disabled={!onMoveDown}
+            style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: onMoveDown ? 'pointer' : 'default', color: onMoveDown ? '#333' : '#ccc' }}
+            title="下へ移動"
+          >↓</button>
           <button
             type="button"
             onClick={onDelete}
@@ -934,6 +950,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
   function deleteSummaryCard(index: number) {
     const next = (settings.summaryCards ?? []).filter((_, i) => i !== index)
     onChange({ ...settings, summaryCards: next.length ? next : undefined })
+  }
+
+  function moveSummaryCard(from: number, to: number) {
+    const next = [...(settings.summaryCards ?? [])]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    onChange({ ...settings, summaryCards: next })
   }
 
   return (
@@ -1292,6 +1315,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 getFieldOptions={getFieldOptions}
                 onChange={(updated) => updateSummaryCard(i, updated)}
                 onDelete={() => deleteSummaryCard(i)}
+              onMoveUp={i > 0 ? () => moveSummaryCard(i, i - 1) : undefined}
+              onMoveDown={i < (settings.summaryCards ?? []).length - 1 ? () => moveSummaryCard(i, i + 1) : undefined}
               />
             ))}
             <button
