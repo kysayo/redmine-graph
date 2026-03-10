@@ -152,6 +152,9 @@ export interface RedmineIssue {
   status: { id: number; name: string }
   tracker: { id: number; name: string }
   priority?: { id: number; name: string }
+  assigned_to?: { id: number; name: string }
+  category?: { id: number; name: string }
+  fixed_version?: { id: number; name: string }
   created_on: string       // UTC ISO文字列（例: "2026-02-05T17:09:11Z"）
   closed_on: string | null // UTC ISO文字列。未完了の場合はnull
   updated_on: string

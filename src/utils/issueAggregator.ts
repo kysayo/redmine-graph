@@ -73,8 +73,12 @@ function generateWeeklyDateRange(from: Date, to: Date, anchorDay: number): strin
 
 /**
  * チケットが1つの絞り込み条件にマッチするか判定する
+ * - status_id: issue.status.id の文字列表現と比較
  * - tracker_id: issue.tracker.id の文字列表現と比較
  * - priority_id: issue.priority.id の文字列表現と比較
+ * - assigned_to_id: issue.assigned_to.id の文字列表現と比較
+ * - category_id: issue.category.id の文字列表現と比較
+ * - fixed_version_id: issue.fixed_version.id の文字列表現と比較
  * - cf_{id}: issue.custom_fields から id が一致するカスタムフィールドの value と比較
  * - その他: 非対応フィールドはフィルタしない（true を返す）
  */
@@ -98,6 +102,12 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
     issueValues = [String(issue.tracker.id)]
   } else if (field === 'priority_id') {
     issueValues = issue.priority ? [String(issue.priority.id)] : []
+  } else if (field === 'assigned_to_id') {
+    issueValues = issue.assigned_to ? [String(issue.assigned_to.id)] : []
+  } else if (field === 'category_id') {
+    issueValues = issue.category ? [String(issue.category.id)] : []
+  } else if (field === 'fixed_version_id') {
+    issueValues = issue.fixed_version ? [String(issue.fixed_version.id)] : []
   } else if (field.startsWith('cf_')) {
     const cfId = Number(field.slice(3))
     const cf = issue.custom_fields?.find(c => c.id === cfId)
@@ -326,8 +336,7 @@ function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null
   if (groupBy === 'status_id') return issue.status.name
   if (groupBy === 'tracker_id') return issue.tracker.name
   if (groupBy === 'priority_id') return issue.priority?.name ?? null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (groupBy === 'assigned_to_id') return (issue as any).assigned_to?.name ?? null
+  if (groupBy === 'assigned_to_id') return issue.assigned_to?.name ?? null
   if (groupBy.startsWith('cf_')) {
     const cfId = Number(groupBy.slice(3))
     const cf = issue.custom_fields?.find(c => c.id === cfId)
@@ -350,8 +359,7 @@ function getIssueGroupFilterValue(issue: RedmineIssue, groupBy: string): string 
   if (groupBy === 'status_id') return String(issue.status.id)
   if (groupBy === 'tracker_id') return String(issue.tracker.id)
   if (groupBy === 'priority_id') return issue.priority ? String(issue.priority.id) : null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (groupBy === 'assigned_to_id') return (issue as any).assigned_to ? String((issue as any).assigned_to.id) : null
+  if (groupBy === 'assigned_to_id') return issue.assigned_to ? String(issue.assigned_to.id) : null
   if (groupBy.startsWith('cf_')) {
     const cfId = Number(groupBy.slice(3))
     const cf = issue.custom_fields?.find(c => c.id === cfId)
