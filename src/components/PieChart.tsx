@@ -84,7 +84,7 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
       currentAngle -= sliceAngle
 
       const percent = item.value / total
-      if (percent < 0.05) return
+      if (percent < 0.01) return
 
       const cos = Math.cos(-midAngle * RADIAN)
       const sin = Math.sin(-midAngle * RADIAN)
@@ -92,9 +92,15 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
       const sy = cy + OUTER_RADIUS * sin
 
       // 上方向(70-110°)・下方向(250-290°)のスライスは横にずらして見切れを防ぐ
+      // midAngle は負になることがあるため 0-360° に正規化してから判定する
+      const normalizedMid = ((midAngle % 360) + 360) % 360
       let bendAngle = midAngle
-      if (midAngle > 70 && midAngle < 110) bendAngle = midAngle <= 90 ? 65 : 115
-      else if (midAngle > 250 && midAngle < 290) bendAngle = midAngle <= 270 ? 245 : 295
+      if (normalizedMid > 70 && normalizedMid < 110) {
+        // 各スライスの角度に比例したプッシュ量で分散させる（固定ターゲットだと重なる）
+        bendAngle = midAngle + (normalizedMid <= 90 ? -25 : 25)
+      } else if (normalizedMid > 250 && normalizedMid < 290) {
+        bendAngle = midAngle + (normalizedMid <= 270 ? -20 : 20)
+      }
 
       const bcos = Math.cos(-bendAngle * RADIAN)
       const bsin = Math.sin(-bendAngle * RADIAN)
