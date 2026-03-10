@@ -1,3 +1,4 @@
+import { useRef, useState, useEffect } from 'react'
 import {
   PieChart as RechartsPieChart,
   Pie,
@@ -6,6 +7,20 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { PieDataPoint } from '../types'
+
+const CHART_HEIGHT = 300
+const OUTER_RADIUS = 108
+const LINE_EXTEND = 35
+const RADIAN = Math.PI / 180
+
+interface LabelData {
+  key: number
+  sx: number; sy: number
+  ex: number; ey: number
+  bcos: number
+  color: string
+  text: string
+}
 
 function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: { name?: string; value?: number; payload?: { fill?: string } }[] }) {
   if (!active || !payload?.length) return null
@@ -43,6 +58,57 @@ const COLORS = [
 export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
   const total = data.reduce((sum, d) => sum + d.value, 0)
   const title = `${groupBy} ${total}件`
+
+  // コンテナ幅をトラッキング（ラベル座標計算用）
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(0)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    setContainerWidth(el.offsetWidth)
+    const ro = new ResizeObserver(() => setContainerWidth(el.offsetWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // 各スライスのラベル座標を計算（Rechartsの SVG 外にオーバーレイ描画するため）
+  const cx = containerWidth / 2
+  const cy = CHART_HEIGHT / 2  // = 150
+
+  const pieLabels: LabelData[] = []
+  if (total > 0 && containerWidth > 0) {
+    let currentAngle = 90  // startAngle=90（12時方向から時計回り）
+    data.forEach((item, index) => {
+      const sliceAngle = (item.value / total) * 360
+      const midAngle = currentAngle - sliceAngle / 2
+      currentAngle -= sliceAngle
+
+      const percent = item.value / total
+      if (percent < 0.05) return
+
+      const cos = Math.cos(-midAngle * RADIAN)
+      const sin = Math.sin(-midAngle * RADIAN)
+      const sx = cx + OUTER_RADIUS * cos
+      const sy = cy + OUTER_RADIUS * sin
+
+      // 上方向(70-110°)・下方向(250-290°)のスライスは横にずらして見切れを防ぐ
+      let bendAngle = midAngle
+      if (midAngle > 70 && midAngle < 110) bendAngle = midAngle <= 90 ? 65 : 115
+      else if (midAngle > 250 && midAngle < 290) bendAngle = midAngle <= 270 ? 245 : 295
+
+      const bcos = Math.cos(-bendAngle * RADIAN)
+      const bsin = Math.sin(-bendAngle * RADIAN)
+      const ex = cx + (OUTER_RADIUS + LINE_EXTEND) * bcos
+      const ey = cy + (OUTER_RADIUS + LINE_EXTEND) * bsin
+
+      pieLabels.push({
+        key: index,
+        sx, sy, ex, ey, bcos,
+        color: COLORS[index % COLORS.length],
+        text: `${item.name}:${item.value}件:${(percent * 100).toFixed(0)}%`,
+      })
+    })
+  }
 
   if (wide) {
     return (
@@ -88,8 +154,8 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
   return (
     <div style={{ width: '100%' }}>
       <p style={{ textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#111827', margin: '0 4px 8px' }}>{groupBy}</p>
-      <div style={{ position: 'relative', width: '100%', height: 300 }}>
-        <ResponsiveContainer width="100%" height={300}>
+      <div ref={containerRef} style={{ position: 'relative', width: '100%', height: CHART_HEIGHT }}>
+        <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
           <RechartsPieChart margin={{ top: 40, right: 80, bottom: 40, left: 80 }}>
             <Pie
               data={data}
@@ -98,35 +164,9 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
               cx="50%"
               cy="50%"
               innerRadius={72}
-              outerRadius={108}
+              outerRadius={OUTER_RADIUS}
               startAngle={90}
               endAngle={-270}
-              label={({ cx, cy, midAngle, outerRadius, name, percent, value, index }) => {
-                if ((percent ?? 0) < 0.05) return null
-                const RADIAN = Math.PI / 180
-                const angle = midAngle ?? 0
-                const cos = Math.cos(-angle * RADIAN)
-                const sin = Math.sin(-angle * RADIAN)
-                const sx = cx + outerRadius * cos
-                const sy = cy + outerRadius * sin
-                // 上方向(70-110°)・下方向(250-290°)は横にずらす
-                let bendAngle = angle
-                if (angle > 70 && angle < 110) bendAngle = angle <= 90 ? 65 : 115
-                else if (angle > 250 && angle < 290) bendAngle = angle <= 270 ? 245 : 295
-                const bcos = Math.cos(-bendAngle * RADIAN)
-                const bsin = Math.sin(-bendAngle * RADIAN)
-                const ex = cx + (outerRadius + 35) * bcos
-                const ey = cy + (outerRadius + 35) * bsin
-                const color = COLORS[(index ?? 0) % COLORS.length]
-                return (
-                  <g>
-                    <line x1={sx} y1={sy} x2={ex} y2={ey} stroke={color} strokeWidth={1} />
-                    <text x={ex + (bcos >= 0 ? 5 : -5)} y={ey} textAnchor={bcos >= 0 ? 'start' : 'end'} dominantBaseline="central" fill={color} fontSize={11}>
-                      {`${name}:${value}件:${((percent ?? 0) * 100).toFixed(0)}%`}
-                    </text>
-                  </g>
-                )
-              }}
               labelLine={false}
               cursor={onSliceClick ? 'pointer' : undefined}
               onClick={onSliceClick ? (entry) => onSliceClick(entry as PieDataPoint) : undefined}
@@ -138,7 +178,38 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
             <Tooltip content={<CustomPieTooltip />} />
           </RechartsPieChart>
         </ResponsiveContainer>
-        <div style={{ position: 'absolute', top: 150, left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
+        {/* ラベルオーバーレイ: Recharts の SVG 外に独立した SVG を配置することで
+            Recharts が設定する overflow:hidden の影響を完全に回避 */}
+        {containerWidth > 0 && (
+          <svg
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: containerWidth,
+              height: CHART_HEIGHT,
+              overflow: 'visible',
+              pointerEvents: 'none',
+            }}
+          >
+            {pieLabels.map(l => (
+              <g key={l.key}>
+                <line x1={l.sx} y1={l.sy} x2={l.ex} y2={l.ey} stroke={l.color} strokeWidth={1} />
+                <text
+                  x={l.ex + (l.bcos >= 0 ? 5 : -5)}
+                  y={l.ey}
+                  textAnchor={l.bcos >= 0 ? 'start' : 'end'}
+                  dominantBaseline="central"
+                  fill={l.color}
+                  fontSize={11}
+                >
+                  {l.text}
+                </text>
+              </g>
+            ))}
+          </svg>
+        )}
+        <div style={{ position: 'absolute', top: cy, left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
           <div style={{ fontSize: 30, fontWeight: 700, color: '#111827', lineHeight: 1 }}>{total}</div>
           <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>件</div>
         </div>
