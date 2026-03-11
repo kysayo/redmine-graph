@@ -107,8 +107,20 @@ export function buildRedmineFilterUrl(
 
   if (pieConditions?.length) {
     for (const cond of pieConditions) {
-      // elapsed_days はRedmineのURLフィルタに非対応のためスキップ
-      if (cond.field === 'elapsed_days') continue
+      // elapsed_days はRedmineのURLフィルタに非対応。>= と = のみ updated_on に変換
+      if (cond.field === 'elapsed_days') {
+        if (cond.operator !== '!') {
+          const days = parseInt(cond.values[0], 10)
+          if (!isNaN(days)) {
+            const bucket: ElapsedDaysBucket = cond.operator === '>='
+              ? { min: days }
+              : { min: days, max: days }
+            const converted = buildElapsedDaysBucketFilter(bucket)
+            filterMap.set(converted.field, converted)
+          }
+        }
+        continue
+      }
       // Redmine URLフィルタは '=' と '!' のみサポート
       if (cond.operator !== '=' && cond.operator !== '!') continue
       filterMap.set(cond.field, {
