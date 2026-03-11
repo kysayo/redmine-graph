@@ -113,8 +113,8 @@ export function buildRedmineFilterUrl(
           const days = parseInt(cond.values[0], 10)
           if (!isNaN(days)) {
             const bucket: ElapsedDaysBucket = cond.operator === '>='
-              ? { min: days }
-              : { min: days, max: days }
+              ? { label: '', min: days }
+              : { label: '', min: days, max: days }
             const converted = buildElapsedDaysBucketFilter(bucket)
             filterMap.set(converted.field, converted)
           }
