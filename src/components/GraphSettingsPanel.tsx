@@ -859,10 +859,28 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     setPresetNameInput('')
   }
 
+  // JSON.stringify は undefined を省略するため、スプレッドだけではオプショナルフィールドが
+  // プリセット側で「未設定」でも現在値が残ってしまう。明示的に再設定することで正しくクリアされる。
+  function mergePresetSettings(base: UserSettings, preset: PresetSettings): UserSettings {
+    return {
+      ...base,
+      ...preset,
+      startDate: preset.startDate,
+      hideWeekends: preset.hideWeekends,
+      yAxisLeftMin: preset.yAxisLeftMin,
+      yAxisLeftMinAuto: preset.yAxisLeftMinAuto,
+      yAxisRightMax: preset.yAxisRightMax,
+      weeklyMode: preset.weeklyMode,
+      anchorDay: preset.anchorDay,
+      dateFormat: preset.dateFormat,
+      chartHeight: preset.chartHeight,
+    }
+  }
+
   function handleLoadPreset() {
     const preset = presets.find(p => p.id === selectedPresetId)
     if (!preset) return
-    onChange({ ...settings, ...preset.settings })
+    onChange(mergePresetSettings(settings, preset.settings))
   }
 
   function handleDownloadPresetJson(name: string) {
@@ -1187,7 +1205,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   <button
                     key={i}
                     type="button"
-                    onClick={() => onChange({ ...settings, ...tp.settings })}
+                    onClick={() => onChange(mergePresetSettings(settings, tp.settings))}
                     style={{
                       fontSize: 12,
                       padding: '2px 10px',
