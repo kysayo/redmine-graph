@@ -53,9 +53,6 @@ export function HBarChart({ data, title, topN, onBarClick }: Props) {
   return (
     <div style={{ width: '100%' }}>
       <p style={{ textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#111827', margin: '0 4px 8px' }}>{title}</p>
-      {topN != null && topN > 0 && data.length > topN && (
-        <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 4px 8px' }}>上位{topN}件を表示（全{data.length}件）</p>
-      )}
       <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart
           layout="vertical"
@@ -90,6 +87,11 @@ export function HBarChart({ data, title, topN, onBarClick }: Props) {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      {topN != null && topN > 0 && data.length > topN && (
+        <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #e5e7eb', fontSize: 12, color: '#6b7280', paddingLeft: 8 }}>
+          他 {data.length - topN} 件（全 {data.length} 件中）
+        </div>
+      )}
     </div>
   )
 }
