@@ -391,7 +391,7 @@ export function App({ container }: Props) {
               <div
                 key={i}
                 style={{
-                  ...(pie.chartType === 'bar' || isWide ? { gridColumn: '1 / -1' } : {}),
+                  ...((pie.chartType === 'bar' ? pie.fullWidth !== false : isWide) ? { gridColumn: '1 / -1' } : {}),
                   background: '#fff',
                   borderRadius: 20,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.08)',

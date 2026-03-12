@@ -1478,6 +1478,21 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           placeholder="全件"
                           style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 80 }}
                         />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                          <input
+                            type="checkbox"
+                            id={`bar-fullwidth-${i}`}
+                            checked={pie.fullWidth !== false}
+                            onChange={(e) => {
+                              const updated = pies.map((p, j) => j === i ? { ...p, fullWidth: e.target.checked } : p)
+                              onChange({ ...settings, pies: updated })
+                            }}
+                            style={{ cursor: 'pointer', width: 13, height: 13 }}
+                          />
+                          <label htmlFor={`bar-fullwidth-${i}`} style={{ fontSize: 12, color: '#555', cursor: 'pointer' }}>
+                            全幅表示
+                          </label>
+                        </div>
                       </div>
                     ) : pie.groupBy === 'elapsed_days' ? (
                       <>

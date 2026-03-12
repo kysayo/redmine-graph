@@ -53,6 +53,7 @@ export interface PieSeriesConfig {
   elapsedDaysBaseField?: string  // groupBy === 'elapsed_days' のとき: 経過日数計算のベース日付フィールドキー
   chartType?: 'pie' | 'bar'  // グラフ種別（省略時 = 'pie'、後方互換）
   topN?: number              // 横棒グラフの表示上限件数（省略時 = 全件表示）
+  fullWidth?: boolean        // 横棒グラフの全幅表示（省略時 = true）
 }
 
 // --- 系列設定UI 追加 ---
