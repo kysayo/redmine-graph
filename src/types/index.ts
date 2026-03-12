@@ -51,6 +51,8 @@ export interface PieSeriesConfig {
   groupRules?: PieGroupRule[] // スライスグルーピングルール（空配列/未設定 = グルーピングなし）
   elapsedDaysBuckets?: ElapsedDaysBucket[]  // groupBy === 'elapsed_days' のときのバケット定義
   elapsedDaysBaseField?: string  // groupBy === 'elapsed_days' のとき: 経過日数計算のベース日付フィールドキー
+  chartType?: 'pie' | 'bar'  // グラフ種別（省略時 = 'pie'、後方互換）
+  topN?: number              // 横棒グラフの表示上限件数（省略時 = 全件表示）
 }
 
 // --- 系列設定UI 追加 ---

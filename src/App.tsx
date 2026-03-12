@@ -21,6 +21,7 @@ const btnBase: React.CSSProperties = {
 }
 import { ComboChart } from './components/ComboChart'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
+import { HBarChart } from './components/HBarChart'
 import { PieChart } from './components/PieChart'
 import { SummaryCards } from './components/SummaryCards'
 import type { FilterField, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, UserSettings } from './types'
@@ -390,14 +391,21 @@ export function App({ container }: Props) {
               <div
                 key={i}
                 style={{
-                  ...(isWide ? { gridColumn: '1 / -1' } : {}),
+                  ...(pie.chartType === 'bar' || isWide ? { gridColumn: '1 / -1' } : {}),
                   background: '#fff',
                   borderRadius: 20,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                   padding: '20px 16px',
                 }}
               >
-                {pie.groupBy === 'elapsed_days' && issueState.issues !== null && !pie.elapsedDaysBuckets?.length ? (
+                {pie.chartType === 'bar' ? (
+                  <HBarChart
+                    data={pieData}
+                    title={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
+                    topN={pie.topN}
+                    onBarClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
+                  />
+                ) : pie.groupBy === 'elapsed_days' && issueState.issues !== null && !pie.elapsedDaysBuckets?.length ? (
                   <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
                     <div style={{ fontWeight: 600, marginBottom: 6 }}>{pie.label || '経過日数'}</div>
                     <div>バケット定義が設定されていません。</div>

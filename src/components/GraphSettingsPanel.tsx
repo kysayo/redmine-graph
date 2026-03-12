@@ -1384,16 +1384,16 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
             </button>
           </div>
 
-          {/* 円グラフ設定 */}
+          {/* 円グラフ・横棒グラフ設定 */}
           <div>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>円グラフ設定</div>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>円グラフ・横棒グラフ設定</div>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               {(settings.pies ?? []).map((pie, i) => {
                 const pies = settings.pies ?? []
                 return (
                   <div key={i} style={{ minWidth: 200 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <label style={{ fontSize: 12, color: '#555' }}>円グラフ {i + 1}</label>
+                      <label style={{ fontSize: 12, color: '#555' }}>{pie.chartType === 'bar' ? '横棒グラフ' : '円グラフ'} {i + 1}</label>
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                         <button
                           type="button"
@@ -1463,7 +1463,23 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         }}
                       />
                     </div>
-                    {pie.groupBy === 'elapsed_days' ? (
+                    {pie.chartType === 'bar' ? (
+                      <div style={{ marginTop: 6 }}>
+                        <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>表示上限件数（空欄=全件）</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={pie.topN ?? ''}
+                          onChange={(e) => {
+                            const v = e.target.value !== '' ? Number(e.target.value) : undefined
+                            const updated = pies.map((p, j) => j === i ? { ...p, topN: v } : p)
+                            onChange({ ...settings, pies: updated })
+                          }}
+                          placeholder="全件"
+                          style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 80 }}
+                        />
+                      </div>
+                    ) : pie.groupBy === 'elapsed_days' ? (
                       <>
                         <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 11, color: '#666' }}>ベース日付:</span>
@@ -1503,21 +1519,36 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 )
               })}
             </div>
-            <button
-              type="button"
-              onClick={() => onChange({ ...settings, pies: [...(settings.pies ?? []), { groupBy: 'status_id' }] })}
-              style={{
-                marginTop: 8,
-                fontSize: 12,
-                padding: '3px 10px',
-                border: '1px solid #ccc',
-                borderRadius: 3,
-                background: '#fff',
-                cursor: 'pointer',
-              }}
-            >
-              ＋ 円グラフを追加
-            </button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => onChange({ ...settings, pies: [...(settings.pies ?? []), { groupBy: 'status_id' }] })}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  border: '1px solid #ccc',
+                  borderRadius: 3,
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                ＋ 円グラフを追加
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange({ ...settings, pies: [...(settings.pies ?? []), { groupBy: 'assigned_to_id', chartType: 'bar' }] })}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  border: '1px solid #ccc',
+                  borderRadius: 3,
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                ＋ 横棒グラフを追加
+              </button>
+            </div>
           </div>
         </div>
       )}

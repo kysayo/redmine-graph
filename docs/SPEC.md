@@ -10,6 +10,19 @@ Recharts の `ComposedChart` を使用した折れ線と棒グラフの複合グ
 - **左軸・右軸**: 各系列の `yAxisId` 設定に従う
 - **系列**: 系列数制限なし（追加ボタンで随時追加可能）。各系列のグラフ種類（棒/折れ線）・軸・集計方法・対象ステータスはユーザーが設定UIで変更可能
 
+### 横棒グラフ（HBarChart）
+
+Recharts の `BarChart`（`layout="vertical"`）を使用したランキング表示グラフ。
+
+- **グループキー・絞り込み条件**: 円グラフと同じ設定（`PieSeriesConfig` の `groupBy`・`conditions` を使用）
+- **ソート**: 件数降順（多い順に上から並ぶ）
+- **表示上限**: `topN` が設定されている場合は上位N件のみ表示。超過件数がある場合は「上位N件を表示（全M件）」のキャプションを表示
+- **値ラベル**: 各バーの右端（外側）に「N件」形式で表示。`margin.right=72` でラベル用スペースを確保
+- **バークリック**: 円グラフのスライスクリックと同様に、対応する条件でRedmineチケット一覧を新規タブで開く（実データ取得済みの場合のみ有効）
+- **レイアウト**: 常に `gridColumn: 1/-1`（全幅）で表示
+- **グラフ高さ**: `Math.max(200, 表示件数 × 36 + 40)` px で動的計算
+- **設定**: `PieSeriesConfig` の `chartType: 'bar'` で有効化。設定パネルの「＋ 横棒グラフを追加」で追加（デフォルトのグループキーは `assigned_to_id`）
+
 ### 円グラフ（PieChart）
 
 Recharts の `PieChart` を使用した割合表示グラフ。
@@ -320,6 +333,8 @@ if (container) {
 | `groupRules` | `PieGroupRule[]?` | スライスグルーピングルール（`elapsed_days` 以外で有効） |
 | `elapsedDaysBuckets` | `ElapsedDaysBucket[]?` | バケット定義（`groupBy === 'elapsed_days'` のとき有効） |
 | `elapsedDaysBaseField` | `string?` | `groupBy === 'elapsed_days'` のとき: 経過日数計算のベース日付フィールドキー（例: `updated_on`, `cf_123`）。省略時は `updated_on || created_on` の旧来動作 |
+| `chartType` | `'pie' \| 'bar'?` | グラフ種別（省略時 = `'pie'`）。`'bar'` のとき横棒グラフとして表示 |
+| `topN` | `number?` | `chartType === 'bar'` のとき: 上位表示件数（省略時 = 全件） |
 
 ## 今後の課題
 
