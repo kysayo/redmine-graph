@@ -397,12 +397,20 @@ export function App({ container }: Props) {
                   padding: '20px 16px',
                 }}
               >
-                <PieChart
-                  data={pieData}
-                  groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
-                  onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
-                  wide={isWide}
-                />
+                {pie.groupBy === 'elapsed_days' && issueState.issues !== null && !pie.elapsedDaysBuckets?.length ? (
+                  <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>{pie.label || '経過日数'}</div>
+                    <div>バケット定義が設定されていません。</div>
+                    <div>設定パネルの「バケット定義」から「＋ バケットを追加」してください。</div>
+                  </div>
+                ) : (
+                  <PieChart
+                    data={pieData}
+                    groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
+                    onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
+                    wide={isWide}
+                  />
+                )}
               </div>
             )
           })}

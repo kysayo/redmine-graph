@@ -30,7 +30,8 @@ export function calcElapsedDaysFromStr(dateStr: string): number {
     : dateStr.slice(0, 10)
   const todayJst = utcToJstDate(new Date().toISOString())
   const ms = new Date(todayJst).getTime() - new Date(jstDateStr).getTime()
-  return Math.floor(ms / (1000 * 60 * 60 * 24))
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24))
+  return isNaN(days) ? 0 : days
 }
 
 /**
