@@ -16,22 +16,24 @@ function jstDateNDaysAgo(n: number): string {
 }
 
 /**
- * ElapsedDaysBucket を updated_on の Redmine フィルタパラメータに変換する。
+ * ElapsedDaysBucket を Redmine フィルタパラメータに変換する。
  * クリック時の JST 日付を基準に絶対日付で計算する。
+ * @param baseField - 経過日数のベース日付フィールドキー（省略時は 'updated_on'）
  */
-export function buildElapsedDaysBucketFilter(bucket: ElapsedDaysBucket): {
+export function buildElapsedDaysBucketFilter(bucket: ElapsedDaysBucket, baseField?: string): {
   field: string
   operator: string
   values: string[]
 } {
   const { min, max } = bucket
+  const field = baseField ?? 'updated_on'
   if (max === undefined) {
-    // N日以上経過: updated_on <= today - N
-    return { field: 'updated_on', operator: '<=', values: [jstDateNDaysAgo(min)] }
+    // N日以上経過: field <= today - N
+    return { field, operator: '<=', values: [jstDateNDaysAgo(min)] }
   }
-  // 範囲（min === max でも >< で統一）: today-max <= updated_on <= today-min
+  // 範囲（min === max でも >< で統一）: today-max <= field <= today-min
   return {
-    field: 'updated_on',
+    field,
     operator: '><',
     values: [jstDateNDaysAgo(max), jstDateNDaysAgo(min)],
   }
@@ -107,7 +109,7 @@ export function buildRedmineFilterUrl(
 
   if (pieConditions?.length) {
     for (const cond of pieConditions) {
-      // elapsed_days はRedmineのURLフィルタに非対応。>= と = のみ updated_on に変換
+      // elapsed_days はRedmineのURLフィルタに非対応。>= と = のみベース日付フィールドに変換
       if (cond.field === 'elapsed_days') {
         if (cond.operator !== '!') {
           const days = parseInt(cond.values[0], 10)
@@ -115,7 +117,7 @@ export function buildRedmineFilterUrl(
             const bucket: ElapsedDaysBucket = cond.operator === '>='
               ? { label: '', min: days }
               : { label: '', min: days, max: days }
-            const converted = buildElapsedDaysBucketFilter(bucket)
+            const converted = buildElapsedDaysBucketFilter(bucket, cond.elapsedDaysBaseField)
             filterMap.set(converted.field, converted)
           }
         }

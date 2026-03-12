@@ -234,7 +234,7 @@ export function App({ container }: Props) {
       const url = buildRedmineFilterUrl(
         window.location.pathname,
         window.location.search,
-        buildElapsedDaysBucketFilter(bucket),
+        buildElapsedDaysBucketFilter(bucket, pie.elapsedDaysBaseField),
         pie.conditions
       )
       window.open(url, '_blank', 'noopener')
@@ -277,7 +277,7 @@ export function App({ container }: Props) {
 
   const piesData = useMemo(() => {
     return (settings.pies ?? []).map((pie, i) => {
-      if (issueState.issues !== null) return aggregatePie(issueState.issues, pie.groupBy, pie.conditions, pie.groupRules, pie.elapsedDaysBuckets)
+      if (issueState.issues !== null) return aggregatePie(issueState.issues, pie.groupBy, pie.conditions, pie.groupRules, pie.elapsedDaysBuckets, pie.elapsedDaysBaseField)
       return generatePieDummyData(i === 0 ? 'status' : 'tracker')
     })
   }, [issueState.issues, settings.pies])

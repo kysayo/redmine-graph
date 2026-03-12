@@ -50,6 +50,7 @@ export interface PieSeriesConfig {
   conditions?: SeriesCondition[]  // 集計対象の絞り込み条件（省略時 = フィルタなし）
   groupRules?: PieGroupRule[] // スライスグルーピングルール（空配列/未設定 = グルーピングなし）
   elapsedDaysBuckets?: ElapsedDaysBucket[]  // groupBy === 'elapsed_days' のときのバケット定義
+  elapsedDaysBaseField?: string  // groupBy === 'elapsed_days' のとき: 経過日数計算のベース日付フィールドキー
 }
 
 // --- 系列設定UI 追加 ---
@@ -130,6 +131,7 @@ export interface SeriesCondition {
   field: string       // window.availableFilters のキー（例: 'cf_628', 'tracker_id'）
   operator: '=' | '!' | '>='  // '=' = 一致、'!' = 不一致、'>=' = 以上
   values: string[]    // 選択値の配列（例: ['QA', 'BUG']）
+  elapsedDaysBaseField?: string  // field === 'elapsed_days' のとき: 経過日数計算のベース日付フィールドキー
 }
 
 // フィルタフィールド一覧（UIの選択肢表示用）

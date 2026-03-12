@@ -1,5 +1,17 @@
 import type { ElapsedDaysBucket, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint } from '../types'
-import { calcElapsedDays, utcToJstDate } from './dateUtils'
+import { calcElapsedDays, calcElapsedDaysFromStr, getIssueDateByField, utcToJstDate } from './dateUtils'
+
+/** ベース日付フィールドを元にチケットの経過日数を計算する。baseField が未設定なら旧来の動作（updated_on || created_on）。空値の場合は created_on にフォールバック。 */
+function getElapsedDaysForIssue(issue: RedmineIssue, baseField?: string): number {
+  if (!baseField) {
+    return calcElapsedDays(issue.updated_on || issue.created_on)
+  }
+  const dateStr = getIssueDateByField(issue, baseField)
+  if (!dateStr) {
+    return calcElapsedDays(issue.created_on)
+  }
+  return calcElapsedDaysFromStr(dateStr)
+}
 
 function formatDate(date: Date): string {
   const y = date.getFullYear()
@@ -87,8 +99,7 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
   let issueValues: string[] = []
 
   if (field === 'elapsed_days') {
-    const baseDate = issue.updated_on || issue.created_on
-    const days = calcElapsedDays(baseDate)
+    const days = getElapsedDaysForIssue(issue, cond.elapsedDaysBaseField)
     const target = parseInt(values[0], 10)
     if (isNaN(target)) return true
     if (operator === '=') return days === target
@@ -392,7 +403,8 @@ export function aggregatePie(
   groupBy: string,
   conditions?: SeriesCondition[],
   groupRules?: PieGroupRule[],
-  elapsedDaysBuckets?: ElapsedDaysBucket[]
+  elapsedDaysBuckets?: ElapsedDaysBucket[],
+  elapsedDaysBaseField?: string
 ): PieDataPoint[] {
   // 経過日数バケット集計モード
   if (groupBy === 'elapsed_days' && elapsedDaysBuckets?.length) {
@@ -402,8 +414,7 @@ export function aggregatePie(
     }
     for (const issue of issues) {
       if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
-      const baseDate = issue.updated_on || issue.created_on
-      const days = calcElapsedDays(baseDate)
+      const days = getElapsedDaysForIssue(issue, elapsedDaysBaseField)
       const bucket = elapsedDaysBuckets.find(b =>
         days >= b.min && (b.max === undefined || days <= b.max)
       )

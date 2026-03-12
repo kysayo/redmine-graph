@@ -237,13 +237,20 @@ function PieGroupRulesEditor({ groupBy, groupRules, getFieldOptions, onChange }:
 interface ConditionsEditorProps {
   conditions: SeriesCondition[]
   filterFields: FilterField[]
+  dateFilterFields: FilterField[]
   getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
   onChange: (next: SeriesCondition[] | undefined) => void
 }
 
 const ELAPSED_DAYS_FIELD: FilterField = { key: 'elapsed_days', name: '経過日数(日)' }
 
-function ConditionsEditor({ conditions, filterFields, getFieldOptions, onChange }: ConditionsEditorProps) {
+const BUILTIN_DATE_FIELDS: FilterField[] = [
+  { key: 'updated_on', name: '更新日' },
+  { key: 'created_on', name: '作成日' },
+  { key: 'closed_on', name: '完了日' },
+]
+
+function ConditionsEditor({ conditions, filterFields, dateFilterFields, getFieldOptions, onChange }: ConditionsEditorProps) {
   const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
   const [loadingField, setLoadingField] = useState<string | null>(null)
 
@@ -290,6 +297,12 @@ function ConditionsEditor({ conditions, filterFields, getFieldOptions, onChange 
     onChange(conditions.map((c, i) => i === idx ? { ...c, values } : c))
   }
 
+  function updateConditionBaseField(idx: number, baseField: string) {
+    onChange(conditions.map((c, i) => i === idx ? { ...c, elapsedDaysBaseField: baseField } : c))
+  }
+
+  const elapsedDaysBaseFields = [...BUILTIN_DATE_FIELDS, ...dateFilterFields]
+
   const selectStyle: React.CSSProperties = {
     fontSize: 12,
     padding: '2px 4px',
@@ -329,14 +342,26 @@ function ConditionsEditor({ conditions, filterFields, getFieldOptions, onChange 
           {/* 値選択 */}
           {cond.field && (
             cond.field === 'elapsed_days' ? (
-              <input
-                type="number"
-                min={0}
-                value={cond.values[0] ?? ''}
-                onChange={(e) => updateConditionValues(idx, e.target.value !== '' ? [e.target.value] : [])}
-                style={{ ...selectStyle, width: 60 }}
-                placeholder="日数"
-              />
+              <>
+                <select
+                  value={cond.elapsedDaysBaseField ?? 'updated_on'}
+                  onChange={(e) => updateConditionBaseField(idx, e.target.value)}
+                  style={selectStyle}
+                  title="経過日数の基準となる日付フィールド"
+                >
+                  {elapsedDaysBaseFields.map(f => (
+                    <option key={f.key} value={f.key}>{f.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min={0}
+                  value={cond.values[0] ?? ''}
+                  onChange={(e) => updateConditionValues(idx, e.target.value !== '' ? [e.target.value] : [])}
+                  style={{ ...selectStyle, width: 60 }}
+                  placeholder="日数"
+                />
+              </>
             ) : loadingField === cond.field ? (
               <span style={{ fontSize: 11, color: '#999' }}>読み込み中...</span>
             ) : (
@@ -642,6 +667,7 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
             <ConditionsEditor
               conditions={series.conditions ?? []}
               filterFields={filterFields}
+              dateFilterFields={dateFilterFields}
               getFieldOptions={getFieldOptions}
               onChange={(next) => update('conditions', next)}
             />
@@ -691,6 +717,7 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
 interface SummaryCardEditorRowProps {
   card: SummaryCardConfig
   filterFields: FilterField[]
+  dateFilterFields: FilterField[]
   getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
   onChange: (updated: SummaryCardConfig) => void
   onDelete: () => void
@@ -698,7 +725,7 @@ interface SummaryCardEditorRowProps {
   onMoveDown?: () => void
 }
 
-function SummaryCardEditorRow({ card, filterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SummaryCardEditorRowProps) {
+function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SummaryCardEditorRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
   const [showDenominator, setShowDenominator] = useState(!!card.denominator)
 
@@ -786,6 +813,7 @@ function SummaryCardEditorRow({ card, filterFields, getFieldOptions, onChange, o
         <ConditionsEditor
           conditions={card.numerator.conditions}
           filterFields={filterFields}
+          dateFilterFields={dateFilterFields}
           getFieldOptions={getFieldOptions}
           onChange={(next) => onChange({ ...card, numerator: { conditions: next ?? [] } })}
         />
@@ -814,6 +842,7 @@ function SummaryCardEditorRow({ card, filterFields, getFieldOptions, onChange, o
             <ConditionsEditor
               conditions={card.denominator?.conditions ?? []}
               filterFields={filterFields}
+              dateFilterFields={dateFilterFields}
               getFieldOptions={getFieldOptions}
               onChange={(next) => onChange({ ...card, denominator: { conditions: next ?? [] } })}
             />
@@ -1330,6 +1359,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 key={i}
                 card={card}
                 filterFields={filterFields}
+                dateFilterFields={dateFilterFields}
                 getFieldOptions={getFieldOptions}
                 onChange={(updated) => updateSummaryCard(i, updated)}
                 onDelete={() => deleteSummaryCard(i)}
@@ -1425,6 +1455,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       <ConditionsEditor
                         conditions={pie.conditions ?? []}
                         filterFields={filterFields}
+                        dateFilterFields={dateFilterFields}
                         getFieldOptions={getFieldOptions}
                         onChange={(next) => {
                           const updated = pies.map((p, j) => j === i ? { ...p, conditions: next } : p)
@@ -1433,13 +1464,30 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       />
                     </div>
                     {pie.groupBy === 'elapsed_days' ? (
-                      <ElapsedDaysBucketsEditor
-                        buckets={pie.elapsedDaysBuckets ?? []}
-                        onChange={(buckets) => {
-                          const updated = pies.map((p, j) => j === i ? { ...p, elapsedDaysBuckets: buckets } : p)
-                          onChange({ ...settings, pies: updated })
-                        }}
-                      />
+                      <>
+                        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 11, color: '#666' }}>ベース日付:</span>
+                          <select
+                            value={pie.elapsedDaysBaseField ?? 'updated_on'}
+                            onChange={(e) => {
+                              const updated = pies.map((p, j) => j === i ? { ...p, elapsedDaysBaseField: e.target.value } : p)
+                              onChange({ ...settings, pies: updated })
+                            }}
+                            style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
+                          >
+                            {[...BUILTIN_DATE_FIELDS, ...dateFilterFields].map(f => (
+                              <option key={f.key} value={f.key}>{f.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <ElapsedDaysBucketsEditor
+                          buckets={pie.elapsedDaysBuckets ?? []}
+                          onChange={(buckets) => {
+                            const updated = pies.map((p, j) => j === i ? { ...p, elapsedDaysBuckets: buckets } : p)
+                            onChange({ ...settings, pies: updated })
+                          }}
+                        />
+                      </>
                     ) : (
                       <PieGroupRulesEditor
                         groupBy={pie.groupBy}
