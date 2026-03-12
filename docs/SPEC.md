@@ -29,6 +29,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - スライスクリック時はベース日付フィールドのフィルタ（絶対 JST 日付）に変換して Redmine チケット一覧を開く
     - `{min: N, max: undefined}` → `op=<=, v=[today-N]`（N日以上経過）
     - `{min: N, max: M}` → `op=><, v=[today-M, today-N]`（範囲、両端含む）
+  - **バケット未定義時**: `elapsedDaysBuckets` が空または未定義の場合、円グラフの代わりに「バケット定義が設定されていません。設定パネルの『バケット定義』から追加してください。」のガイドメッセージを表示する（0件表示ではなくユーザーへの案内）
 
 ## グラフ設定UI（GraphSettingsPanel）
 
@@ -91,7 +92,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
 - `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`, `summaryCards?`
   - `yAxisLeftMinAuto?: boolean`: `true` のとき左軸最小値を「最大値の8割」で自動計算（`yAxisLeftMin` より優先）
-  - `pies?: PieSeriesConfig[]`: 任意個数の円グラフ設定。各要素は `{ groupBy, label?, conditions?, groupRules?, elapsedDaysBuckets? }`
+  - `pies?: PieSeriesConfig[]`: 任意個数の円グラフ設定。各要素は `{ groupBy, label?, conditions?, groupRules?, elapsedDaysBuckets?, elapsedDaysBaseField? }`
   - `summaryCards?: SummaryCardConfig[]`: 任意個数の集計カード設定。各要素は `{ title, color, numerator: { conditions }, denominator?: { conditions } }`
 
 ### プリセットの永続化（storage.ts）
@@ -191,6 +192,10 @@ export function calcElapsedDays(utcString: string): number {
   return Math.floor(ms / (1000 * 60 * 60 * 24))
 }
 ```
+
+**`calcElapsedDaysFromStr(dateStr: string): number`**: UTC ISO文字列またはYYYY-MM-DD文字列から今日（JST）までの経過日数を返す。UTC ISO（`T` を含む）は `utcToJstDate()` でJST変換し、YYYY-MM-DD はそのまま使用する。無効な日付文字列の場合は `0` を返す（NaN保護）。カスタム日付フィールド等の多様なフォーマットに対応するために `calcElapsedDays` と併用する。
+
+**`getIssueDateByField(issue, fieldKey: string): string | null`**: フィールドキーに対応する日付文字列をチケットから取得する。対応フィールド: `updated_on`・`created_on`・`closed_on`・`start_date`・`due_date`・`cf_{id}`（カスタムフィールド）。値が空/未設定の場合は `null` を返す。
 
 ## data属性による設定
 
