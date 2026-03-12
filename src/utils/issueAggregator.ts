@@ -1,4 +1,4 @@
-import type { ElapsedDaysBucket, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint } from '../types'
+import type { ElapsedDaysBucket, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
 import { calcElapsedDays, calcElapsedDaysFromStr, getIssueDateByField, utcToJstDate } from './dateUtils'
 
 /** ベース日付フィールドを元にチケットの経過日数を計算する。baseField が未設定なら旧来の動作（updated_on || created_on）。空値の場合は created_on にフォールバック。 */
@@ -447,4 +447,79 @@ export function aggregatePie(
       filterValues: Array.from(filterValuesMap.get(name) ?? []),
     }))
     .sort((a, b) => b.value - a.value)
+}
+
+/**
+ * Redmineチケット一覧を groupBy（主軸）× colorBy（色分け軸）で2次元集計し、
+ * 横棒グラフの積み上げ表示用データに変換する。
+ * conditions が指定された場合は一致するチケットのみを集計する。
+ * groupRules/colorRules が指定された場合はそれぞれグルーピングを適用する。
+ */
+export function aggregateStackedBar(
+  issues: RedmineIssue[],
+  groupBy: string,
+  colorBy: string,
+  conditions?: SeriesCondition[],
+  groupRules?: PieGroupRule[],
+  colorRules?: PieGroupRule[],
+): StackedBarDataPoint[] {
+  // mainKey → segKey → count
+  const countsMap = new Map<string, Map<string, number>>()
+  // mainKey → Set<filterValue>（主軸のURLフィルタ値）
+  const mainFilterMap = new Map<string, Set<string>>()
+  // mainKey → segKey → Set<filterValue>（セグメントのURLフィルタ値）
+  const segFilterMap = new Map<string, Map<string, Set<string>>>()
+
+  for (const issue of issues) {
+    if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
+
+    const rawMain = getIssueGroupValue(issue, groupBy)
+    if (rawMain === null || rawMain === '') continue
+    const mainKey = groupRules?.length ? applyGroupRules(rawMain, groupRules) : rawMain
+
+    const rawSeg = getIssueGroupValue(issue, colorBy)
+    if (rawSeg === null || rawSeg === '') continue
+    const segKey = colorRules?.length ? applyGroupRules(rawSeg, colorRules) : rawSeg
+
+    // 件数集計
+    if (!countsMap.has(mainKey)) countsMap.set(mainKey, new Map())
+    const segCounts = countsMap.get(mainKey)!
+    segCounts.set(segKey, (segCounts.get(segKey) ?? 0) + 1)
+
+    // 主軸フィルタ値収集
+    const mainFv = getIssueGroupFilterValue(issue, groupBy)
+    if (mainFv !== null) {
+      if (!mainFilterMap.has(mainKey)) mainFilterMap.set(mainKey, new Set())
+      mainFilterMap.get(mainKey)!.add(mainFv)
+    }
+
+    // セグメントフィルタ値収集
+    const segFv = getIssueGroupFilterValue(issue, colorBy)
+    if (segFv !== null) {
+      if (!segFilterMap.has(mainKey)) segFilterMap.set(mainKey, new Map())
+      const segFvMap = segFilterMap.get(mainKey)!
+      if (!segFvMap.has(segKey)) segFvMap.set(segKey, new Set())
+      segFvMap.get(segKey)!.add(segFv)
+    }
+  }
+
+  return Array.from(countsMap.entries())
+    .map(([name, segCounts]) => {
+      const segments: StackedBarDataPoint['segments'] = {}
+      let total = 0
+      for (const [segKey, count] of segCounts.entries()) {
+        segments[segKey] = {
+          count,
+          filterValues: Array.from(segFilterMap.get(name)?.get(segKey) ?? []),
+        }
+        total += count
+      }
+      return {
+        name,
+        total,
+        filterValues: Array.from(mainFilterMap.get(name) ?? []),
+        segments,
+      }
+    })
+    .sort((a, b) => b.total - a.total)
 }

@@ -1493,6 +1493,34 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             全幅表示
                           </label>
                         </div>
+                        <div style={{ marginTop: 8 }}>
+                          <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>色分けキー（空欄=色分けなし）</label>
+                          <Select
+                            options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                            value={pie.colorBy ? (filterFields.find(f => f.key === pie.colorBy) ? { label: filterFields.find(f => f.key === pie.colorBy)!.name, value: pie.colorBy } : { label: pie.colorBy, value: pie.colorBy }) : null}
+                            onChange={(selected) => {
+                              const updated = pies.map((p, j) => j === i ? { ...p, colorBy: selected?.value ?? undefined, colorRules: undefined } : p)
+                              onChange({ ...settings, pies: updated })
+                            }}
+                            isClearable
+                            styles={fieldSelectStyles}
+                            placeholder="色分けなし..."
+                            noOptionsMessage={() => '候補なし'}
+                            menuPortalTarget={document.body}
+                            menuPosition="fixed"
+                          />
+                          {pie.colorBy && (
+                            <PieGroupRulesEditor
+                              groupBy={pie.colorBy}
+                              groupRules={pie.colorRules ?? []}
+                              getFieldOptions={getFieldOptions}
+                              onChange={(rules) => {
+                                const updated = pies.map((p, j) => j === i ? { ...p, colorRules: rules } : p)
+                                onChange({ ...settings, pies: updated })
+                              }}
+                            />
+                          )}
+                        </div>
                       </div>
                     ) : pie.groupBy === 'elapsed_days' ? (
                       <>

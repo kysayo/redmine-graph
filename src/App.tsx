@@ -24,11 +24,11 @@ import { GraphSettingsPanel } from './components/GraphSettingsPanel'
 import { HBarChart } from './components/HBarChart'
 import { PieChart } from './components/PieChart'
 import { SummaryCards } from './components/SummaryCards'
-import type { FilterField, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, UserSettings } from './types'
+import type { FilterField, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, StackedBarDataPoint, UserSettings } from './types'
 import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
-import { aggregateIssues, aggregatePie } from './utils/issueAggregator'
+import { aggregateIssues, aggregatePie, aggregateStackedBar } from './utils/issueAggregator'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
 import { buildElapsedDaysBucketFilter, buildRedmineFilterUrl } from './utils/redmineFilterUrl'
 import { loadSettings, saveSettings } from './utils/storage'
@@ -251,6 +251,25 @@ export function App({ container }: Props) {
     window.open(url, '_blank', 'noopener')
   }, [])
 
+  const handleBarSegmentClick = useCallback((
+    pie: PieSeriesConfig,
+    _name: string,
+    mainFilterValues: string[] | undefined,
+    _segmentName: string,
+    segmentFilterValues: string[] | undefined
+  ) => {
+    const url = buildRedmineFilterUrl(
+      window.location.pathname,
+      window.location.search,
+      mainFilterValues?.length ? { field: pie.groupBy, operator: '=', values: mainFilterValues } : undefined,
+      [
+        ...(pie.conditions ?? []),
+        ...(segmentFilterValues?.length && pie.colorBy ? [{ field: pie.colorBy, operator: '=' as const, values: segmentFilterValues }] : []),
+      ]
+    )
+    window.open(url, '_blank', 'noopener')
+  }, [])
+
   const handleSummaryCardClick = useCallback((conditions: SeriesCondition[]) => {
     const url = buildRedmineFilterUrl(
       window.location.pathname,
@@ -280,6 +299,16 @@ export function App({ container }: Props) {
     return (settings.pies ?? []).map((pie, i) => {
       if (issueState.issues !== null) return aggregatePie(issueState.issues, pie.groupBy, pie.conditions, pie.groupRules, pie.elapsedDaysBuckets, pie.elapsedDaysBaseField)
       return generatePieDummyData(i === 0 ? 'status' : 'tracker')
+    })
+  }, [issueState.issues, settings.pies])
+
+  // 積み上げ棒グラフ用データ（colorBy指定時のみ生成）
+  const piesStackedData = useMemo((): (StackedBarDataPoint[] | null)[] => {
+    return (settings.pies ?? []).map(pie => {
+      if (pie.chartType === 'bar' && pie.colorBy && issueState.issues !== null) {
+        return aggregateStackedBar(issueState.issues, pie.groupBy, pie.colorBy, pie.conditions, pie.groupRules, pie.colorRules)
+      }
+      return null
     })
   }, [issueState.issues, settings.pies])
 
@@ -401,9 +430,12 @@ export function App({ container }: Props) {
                 {pie.chartType === 'bar' ? (
                   <HBarChart
                     data={pieData}
+                    stackedData={piesStackedData[i] ?? undefined}
                     title={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
                     topN={pie.topN}
-                    onBarClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
+                    onBarClick={!pie.colorBy && issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
+                    onSegmentClick={pie.colorBy && issueState.issues !== null ? (name, mfv, seg, sfv) => handleBarSegmentClick(pie, name, mfv, seg, sfv) : undefined}
+
                   />
                 ) : pie.groupBy === 'elapsed_days' && issueState.issues !== null && !pie.elapsedDaysBuckets?.length ? (
                   <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>

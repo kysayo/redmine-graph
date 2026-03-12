@@ -43,6 +43,20 @@ export interface SummaryCardConfig {
   denominator?: { conditions: SeriesCondition[] } // 分母: 省略可。指定時は「分子 / 分母」形式で表示
 }
 
+// 横棒グラフ 積み上げセグメント1件
+export interface StackedSegment {
+  count: number
+  filterValues?: string[]  // セグメントのURLフィルタ値（例: ステータスID）
+}
+
+// 横棒グラフ 積み上げモードの1データポイント（colorBy指定時）
+export interface StackedBarDataPoint {
+  name: string                              // 主軸の表示名（例: '担当者A'）
+  total: number                             // 合計件数（ソート・topN用）
+  filterValues?: string[]                   // 主軸のURLフィルタ値
+  segments: Record<string, StackedSegment>  // セグメント名 → 件数・フィルタ値
+}
+
 // 円グラフ系列設定
 export interface PieSeriesConfig {
   groupBy: string            // フィールドキー（例: 'status_id', 'tracker_id', 'cf_123', 'elapsed_days'）
@@ -54,6 +68,8 @@ export interface PieSeriesConfig {
   chartType?: 'pie' | 'bar'  // グラフ種別（省略時 = 'pie'、後方互換）
   topN?: number              // 横棒グラフの表示上限件数（省略時 = 全件表示）
   fullWidth?: boolean        // 横棒グラフの全幅表示（省略時 = true）
+  colorBy?: string           // 横棒グラフの色分けキー（例: 'status_id'）。指定時は積み上げ棒グラフで表示
+  colorRules?: PieGroupRule[] // 色分けグルーピングルール（PieGroupRule を再利用）
 }
 
 // --- 系列設定UI 追加 ---
