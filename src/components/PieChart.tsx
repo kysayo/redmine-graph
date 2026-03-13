@@ -37,7 +37,7 @@ function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: { n
       <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: 2, background: entry.payload?.fill ?? '#ccc', display: 'inline-block', flexShrink: 0 }} />
         <span style={{ color: '#374151' }}>{entry.name}</span>
-        <span style={{ fontWeight: 600, color: '#111827', marginLeft: 4 }}>{entry.value}件</span>
+        <span style={{ fontWeight: 600, color: '#111827', marginLeft: 4 }}>{entry.value} Case</span>
       </p>
     </div>
   )

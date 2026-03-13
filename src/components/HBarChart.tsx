@@ -30,7 +30,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: { name
       <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: 2, background: COLORS[0], display: 'inline-block', flexShrink: 0 }} />
         <span style={{ color: '#374151' }}>{entry.name}</span>
-        <span style={{ fontWeight: 600, color: '#111827', marginLeft: 4 }}>{entry.value}件</span>
+        <span style={{ fontWeight: 600, color: '#111827', marginLeft: 4 }}>{entry.value} Case</span>
       </p>
     </div>
   )
@@ -54,12 +54,12 @@ function StackedTooltip({ active, payload, label }: { active?: boolean; payload?
         <p key={i} style={{ margin: '2px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 10, height: 10, borderRadius: 2, background: p.fill, display: 'inline-block', flexShrink: 0 }} />
           <span style={{ color: '#374151', flex: 1 }}>{p.name}</span>
-          <span style={{ fontWeight: 600, color: '#111827' }}>{p.value}件</span>
+          <span style={{ fontWeight: 600, color: '#111827' }}>{p.value} Case</span>
         </p>
       ))}
       <p style={{ margin: '6px 0 0', borderTop: '1px solid #e5e7eb', paddingTop: 4, display: 'flex', justifyContent: 'space-between' }}>
         <span style={{ color: '#6b7280' }}>合計</span>
-        <span style={{ fontWeight: 700, color: '#111827' }}>{total}件</span>
+        <span style={{ fontWeight: 700, color: '#111827' }}>{total} Case</span>
       </p>
     </div>
   )
