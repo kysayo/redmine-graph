@@ -33,8 +33,12 @@ export function SummaryCards({ cards, issues, onNumeratorClick, onDenominatorCli
               minWidth: 140,
             }}
           >
-            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8, fontWeight: 500, whiteSpace: 'pre-wrap' }}>
-              {card.title}
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8, whiteSpace: 'pre-wrap' }}>
+              {card.title.split('\n').map((line, idx) => (
+                <span key={idx} style={{ fontWeight: idx === 0 ? 700 : 400 }}>
+                  {idx > 0 ? '\n' : ''}{line}
+                </span>
+              ))}
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
               <span
