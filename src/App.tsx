@@ -270,6 +270,20 @@ export function App({ container }: Props) {
     window.open(url, '_blank', 'noopener')
   }, [])
 
+  const handleBarLabelClick = useCallback((
+    pie: PieSeriesConfig,
+    _name: string,
+    mainFilterValues: string[] | undefined,
+  ) => {
+    const url = buildRedmineFilterUrl(
+      window.location.pathname,
+      window.location.search,
+      mainFilterValues?.length ? { field: pie.groupBy, operator: '=', values: mainFilterValues } : undefined,
+      pie.conditions ?? []
+    )
+    window.open(url, '_blank', 'noopener')
+  }, [])
+
   const handleSummaryCardClick = useCallback((conditions: SeriesCondition[]) => {
     const url = buildRedmineFilterUrl(
       window.location.pathname,
@@ -435,7 +449,7 @@ export function App({ container }: Props) {
                     topN={pie.topN}
                     onBarClick={!pie.colorBy && issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
                     onSegmentClick={pie.colorBy && issueState.issues !== null ? (name, mfv, seg, sfv) => handleBarSegmentClick(pie, name, mfv, seg, sfv) : undefined}
-
+                    onLabelClick={pie.colorBy && issueState.issues !== null ? (name, mfv) => handleBarLabelClick(pie, name, mfv) : undefined}
                   />
                 ) : pie.groupBy === 'elapsed_days' && issueState.issues !== null && !pie.elapsedDaysBuckets?.length ? (
                   <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>

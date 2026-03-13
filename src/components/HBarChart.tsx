@@ -78,9 +78,55 @@ interface Props {
     segmentName: string,
     segmentFilterValues: string[] | undefined
   ) => void
+  onLabelClick?: (name: string, filterValues: string[] | undefined) => void
 }
 
-export function HBarChart({ data, title, topN, onBarClick, stackedData, onSegmentClick }: Props) {
+function CustomYAxisTick(props: {
+  x?: number
+  y?: number
+  payload?: { value: string }
+  flatData: Record<string, unknown>[]
+  onLabelClick: (name: string, filterValues: string[] | undefined) => void
+}) {
+  const { x = 0, y = 0, payload, flatData, onLabelClick } = props
+  const name = payload?.value ?? ''
+  const raw = flatData.find(d => d.name === name)?._raw as StackedBarDataPoint | undefined
+  // 長い名前は折り返す（120px幅の中で）
+  const words = name.split(/\s+/)
+  const lines: string[] = []
+  let cur = ''
+  for (const w of words) {
+    const test = cur ? `${cur} ${w}` : w
+    if (test.length > 12 && cur) {
+      lines.push(cur)
+      cur = w
+    } else {
+      cur = test
+    }
+  }
+  if (cur) lines.push(cur)
+  const lineHeight = 14
+  const totalHeight = lines.length * lineHeight
+  return (
+    <g transform={`translate(${x},${y})`} style={{ cursor: 'pointer' }} onClick={() => onLabelClick(name, raw?.filterValues)}>
+      {lines.map((line, i) => (
+        <text
+          key={i}
+          x={0}
+          y={i * lineHeight - totalHeight / 2 + lineHeight / 2}
+          textAnchor="end"
+          fill="#2563eb"
+          fontSize={12}
+          style={{ textDecoration: 'underline' }}
+        >
+          {line}
+        </text>
+      ))}
+    </g>
+  )
+}
+
+export function HBarChart({ data, title, topN, onBarClick, stackedData, onSegmentClick, onLabelClick }: Props) {
   // 積み上げモード
   if (stackedData) {
     const sorted = [...stackedData].sort((a, b) => b.total - a.total)
@@ -135,7 +181,11 @@ export function HBarChart({ data, title, topN, onBarClick, stackedData, onSegmen
               type="category"
               dataKey="name"
               width={120}
-              tick={{ fontSize: 12, fill: '#374151' }}
+              tick={onLabelClick
+                ? (tickProps: { x?: number; y?: number; payload?: { value: string } }) => (
+                    <CustomYAxisTick {...tickProps} flatData={flatData} onLabelClick={onLabelClick} />
+                  )
+                : { fontSize: 12, fill: '#374151' }}
               tickLine={false}
               axisLine={false}
             />
