@@ -175,7 +175,7 @@ export function HBarChart({ data, title, topN, onBarClick, stackedData, onSegmen
           <BarChart
             layout="vertical"
             data={flatData}
-            margin={{ top: 4, right: 72, bottom: 4, left: 8 }}
+            margin={{ top: 4, right: 90, bottom: 4, left: 8 }}
           >
             <XAxis type="number" hide />
             <YAxis
@@ -244,7 +244,7 @@ export function HBarChart({ data, title, topN, onBarClick, stackedData, onSegmen
         <BarChart
           layout="vertical"
           data={displayed}
-          margin={{ top: 4, right: 72, bottom: 4, left: 8 }}
+          margin={{ top: 4, right: 90, bottom: 4, left: 8 }}
         >
           <XAxis type="number" hide />
           <YAxis
