@@ -33,7 +33,7 @@ export function SummaryCards({ cards, issues, onNumeratorClick, onDenominatorCli
               minWidth: 140,
             }}
           >
-            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8, fontWeight: 500 }}>
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8, fontWeight: 500, whiteSpace: 'pre-wrap' }}>
               {card.title}
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>

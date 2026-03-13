@@ -773,12 +773,12 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
         {/* タイトル */}
         <div>
           <label style={labelStyle}>タイトル</label>
-          <input
-            type="text"
+          <textarea
             value={card.title}
             onChange={(e) => onChange({ ...card, title: e.target.value })}
             placeholder="未完了チケット"
-            style={inputStyle}
+            rows={2}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.4 }}
           />
         </div>
 
