@@ -262,12 +262,10 @@ API接続不可時のフォールバック。`issueState.issues === null` の場
 
 ## ホスティング・デプロイ
 
-- **配信**: jsDelivr CDN（URLのバージョン指定はCLAUDE.mdの「jsDelivr CDN URLのバージョン指定」を参照）
-- **自動デプロイ**: `master` push → GitHub Actions（[.github/workflows/deploy.yml](../.github/workflows/deploy.yml)）が以下を実行:
-  1. `npm run build` でビルド
-  2. `dist/moca-react-graph.iife.js` をリポジトリにコミット（jsDelivrはリポジトリのファイルを配信するため必要）
-  3. GitHub Pages にデプロイ
-  4. jsDelivr キャッシュをパージ
+- **配信**: Cloudflare Pages（Direct Upload モード）
+- **デプロイ方法**: ローカルで `npm run build` → `npx wrangler pages deploy dist/ --project-name redmine-graph`
+- **URL**: デプロイごとに固有URL（`https://{デプロイID}.redmine-graph.pages.dev/moca-react-graph.iife.js`）が発行される
+- `dist/` は `.gitignore` で git 管理対象外。GitHub Actions は使用しない
 
 ## Redmine View Customize への組み込み方
 
