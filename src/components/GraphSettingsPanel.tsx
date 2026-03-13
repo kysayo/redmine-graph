@@ -778,7 +778,7 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
             onChange={(e) => onChange({ ...card, title: e.target.value })}
             placeholder="未完了チケット"
             rows={2}
-            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.4 }}
+            style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.4, width: 260 }}
           />
         </div>
 
