@@ -111,7 +111,7 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
         key: index,
         sx, sy, ex, ey, bcos,
         color: COLORS[index % COLORS.length],
-        text: `${item.name}:${item.value}件:${(percent * 100).toFixed(0)}%`,
+        text: `${item.name}:${item.value} Case:${(percent * 100).toFixed(0)}%`,
       })
     })
   }
