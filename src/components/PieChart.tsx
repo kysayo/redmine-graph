@@ -217,7 +217,7 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
         )}
         <div style={{ position: 'absolute', top: cy, left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
           <div style={{ fontSize: 30, fontWeight: 700, color: '#111827', lineHeight: 1 }}>{total}</div>
-          <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>件</div>
+          <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>Case</div>
         </div>
       </div>
       <div style={{ padding: '4px 8px' }}>

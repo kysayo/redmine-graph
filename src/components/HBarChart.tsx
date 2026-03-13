@@ -214,7 +214,7 @@ export function HBarChart({ data, title, topN, onBarClick, stackedData, onSegmen
                   <LabelList
                     dataKey="total"
                     position="right"
-                    formatter={(v: unknown) => `${v}件`}
+                    formatter={(v: unknown) => `${v} Case`}
                     style={{ fontSize: 12, fill: '#374151', fontWeight: 600 }}
                   />
                 )}
@@ -268,7 +268,7 @@ export function HBarChart({ data, title, topN, onBarClick, stackedData, onSegmen
             <LabelList
               dataKey="value"
               position="right"
-              formatter={(v: unknown) => `${v}件`}
+              formatter={(v: unknown) => `${v} Case`}
               style={{ fontSize: 12, fill: '#374151', fontWeight: 600 }}
             />
           </Bar>
