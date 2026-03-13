@@ -110,16 +110,15 @@ function CustomYAxisTick(props: {
   const lineHeight = 14
   const totalHeight = lines.length * lineHeight
   return (
-    <g transform={`translate(${xNum},${yNum})`} style={{ cursor: 'pointer' }} onClick={() => onLabelClick(name, raw?.filterValues)}>
+    <g transform={`translate(${xNum},${yNum})`} onClick={() => onLabelClick(name, raw?.filterValues)}>
       {lines.map((line, i) => (
         <text
           key={i}
           x={0}
           y={i * lineHeight - totalHeight / 2 + lineHeight / 2}
           textAnchor="end"
-          fill="#2563eb"
+          fill="#374151"
           fontSize={12}
-          style={{ textDecoration: 'underline' }}
         >
           {line}
         </text>
