@@ -120,13 +120,14 @@ function ElapsedDaysBucketsEditor({ buckets, onChange }: ElapsedDaysBucketsEdito
 }
 
 interface PieGroupRulesEditorProps {
+  instanceId: string
   groupBy: string
   groupRules: PieGroupRule[]
   getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
   onChange: (rules: PieGroupRule[] | undefined) => void
 }
 
-function PieGroupRulesEditor({ groupBy, groupRules, getFieldOptions, onChange }: PieGroupRulesEditorProps) {
+function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions, onChange }: PieGroupRulesEditorProps) {
   const [options, setOptions] = useState<FilterFieldOption[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -181,12 +182,12 @@ function PieGroupRulesEditor({ groupBy, groupRules, getFieldOptions, onChange }:
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: enabled ? 6 : 0 }}>
         <input
           type="checkbox"
-          id={`pie-group-${groupBy}`}
+          id={`pie-group-${instanceId}`}
           checked={enabled}
           onChange={(e) => handleToggle(e.target.checked)}
           style={{ cursor: 'pointer', width: 13, height: 13 }}
         />
-        <label htmlFor={`pie-group-${groupBy}`} style={{ fontSize: 12, color: '#555', cursor: 'pointer' }}>
+        <label htmlFor={`pie-group-${instanceId}`} style={{ fontSize: 12, color: '#555', cursor: 'pointer' }}>
           グルーピングを使用
         </label>
       </div>
@@ -1511,6 +1512,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           />
                           {pie.colorBy && (
                             <PieGroupRulesEditor
+                              instanceId={`color-${i}`}
                               groupBy={pie.colorBy}
                               groupRules={pie.colorRules ?? []}
                               getFieldOptions={getFieldOptions}
@@ -1549,6 +1551,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       </>
                     ) : (
                       <PieGroupRulesEditor
+                        instanceId={String(i)}
                         groupBy={pie.groupBy}
                         groupRules={pie.groupRules ?? []}
                         getFieldOptions={getFieldOptions}
