@@ -82,13 +82,15 @@ interface Props {
 }
 
 function CustomYAxisTick(props: {
-  x?: number
-  y?: number
+  x?: string | number
+  y?: string | number
   payload?: { value: string }
   flatData: Record<string, unknown>[]
   onLabelClick: (name: string, filterValues: string[] | undefined) => void
 }) {
-  const { x = 0, y = 0, payload, flatData, onLabelClick } = props
+  const { x, y, payload, flatData, onLabelClick } = props
+  const xNum = typeof x === 'string' ? parseFloat(x) : (x ?? 0)
+  const yNum = typeof y === 'string' ? parseFloat(y) : (y ?? 0)
   const name = payload?.value ?? ''
   const raw = flatData.find(d => d.name === name)?._raw as StackedBarDataPoint | undefined
   // 長い名前は折り返す（120px幅の中で）
@@ -108,7 +110,7 @@ function CustomYAxisTick(props: {
   const lineHeight = 14
   const totalHeight = lines.length * lineHeight
   return (
-    <g transform={`translate(${x},${y})`} style={{ cursor: 'pointer' }} onClick={() => onLabelClick(name, raw?.filterValues)}>
+    <g transform={`translate(${xNum},${yNum})`} style={{ cursor: 'pointer' }} onClick={() => onLabelClick(name, raw?.filterValues)}>
       {lines.map((line, i) => (
         <text
           key={i}
@@ -182,7 +184,8 @@ export function HBarChart({ data, title, topN, onBarClick, stackedData, onSegmen
               dataKey="name"
               width={120}
               tick={onLabelClick
-                ? (tickProps: { x?: number; y?: number; payload?: { value: string } }) => (
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                ? (tickProps: any) => (
                     <CustomYAxisTick {...tickProps} flatData={flatData} onLabelClick={onLabelClick} />
                   )
                 : { fontSize: 12, fill: '#374151' }}
