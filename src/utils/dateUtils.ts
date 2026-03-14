@@ -35,6 +35,47 @@ export function calcElapsedDaysFromStr(dateStr: string): number {
 }
 
 /**
+ * UTC ISO文字列またはYYYY-MM-DD文字列から今日（JST）までの経過営業日数（月〜金のみカウント）を返す。
+ * dateStr の翌日から today まで1日ずつ進め、平日のみカウントする。
+ * 無効な日付の場合は 0 を返す（NaN保護）。
+ */
+export function calcBusinessElapsedDaysFromStr(dateStr: string): number {
+  const jstDateStr = (dateStr.includes('T') || dateStr.endsWith('Z'))
+    ? utcToJstDate(dateStr)
+    : dateStr.slice(0, 10)
+  const todayJst = utcToJstDate(new Date().toISOString())
+  const start = new Date(jstDateStr + 'T00:00:00Z')
+  const end = new Date(todayJst + 'T00:00:00Z')
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0
+  let count = 0
+  const d = new Date(start)
+  d.setUTCDate(d.getUTCDate() + 1) // 翌日から開始
+  while (d <= end) {
+    const day = d.getUTCDay() // 0=日, 6=土
+    if (day !== 0 && day !== 6) count++
+    d.setUTCDate(d.getUTCDate() + 1)
+  }
+  return count
+}
+
+/**
+ * JST の today から N 営業日前の YYYY-MM-DD を返す。
+ * 1日ずつ遡り、月〜金のみカウントする。n=0 のとき today をそのまま返す。
+ * 例: n=5, today=木曜 → 先週木曜（7暦日前）
+ */
+export function jstDateNBusinessDaysAgo(n: number): string {
+  const todayJst = utcToJstDate(new Date().toISOString())
+  const d = new Date(todayJst + 'T00:00:00Z')
+  let count = 0
+  while (count < n) {
+    d.setUTCDate(d.getUTCDate() - 1)
+    const day = d.getUTCDay()
+    if (day !== 0 && day !== 6) count++
+  }
+  return d.toISOString().slice(0, 10)
+}
+
+/**
  * フィールドキーに対応する日付文字列をチケットから取得する。
  * 値が空/未設定の場合は null を返す。
  * - updated_on / created_on / closed_on: UTC ISO文字列

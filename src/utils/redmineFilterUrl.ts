@@ -1,18 +1,10 @@
 import type { ElapsedDaysBucket, SeriesCondition } from '../types'
-import { utcToJstDate } from './dateUtils'
+import { jstDateNBusinessDaysAgo } from './dateUtils'
 
 interface FilterParam {
   field: string
   operator: string  // '=' | '!' | '<=' | '><' など任意のRedmine演算子
   values: string[]
-}
-
-/** JST の today から N 日前の YYYY-MM-DD を返す */
-function jstDateNDaysAgo(n: number): string {
-  const today = utcToJstDate(new Date().toISOString())
-  const d = new Date(today + 'T00:00:00Z')
-  d.setUTCDate(d.getUTCDate() - n)
-  return d.toISOString().slice(0, 10)
 }
 
 /**
@@ -29,13 +21,13 @@ export function buildElapsedDaysBucketFilter(bucket: ElapsedDaysBucket, baseFiel
   const field = baseField ?? 'updated_on'
   if (max === undefined) {
     // N日以上経過: field <= today - N
-    return { field, operator: '<=', values: [jstDateNDaysAgo(min)] }
+    return { field, operator: '<=', values: [jstDateNBusinessDaysAgo(min)] }
   }
   // 範囲（min === max でも >< で統一）: today-max <= field <= today-min
   return {
     field,
     operator: '><',
-    values: [jstDateNDaysAgo(max), jstDateNDaysAgo(min)],
+    values: [jstDateNBusinessDaysAgo(max), jstDateNBusinessDaysAgo(min)],
   }
 }
 

@@ -84,7 +84,7 @@ function ElapsedDaysBucketsEditor({ buckets, onChange }: ElapsedDaysBucketsEdito
             placeholder="ラベル"
             style={{ ...inputStyle, width: 80 }}
           />
-          <span style={{ fontSize: 11, color: '#777' }}>最小</span>
+          <span style={{ fontSize: 11, color: '#777' }}>最小(営業日)</span>
           <input
             type="number"
             min={0}
@@ -92,7 +92,7 @@ function ElapsedDaysBucketsEditor({ buckets, onChange }: ElapsedDaysBucketsEdito
             onChange={(e) => updateBucket(idx, { min: Number(e.target.value) })}
             style={{ ...inputStyle, width: 50 }}
           />
-          <span style={{ fontSize: 11, color: '#777' }}>最大</span>
+          <span style={{ fontSize: 11, color: '#777' }}>最大(営業日)</span>
           <input
             type="number"
             min={0}
@@ -362,6 +362,7 @@ function ConditionsEditor({ conditions, filterFields, dateFilterFields, getField
                   style={{ ...selectStyle, width: 60 }}
                   placeholder="日数"
                 />
+                <span style={{ fontSize: 11, color: '#777' }}>(Business days)</span>
               </>
             ) : loadingField === cond.field ? (
               <span style={{ fontSize: 11, color: '#999' }}>読み込み中...</span>

@@ -1,16 +1,16 @@
 import type { ElapsedDaysBucket, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
-import { calcElapsedDays, calcElapsedDaysFromStr, getIssueDateByField, utcToJstDate } from './dateUtils'
+import { calcBusinessElapsedDaysFromStr, getIssueDateByField, utcToJstDate } from './dateUtils'
 
-/** ベース日付フィールドを元にチケットの経過日数を計算する。baseField が未設定なら旧来の動作（updated_on || created_on）。空値の場合は created_on にフォールバック。 */
+/** ベース日付フィールドを元にチケットの経過営業日数（月〜金）を計算する。baseField が未設定なら旧来の動作（updated_on || created_on）。空値の場合は created_on にフォールバック。 */
 function getElapsedDaysForIssue(issue: RedmineIssue, baseField?: string): number {
   if (!baseField) {
-    return calcElapsedDays(issue.updated_on || issue.created_on)
+    return calcBusinessElapsedDaysFromStr(issue.updated_on || issue.created_on)
   }
   const dateStr = getIssueDateByField(issue, baseField)
   if (!dateStr) {
-    return calcElapsedDays(issue.created_on)
+    return calcBusinessElapsedDaysFromStr(issue.created_on)
   }
-  return calcElapsedDaysFromStr(dateStr)
+  return calcBusinessElapsedDaysFromStr(dateStr)
 }
 
 function formatDate(date: Date): string {
