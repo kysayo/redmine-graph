@@ -1060,7 +1060,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
           color: '#444',
         }}
       >
-        <span>グラフ設定</span>
+        <span>Graph Setting</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {onReset && (
             <button
@@ -1230,7 +1230,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
           {/* チームプリセット（管理者定義・読取専用） */}
           {teamPresets && teamPresets.length > 0 && (
             <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
-              <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>チームプリセット</div>
+              <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>Team Preset</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {teamPresets.map((tp, i) => (
                   <button
@@ -1256,7 +1256,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
           {/* プリセット */}
           <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>プリセット</div>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>Preset</div>
             {/* 保存 */}
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
               <input
