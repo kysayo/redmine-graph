@@ -1,15 +1,17 @@
 import type { ElapsedDaysBucket, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
 import { calcBusinessElapsedDaysFromStr, getIssueDateByField, utcToJstDate } from './dateUtils'
 
-/** ベース日付フィールドを元にチケットの経過営業日数（月〜金）を計算する。baseField が未設定なら旧来の動作（updated_on || created_on）。空値の場合は created_on にフォールバック。 */
-function getElapsedDaysForIssue(issue: RedmineIssue, baseField?: string): number {
+/**
+ * ベース日付フィールドを元にチケットの経過営業日数（月〜金）を計算する。
+ * - baseField 未設定: updated_on || created_on を使用（旧来動作）
+ * - baseField 指定あり・フィールドが空: null を返す（集計・条件判定から除外する）
+ */
+function getElapsedDaysForIssue(issue: RedmineIssue, baseField?: string): number | null {
   if (!baseField) {
     return calcBusinessElapsedDaysFromStr(issue.updated_on || issue.created_on)
   }
   const dateStr = getIssueDateByField(issue, baseField)
-  if (!dateStr) {
-    return calcBusinessElapsedDaysFromStr(issue.created_on)
-  }
+  if (!dateStr) return null
   return calcBusinessElapsedDaysFromStr(dateStr)
 }
 
@@ -100,6 +102,7 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
 
   if (field === 'elapsed_days') {
     const days = getElapsedDaysForIssue(issue, cond.elapsedDaysBaseField)
+    if (days === null) return false  // ベース日付フィールドが空のチケットは除外
     const target = parseInt(values[0], 10)
     if (isNaN(target)) return true
     if (operator === '=') return days === target
@@ -415,6 +418,7 @@ export function aggregatePie(
     for (const issue of issues) {
       if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
       const days = getElapsedDaysForIssue(issue, elapsedDaysBaseField)
+      if (days === null) continue  // ベース日付フィールドが空のチケットはスキップ
       const bucket = elapsedDaysBuckets.find(b =>
         days >= b.min && (b.max === undefined || days <= b.max)
       )
