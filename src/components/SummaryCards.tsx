@@ -1,3 +1,4 @@
+import React from 'react'
 import type { RedmineIssue, SeriesCondition, SummaryCardConfig } from '../types'
 import { countIssues } from '../utils/issueAggregator'
 
@@ -6,6 +7,17 @@ interface Props {
   issues: RedmineIssue[] | null  // null = ローディング中
   onNumeratorClick?: (conditions: SeriesCondition[]) => void
   onDenominatorClick?: (conditions: SeriesCondition[]) => void
+}
+
+function parseRedTags(text: string, fontWeight: number): React.ReactNode[] {
+  const parts = text.split(/(\[r\].*?\[\/r\])/g)
+  return parts.map((part, i) => {
+    const match = part.match(/^\[r\](.*)\[\/r\]$/)
+    if (match) {
+      return <span key={i} style={{ fontWeight, color: '#ef4444' }}>{match[1]}</span>
+    }
+    return <span key={i} style={{ fontWeight }}>{part}</span>
+  })
 }
 
 export function SummaryCards({ cards, issues, onNumeratorClick, onDenominatorClick }: Props) {
@@ -35,8 +47,8 @@ export function SummaryCards({ cards, issues, onNumeratorClick, onDenominatorCli
           >
             <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8, whiteSpace: 'pre-wrap' }}>
               {card.title.split('\n').map((line, idx) => (
-                <span key={idx} style={{ fontWeight: idx === 0 ? 700 : 400 }}>
-                  {idx > 0 ? '\n' : ''}{line}
+                <span key={idx}>
+                  {idx > 0 ? '\n' : ''}{parseRedTags(line, idx === 0 ? 700 : 400)}
                 </span>
               ))}
             </div>
