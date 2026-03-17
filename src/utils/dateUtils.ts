@@ -1,4 +1,25 @@
 /**
+ * 祝日の Set（YYYY-MM-DD形式）。setHolidays() で設定する。
+ * calcBusinessElapsedDaysFromStr / jstDateNBusinessDaysAgo で参照する。
+ */
+let _holidays: Set<string> = new Set()
+
+/** "2026-3-20" → "2026-03-20" のように月・日を0埋めする */
+function normalizeDate(d: string): string {
+  const parts = d.split('-')
+  if (parts.length !== 3) return d
+  return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`
+}
+
+/**
+ * 祝日リストをセットする。App マウント時に呼ぶ。
+ * dates は "2026-3-20" のような月・日の0埋め不要な形式を受け付ける。
+ */
+export function setHolidays(dates: string[]): void {
+  _holidays = new Set(dates.map(normalizeDate))
+}
+
+/**
  * UTC日時文字列をJST日付文字列（YYYY-MM-DD）に変換する
  * Redmine APIの closed_on はUTCで返るため、+9時間してJSTの日付を取得する
  * 例: "2026-02-25T02:23:30Z" → "2026-02-25"
@@ -52,7 +73,8 @@ export function calcBusinessElapsedDaysFromStr(dateStr: string): number {
   d.setUTCDate(d.getUTCDate() + 1) // 翌日から開始
   while (d <= end) {
     const day = d.getUTCDay() // 0=日, 6=土
-    if (day !== 0 && day !== 6) count++
+    const ds = d.toISOString().slice(0, 10)
+    if (day !== 0 && day !== 6 && !_holidays.has(ds)) count++
     d.setUTCDate(d.getUTCDate() + 1)
   }
   return count
@@ -70,9 +92,82 @@ export function jstDateNBusinessDaysAgo(n: number): string {
   while (count < n) {
     d.setUTCDate(d.getUTCDate() - 1)
     const day = d.getUTCDay()
-    if (day !== 0 && day !== 6) count++
+    const ds = d.toISOString().slice(0, 10)
+    if (day !== 0 && day !== 6 && !_holidays.has(ds)) count++
   }
   return d.toISOString().slice(0, 10)
+}
+
+/**
+ * 今日からベース日付まで何営業日か（符号付き）を返す。
+ * - 正: ベース日付が未来（N営業日後）
+ * - 0: ベース日付が今日
+ * - 負: ベース日付が過去（N営業日超過）
+ * 例: due_date が 3営業日後 → 3, due_date が 2営業日前（超過）→ -2
+ */
+export function calcBusinessDaysUntilStr(dateStr: string): number {
+  const jstDateStr = (dateStr.includes('T') || dateStr.endsWith('Z'))
+    ? utcToJstDate(dateStr)
+    : dateStr.slice(0, 10)
+  const todayJst = utcToJstDate(new Date().toISOString())
+  const target = new Date(jstDateStr + 'T00:00:00Z')
+  const today = new Date(todayJst + 'T00:00:00Z')
+  if (isNaN(target.getTime()) || isNaN(today.getTime())) return 0
+
+  if (target > today) {
+    // 未来: today+1 〜 target まで営業日をカウント → 正
+    let count = 0
+    const d = new Date(today)
+    d.setUTCDate(d.getUTCDate() + 1)
+    while (d <= target) {
+      const day = d.getUTCDay()
+      const ds = d.toISOString().slice(0, 10)
+      if (day !== 0 && day !== 6 && !_holidays.has(ds)) count++
+      d.setUTCDate(d.getUTCDate() + 1)
+    }
+    return count
+  } else if (target < today) {
+    // 過去: target+1 〜 today まで営業日をカウント → 負
+    let count = 0
+    const d = new Date(target)
+    d.setUTCDate(d.getUTCDate() + 1)
+    while (d <= today) {
+      const day = d.getUTCDay()
+      const ds = d.toISOString().slice(0, 10)
+      if (day !== 0 && day !== 6 && !_holidays.has(ds)) count++
+      d.setUTCDate(d.getUTCDate() + 1)
+    }
+    return -count
+  } else {
+    return 0
+  }
+}
+
+/**
+ * 今日から N 営業日後の YYYY-MM-DD を返す。
+ * n=0 → today。n<0 のときは jstDateNBusinessDaysAgo(-n) と等価。
+ */
+export function jstDateNBusinessDaysLater(n: number): string {
+  if (n < 0) return jstDateNBusinessDaysAgo(-n)
+  const todayJst = utcToJstDate(new Date().toISOString())
+  const d = new Date(todayJst + 'T00:00:00Z')
+  let count = 0
+  while (count < n) {
+    d.setUTCDate(d.getUTCDate() + 1)
+    const day = d.getUTCDay()
+    const ds = d.toISOString().slice(0, 10)
+    if (day !== 0 && day !== 6 && !_holidays.has(ds)) count++
+  }
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * 今日から n 営業日オフセットした YYYY-MM-DD を返す。
+ * n >= 0 → jstDateNBusinessDaysLater(n)
+ * n < 0  → jstDateNBusinessDaysAgo(-n)
+ */
+export function jstDateWithBusinessDaysOffset(n: number): string {
+  return n >= 0 ? jstDateNBusinessDaysLater(n) : jstDateNBusinessDaysAgo(-n)
 }
 
 /**

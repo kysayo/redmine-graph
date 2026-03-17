@@ -1,5 +1,5 @@
 import type { ElapsedDaysBucket, SeriesCondition } from '../types'
-import { jstDateNBusinessDaysAgo } from './dateUtils'
+import { jstDateNBusinessDaysAgo, jstDateWithBusinessDaysOffset } from './dateUtils'
 
 interface FilterParam {
   field: string
@@ -10,15 +10,40 @@ interface FilterParam {
 /**
  * ElapsedDaysBucket を Redmine フィルタパラメータに変換する。
  * クリック時の JST 日付を基準に絶対日付で計算する。
- * @param baseField - 経過日数のベース日付フィールドキー（省略時は 'updated_on'）
+ * @param baseField - 経過日数/到来日数のベース日付フィールドキー（省略時は 'updated_on'）
+ * @param mode - 'past'=経過日数（デフォルト）、'future'=到来日数
+ *
+ * past モード（経過日数）:
+ *   {min: N}        → field <= today-N（N営業日以上経過）
+ *   {min: N, max: M} → today-M <= field <= today-N
+ *
+ * future モード（到来日数）:
+ *   {min: N}        → field >= today+N（N営業日以上先）
+ *   {min: N, max: M} → today+N <= field <= today+M
+ *   負値も許可: {min: -3, max: 0} = 0〜3営業日超過
  */
-export function buildElapsedDaysBucketFilter(bucket: ElapsedDaysBucket, baseField?: string): {
+export function buildElapsedDaysBucketFilter(bucket: ElapsedDaysBucket, baseField?: string, mode: 'past' | 'future' = 'past'): {
   field: string
   operator: string
   values: string[]
 } {
   const { min, max } = bucket
   const field = baseField ?? 'updated_on'
+
+  if (mode === 'future') {
+    if (max === undefined) {
+      // N営業日以上先: field >= today+N
+      return { field, operator: '>=', values: [jstDateWithBusinessDaysOffset(min)] }
+    }
+    // 範囲: today+min <= field <= today+max
+    return {
+      field,
+      operator: '><',
+      values: [jstDateWithBusinessDaysOffset(min), jstDateWithBusinessDaysOffset(max)],
+    }
+  }
+
+  // past モード（経過日数・従来動作）
   if (max === undefined) {
     // N日以上経過: field <= today - N
     return { field, operator: '<=', values: [jstDateNBusinessDaysAgo(min)] }
@@ -101,16 +126,27 @@ export function buildRedmineFilterUrl(
 
   if (pieConditions?.length) {
     for (const cond of pieConditions) {
-      // elapsed_days はRedmineのURLフィルタに非対応。>= と = のみベース日付フィールドに変換
+      // elapsed_days はRedmineのURLフィルタに非対応。ベース日付フィールドのフィルタに変換
       if (cond.field === 'elapsed_days') {
         if (cond.operator !== '!') {
           const days = parseInt(cond.values[0], 10)
+          const mode = cond.elapsedDaysMode ?? 'past'
           if (!isNaN(days)) {
-            const bucket: ElapsedDaysBucket = cond.operator === '>='
-              ? { label: '', min: days }
-              : { label: '', min: days, max: days }
-            const converted = buildElapsedDaysBucketFilter(bucket, cond.elapsedDaysBaseField)
-            filterMap.set(converted.field, converted)
+            if (cond.operator === '<=') {
+              // '<=' の変換は buildElapsedDaysBucketFilter では扱えないため個別処理
+              // past + <=N: "N営業日以内に更新" → field >= today-N
+              // future + <=N: "N営業日以内に到来" → field <= today+N
+              const converted = mode === 'future'
+                ? { field: cond.elapsedDaysBaseField ?? 'updated_on', operator: '<=', values: [jstDateWithBusinessDaysOffset(days)] }
+                : { field: cond.elapsedDaysBaseField ?? 'updated_on', operator: '>=', values: [jstDateNBusinessDaysAgo(days)] }
+              filterMap.set(converted.field, converted)
+            } else {
+              const bucket: ElapsedDaysBucket = cond.operator === '>='
+                ? { label: '', min: days }
+                : { label: '', min: days, max: days }
+              const converted = buildElapsedDaysBucketFilter(bucket, cond.elapsedDaysBaseField, mode)
+              filterMap.set(converted.field, converted)
+            }
           }
         }
         continue

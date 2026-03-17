@@ -1,18 +1,23 @@
 import type { ElapsedDaysBucket, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
-import { calcBusinessElapsedDaysFromStr, getIssueDateByField, utcToJstDate } from './dateUtils'
+import { calcBusinessDaysUntilStr, calcBusinessElapsedDaysFromStr, getIssueDateByField, utcToJstDate } from './dateUtils'
 
 /**
- * ベース日付フィールドを元にチケットの経過営業日数（月〜金）を計算する。
- * - baseField 未設定: updated_on || created_on を使用（旧来動作）
+ * ベース日付フィールドを元にチケットの経過営業日数（月〜金）または到来営業日数を計算する。
+ * - mode === 'past'（デフォルト）: 経過日数（正値 = N日前）
+ * - mode === 'future': 到来日数（正値 = N日後, 負値 = N日超過）
+ * - baseField 未設定: updated_on || created_on を使用（旧来動作、pastモードのみ）
  * - baseField 指定あり・フィールドが空: null を返す（集計・条件判定から除外する）
  */
-function getElapsedDaysForIssue(issue: RedmineIssue, baseField?: string): number | null {
+function getElapsedDaysForIssue(issue: RedmineIssue, baseField?: string, mode: 'past' | 'future' = 'past'): number | null {
   if (!baseField) {
+    if (mode === 'future') return null  // 到来日数はベースフィールド指定が必須
     return calcBusinessElapsedDaysFromStr(issue.updated_on || issue.created_on)
   }
   const dateStr = getIssueDateByField(issue, baseField)
   if (!dateStr) return null
-  return calcBusinessElapsedDaysFromStr(dateStr)
+  return mode === 'future'
+    ? calcBusinessDaysUntilStr(dateStr)
+    : calcBusinessElapsedDaysFromStr(dateStr)
 }
 
 function formatDate(date: Date): string {
@@ -117,12 +122,14 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
   let issueValues: string[] = []
 
   if (field === 'elapsed_days') {
-    const days = getElapsedDaysForIssue(issue, cond.elapsedDaysBaseField)
+    const mode = cond.elapsedDaysMode ?? 'past'
+    const days = getElapsedDaysForIssue(issue, cond.elapsedDaysBaseField, mode)
     if (days === null) return false  // ベース日付フィールドが空のチケットは除外
     const target = parseInt(values[0], 10)
     if (isNaN(target)) return true
     if (operator === '=') return days === target
     if (operator === '>=') return days >= target
+    if (operator === '<=') return days <= target
     return true
   }
 
@@ -425,17 +432,19 @@ export function aggregatePie(
   conditions?: SeriesCondition[],
   groupRules?: PieGroupRule[],
   elapsedDaysBuckets?: ElapsedDaysBucket[],
-  elapsedDaysBaseField?: string
+  elapsedDaysBaseField?: string,
+  elapsedDaysMode?: 'past' | 'future'
 ): PieDataPoint[] {
-  // 経過日数バケット集計モード
+  // 経過日数/到来日数バケット集計モード
   if (groupBy === 'elapsed_days' && elapsedDaysBuckets?.length) {
+    const mode = elapsedDaysMode ?? 'past'
     const bucketCounts = new Map<string, number>()
     for (const bucket of elapsedDaysBuckets) {
       bucketCounts.set(bucket.label, 0)
     }
     for (const issue of issues) {
       if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
-      const days = getElapsedDaysForIssue(issue, elapsedDaysBaseField)
+      const days = getElapsedDaysForIssue(issue, elapsedDaysBaseField, mode)
       if (days === null) continue  // ベース日付フィールドが空のチケットはスキップ
       const bucket = elapsedDaysBuckets.find(b =>
         days >= b.min && (b.max === undefined || days <= b.max)

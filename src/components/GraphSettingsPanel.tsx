@@ -87,7 +87,6 @@ function ElapsedDaysBucketsEditor({ buckets, onChange }: ElapsedDaysBucketsEdito
           <span style={{ fontSize: 11, color: '#777' }}>最小(営業日)</span>
           <input
             type="number"
-            min={0}
             value={bucket.min}
             onChange={(e) => updateBucket(idx, { min: Number(e.target.value) })}
             style={{ ...inputStyle, width: 50 }}
@@ -95,7 +94,6 @@ function ElapsedDaysBucketsEditor({ buckets, onChange }: ElapsedDaysBucketsEdito
           <span style={{ fontSize: 11, color: '#777' }}>最大(営業日)</span>
           <input
             type="number"
-            min={0}
             value={bucket.max ?? ''}
             onChange={(e) => updateBucket(idx, { max: e.target.value !== '' ? Number(e.target.value) : undefined })}
             placeholder="以上"
@@ -302,6 +300,10 @@ function ConditionsEditor({ conditions, filterFields, dateFilterFields, getField
     onChange(conditions.map((c, i) => i === idx ? { ...c, elapsedDaysBaseField: baseField } : c))
   }
 
+  function updateConditionMode(idx: number, mode: 'past' | 'future') {
+    onChange(conditions.map((c, i) => i === idx ? { ...c, elapsedDaysMode: mode } : c))
+  }
+
   const elapsedDaysBaseFields = [...BUILTIN_DATE_FIELDS, ...dateFilterFields]
 
   const selectStyle: React.CSSProperties = {
@@ -339,16 +341,28 @@ function ConditionsEditor({ conditions, filterFields, dateFilterFields, getField
             <option value="=">=</option>
             <option value="!">!=</option>
             <option value=">=">&gt;=（以上）</option>
+            {cond.field === 'elapsed_days' && (
+              <option value="<=">&lt;=（以内）</option>
+            )}
           </select>
           {/* 値選択 */}
           {cond.field && (
             cond.field === 'elapsed_days' ? (
               <>
                 <select
+                  value={cond.elapsedDaysMode ?? 'past'}
+                  onChange={(e) => updateConditionMode(idx, e.target.value as 'past' | 'future')}
+                  style={selectStyle}
+                  title="経過日数（過去→今日）か到来日数（今日→未来）かを選択"
+                >
+                  <option value="past">経過日数</option>
+                  <option value="future">到来日数</option>
+                </select>
+                <select
                   value={cond.elapsedDaysBaseField ?? 'updated_on'}
                   onChange={(e) => updateConditionBaseField(idx, e.target.value)}
                   style={selectStyle}
-                  title="経過日数の基準となる日付フィールド"
+                  title="経過日数/到来日数の基準となる日付フィールド"
                 >
                   {elapsedDaysBaseFields.map(f => (
                     <option key={f.key} value={f.key}>{f.name}</option>
@@ -356,7 +370,6 @@ function ConditionsEditor({ conditions, filterFields, dateFilterFields, getField
                 </select>
                 <input
                   type="number"
-                  min={0}
                   value={cond.values[0] ?? ''}
                   onChange={(e) => updateConditionValues(idx, e.target.value !== '' ? [e.target.value] : [])}
                   style={{ ...selectStyle, width: 60 }}
@@ -1527,7 +1540,20 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       </div>
                     ) : pie.groupBy === 'elapsed_days' ? (
                       <>
-                        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, color: '#666' }}>モード:</span>
+                          <select
+                            value={pie.elapsedDaysMode ?? 'past'}
+                            onChange={(e) => {
+                              const updated = pies.map((p, j) => j === i ? { ...p, elapsedDaysMode: e.target.value as 'past' | 'future' } : p)
+                              onChange({ ...settings, pies: updated })
+                            }}
+                            style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
+                            title="経過日数（過去→今日）か到来日数（今日→未来）かを選択"
+                          >
+                            <option value="past">経過日数（今日←ベース日付）</option>
+                            <option value="future">到来日数（今日→ベース日付）</option>
+                          </select>
                           <span style={{ fontSize: 11, color: '#666' }}>ベース日付:</span>
                           <select
                             value={pie.elapsedDaysBaseField ?? 'updated_on'}

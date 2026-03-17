@@ -29,9 +29,10 @@ import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
 import { aggregateIssues, aggregatePie, aggregateStackedBar } from './utils/issueAggregator'
-import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
+import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueDescription, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
 import { buildElapsedDaysBucketFilter, buildRedmineFilterUrl } from './utils/redmineFilterUrl'
 import { loadSettings, saveSettings } from './utils/storage'
+import { setHolidays } from './utils/dateUtils'
 import { getProjectId } from './utils/urlParser'
 
 interface Props {
@@ -51,6 +52,22 @@ export function App({ container }: Props) {
   const teamPresets = useMemo(() => readTeamPresets(container), [container])
   const projectId = useMemo(() => getProjectId(), [])
   const rawSearch = window.location.search
+
+  // 祝日チケットID（data-holidays-issue-id 属性）から祝日リストを取得してセット
+  const holidaysIssueId = useMemo(() => {
+    const raw = container.dataset.holidaysIssueId
+    return raw ? Number(raw) : null
+  }, [container])
+
+  useEffect(() => {
+    if (!holidaysIssueId) return
+    fetchIssueDescription(holidaysIssueId, apiKey)
+      .then(desc => {
+        const parsed: unknown = JSON.parse(desc.trim())
+        if (Array.isArray(parsed)) setHolidays(parsed as string[])
+      })
+      .catch(() => { /* フェッチ・パース失敗時は祝日なしで動作 */ })
+  }, [holidaysIssueId, apiKey])
 
   // ユーザー設定（localStorageから初期化、なければdata属性からデフォルト生成）
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -235,7 +252,7 @@ export function App({ container }: Props) {
       const url = buildRedmineFilterUrl(
         window.location.pathname,
         window.location.search,
-        buildElapsedDaysBucketFilter(bucket, pie.elapsedDaysBaseField),
+        buildElapsedDaysBucketFilter(bucket, pie.elapsedDaysBaseField, pie.elapsedDaysMode),
         pie.conditions
       )
       window.open(url, '_blank', 'noopener')
@@ -311,7 +328,7 @@ export function App({ container }: Props) {
 
   const piesData = useMemo(() => {
     return (settings.pies ?? []).map((pie, i) => {
-      if (issueState.issues !== null) return aggregatePie(issueState.issues, pie.groupBy, pie.conditions, pie.groupRules, pie.elapsedDaysBuckets, pie.elapsedDaysBaseField)
+      if (issueState.issues !== null) return aggregatePie(issueState.issues, pie.groupBy, pie.conditions, pie.groupRules, pie.elapsedDaysBuckets, pie.elapsedDaysBaseField, pie.elapsedDaysMode)
       return generatePieDummyData(i === 0 ? 'status' : 'tracker')
     })
   }, [issueState.issues, settings.pies])

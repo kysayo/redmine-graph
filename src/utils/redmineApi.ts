@@ -87,6 +87,18 @@ export async function fetchAllIssues(
 }
 
 /**
+ * 指定チケットの description を取得する。
+ * 祝日リストをチケットに記録している場合に使用する。
+ */
+export async function fetchIssueDescription(issueId: number, apiKey: string): Promise<string> {
+  const response = await fetch(`/issues/${issueId}.json`, { headers: buildHeaders(apiKey) })
+  if (!response.ok) throw new Error(`Failed to fetch issue: ${response.status}`)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await response.json()
+  return data.issue?.description ?? ''
+}
+
+/**
  * Redmineチケット一覧ページのDOMに埋め込まれた availableFilters から
  * プロジェクト固有のステータス一覧を取得する。
  * 取得できない場合（開発環境等）は null を返す。

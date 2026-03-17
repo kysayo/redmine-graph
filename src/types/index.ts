@@ -65,6 +65,7 @@ export interface PieSeriesConfig {
   groupRules?: PieGroupRule[] // スライスグルーピングルール（空配列/未設定 = グルーピングなし）
   elapsedDaysBuckets?: ElapsedDaysBucket[]  // groupBy === 'elapsed_days' のときのバケット定義
   elapsedDaysBaseField?: string  // groupBy === 'elapsed_days' のとき: 経過日数計算のベース日付フィールドキー
+  elapsedDaysMode?: 'past' | 'future'  // groupBy === 'elapsed_days' のとき: 'past'=経過日数（デフォルト）、'future'=到来日数
   chartType?: 'pie' | 'bar'  // グラフ種別（省略時 = 'pie'、後方互換）
   topN?: number              // 横棒グラフの表示上限件数（省略時 = 全件表示）
   fullWidth?: boolean        // 横棒グラフの全幅表示（省略時 = true）
@@ -148,9 +149,10 @@ export interface SeriesDataPoint {
 // 系列の1絞り込み条件
 export interface SeriesCondition {
   field: string       // window.availableFilters のキー（例: 'cf_628', 'tracker_id'）
-  operator: '=' | '!' | '>='  // '=' = 一致、'!' = 不一致、'>=' = 以上
+  operator: '=' | '!' | '>=' | '<='  // '=' = 一致、'!' = 不一致、'>=' = 以上、'<=' = 以下（以内）
   values: string[]    // 選択値の配列（例: ['QA', 'BUG']）
   elapsedDaysBaseField?: string  // field === 'elapsed_days' のとき: 経過日数計算のベース日付フィールドキー
+  elapsedDaysMode?: 'past' | 'future'  // field === 'elapsed_days' のとき: 'past'=経過日数（デフォルト）、'future'=到来日数
 }
 
 // フィルタフィールド一覧（UIの選択肢表示用）
