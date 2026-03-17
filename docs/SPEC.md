@@ -167,7 +167,8 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - `closed_on` 系列: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
   - `custom` 系列: `customDateFieldKey` で指定したフィールドを取得。`cf_{id}` 形式はカスタムフィールドから、`start_date`・`due_date` 等はチケットの直接プロパティから取得。値が空/null/未設定のチケットはスキップ。UTC変換不要（Redmineはカスタム日付をYYYY-MM-DD形式で返す）
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
-- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`assigned_to_id`・`category_id`・`fixed_version_id`・`cf_{id}`（カスタムフィールド）・`elapsed_days`（経過日数、仮想フィールド）。演算子: `=`（一致）、`!`（不一致）、`>=`（以上）
+- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`author_id`・`assigned_to_id`・`category_id`・`fixed_version_id`・`cf_{id}`（カスタムフィールド）・`elapsed_days`（経過日数、仮想フィールド）。演算子: `=`（一致）、`!`（不一致）、`>=`（以上）
+  - **特殊値 `"me"` の解決**: フィールド値として `"me"`（Redmineの「自分」選択肢）が指定された場合、`window.ViewCustomize.context.user.id` を参照して現在ログイン中のユーザーIDに変換してから比較する。`author_id`・`assigned_to_id` どちらでも有効
 - **経過日数バケット集計**: `groupBy === 'elapsed_days'` かつ `elapsedDaysBuckets` が定義されている場合、通常のフィールドグルーピングの代わりにバケット分類を実行。各チケットの `elapsedDaysBaseField`（省略時は `updated_on || created_on`）からJST換算の経過日数を計算し、最初に条件が合致したバケットに計上。ベース日付フィールドが空（未設定）のチケットはスキップ（集計対象外）。バケット順序はユーザー定義順を維持
 - **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換。`startDate` 指定時は `startDate` より前のチケット数を初期値として積算（グラフ開始時点の既存チケット数を反映）
 
