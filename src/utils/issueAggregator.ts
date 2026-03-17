@@ -86,18 +86,34 @@ function generateWeeklyDateRange(from: Date, to: Date, anchorDay: number): strin
 }
 
 /**
+ * window.ViewCustomize.context.user.id から現在ログイン中のユーザーIDを文字列で返す。
+ * 取得できない場合（開発環境等）は null を返す。
+ */
+function resolveCurrentUserId(): string | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const id = (window as any).ViewCustomize?.context?.user?.id
+  return id != null ? String(id) : null
+}
+
+/**
  * チケットが1つの絞り込み条件にマッチするか判定する
  * - status_id: issue.status.id の文字列表現と比較
  * - tracker_id: issue.tracker.id の文字列表現と比較
  * - priority_id: issue.priority.id の文字列表現と比較
+ * - author_id: issue.author.id の文字列表現と比較
  * - assigned_to_id: issue.assigned_to.id の文字列表現と比較
  * - category_id: issue.category.id の文字列表現と比較
  * - fixed_version_id: issue.fixed_version.id の文字列表現と比較
  * - cf_{id}: issue.custom_fields から id が一致するカスタムフィールドの value と比較
  * - その他: 非対応フィールドはフィルタしない（true を返す）
+ *
+ * 特殊値 "me" は resolveCurrentUserId() で現在ユーザーIDに変換してから比較する。
  */
 function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): boolean {
-  const { field, operator, values } = cond
+  const { field, operator } = cond
+  // "me" を現在ユーザーIDに解決する
+  const currentUserId = resolveCurrentUserId()
+  const values = cond.values.map(v => (v === 'me' && currentUserId ? currentUserId : v))
   let issueValues: string[] = []
 
   if (field === 'elapsed_days') {
@@ -116,6 +132,8 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
     issueValues = [String(issue.tracker.id)]
   } else if (field === 'priority_id') {
     issueValues = issue.priority ? [String(issue.priority.id)] : []
+  } else if (field === 'author_id') {
+    issueValues = issue.author ? [String(issue.author.id)] : []
   } else if (field === 'assigned_to_id') {
     issueValues = issue.assigned_to ? [String(issue.assigned_to.id)] : []
   } else if (field === 'category_id') {
