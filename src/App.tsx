@@ -594,7 +594,7 @@ export function App({ container }: Props) {
 
       {/* クロス集計テーブル */}
       {(settings.tables ?? []).length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 16 }}>
           {(settings.tables ?? []).map((table, i) => {
             const data = crossTablesData[i]
             const rowName = filterFields.find(f => f.key === table.rowGroupBy)?.name ?? table.rowGroupBy
