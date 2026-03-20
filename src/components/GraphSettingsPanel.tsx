@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { ElapsedDaysBucket, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, UserSettings } from '../types'
+import type { CrossTableConfig, ElapsedDaysBucket, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -1620,6 +1620,184 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 }}
               >
                 ＋ 横棒グラフを追加
+              </button>
+            </div>
+          </div>
+
+          {/* クロス集計テーブル設定 */}
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>クロス集計テーブル設定</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(settings.tables ?? []).map((table, i) => {
+                const tables = settings.tables ?? []
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 6,
+                      padding: '10px 12px',
+                      background: '#fafafa',
+                    }}
+                  >
+                    {/* タイトル・削除・並べ替え */}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>タイトル</span>
+                      <input
+                        type="text"
+                        value={table.label ?? ''}
+                        onChange={(e) => {
+                          const next = tables.map((t, j) => j === i ? { ...t, label: e.target.value || undefined } : t)
+                          onChange({ ...settings, tables: next })
+                        }}
+                        placeholder="（省略可）"
+                        style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, flex: 1, minWidth: 80 }}
+                      />
+                      <button
+                        type="button"
+                        disabled={i === 0}
+                        onClick={() => {
+                          const next = [...tables]
+                          ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+                          onChange({ ...settings, tables: next })
+                        }}
+                        style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#bbb' : '#444' }}
+                      >↑</button>
+                      <button
+                        type="button"
+                        disabled={i === tables.length - 1}
+                        onClick={() => {
+                          const next = [...tables]
+                          ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+                          onChange({ ...settings, tables: next })
+                        }}
+                        style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === tables.length - 1 ? 'default' : 'pointer', color: i === tables.length - 1 ? '#bbb' : '#444' }}
+                      >↓</button>
+                      <button
+                        type="button"
+                        onClick={() => onChange({ ...settings, tables: tables.filter((_, j) => j !== i) })}
+                        style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                      >削除</button>
+                    </div>
+
+                    {/* 行・列フィールド選択 */}
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 200px' }}>
+                        <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>行のフィールド</span>
+                        <div style={{ flex: 1 }}>
+                          <Select
+                            instanceId={`table-row-${i}`}
+                            styles={fieldSelectStyles}
+                            options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                            value={table.rowGroupBy ? (filterFields.find(f => f.key === table.rowGroupBy) ? { label: filterFields.find(f => f.key === table.rowGroupBy)!.name, value: table.rowGroupBy } : { label: table.rowGroupBy, value: table.rowGroupBy }) : null}
+                            onChange={(selected) => {
+                              const next = tables.map((t, j) => j === i ? { ...t, rowGroupBy: selected?.value ?? '' } : t)
+                              onChange({ ...settings, tables: next })
+                            }}
+                            placeholder="フィールドを選択..."
+                            isClearable={false}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 200px' }}>
+                        <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>列のフィールド</span>
+                        <div style={{ flex: 1 }}>
+                          <Select
+                            instanceId={`table-col-${i}`}
+                            styles={fieldSelectStyles}
+                            options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                            value={table.colGroupBy ? (filterFields.find(f => f.key === table.colGroupBy) ? { label: filterFields.find(f => f.key === table.colGroupBy)!.name, value: table.colGroupBy } : { label: table.colGroupBy, value: table.colGroupBy }) : null}
+                            onChange={(selected) => {
+                              const next = tables.map((t, j) => j === i ? { ...t, colGroupBy: selected?.value ?? '' } : t)
+                              onChange({ ...settings, tables: next })
+                            }}
+                            placeholder="フィールドを選択..."
+                            isClearable={false}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 行のグルーピング */}
+                    {table.rowGroupBy && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>行のグルーピング</div>
+                        <PieGroupRulesEditor
+                          instanceId={`table-row-rules-${i}`}
+                          groupBy={table.rowGroupBy}
+                          groupRules={table.rowGroupRules ?? []}
+                          getFieldOptions={getFieldOptions}
+                          onChange={(rules) => {
+                            const next = tables.map((t, j) => j === i ? { ...t, rowGroupRules: rules ?? undefined } : t)
+                            onChange({ ...settings, tables: next })
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* 列のグルーピング */}
+                    {table.colGroupBy && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>列のグルーピング</div>
+                        <PieGroupRulesEditor
+                          instanceId={`table-col-rules-${i}`}
+                          groupBy={table.colGroupBy}
+                          groupRules={table.colGroupRules ?? []}
+                          getFieldOptions={getFieldOptions}
+                          onChange={(rules) => {
+                            const next = tables.map((t, j) => j === i ? { ...t, colGroupRules: rules ?? undefined } : t)
+                            onChange({ ...settings, tables: next })
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* 絞り込み条件 */}
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ fontSize: 11, color: '#555', marginBottom: 4 }}>絞り込み条件</div>
+                      <ConditionsEditor
+                        conditions={table.conditions ?? []}
+                        filterFields={filterFields}
+                        dateFilterFields={dateFilterFields}
+                        getFieldOptions={getFieldOptions}
+                        onChange={(next) => {
+                          const updated = tables.map((t, j) => j === i ? { ...t, conditions: next } : t)
+                          onChange({ ...settings, tables: updated })
+                        }}
+                      />
+                    </div>
+                    {/* 全幅表示 */}
+                    <div style={{ marginTop: 6 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={table.fullWidth !== false}
+                          onChange={(e) => {
+                            const next = tables.map((t, j) => j === i ? { ...t, fullWidth: e.target.checked } : t)
+                            onChange({ ...settings, tables: next })
+                          }}
+                        />
+                        全幅表示
+                      </label>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => onChange({ ...settings, tables: [...(settings.tables ?? []), { rowGroupBy: 'tracker_id', colGroupBy: 'status_id' } as CrossTableConfig] })}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  border: '1px solid #ccc',
+                  borderRadius: 3,
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                ＋ 表を追加
               </button>
             </div>
           </div>

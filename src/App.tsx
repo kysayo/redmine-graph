@@ -20,15 +20,16 @@ const btnBase: React.CSSProperties = {
   fontFamily: 'sans-serif',
 }
 import { ComboChart } from './components/ComboChart'
+import { CrossTable } from './components/CrossTable'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
 import { HBarChart } from './components/HBarChart'
 import { PieChart } from './components/PieChart'
 import { SummaryCards } from './components/SummaryCards'
-import type { FilterField, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, StackedBarDataPoint, UserSettings } from './types'
+import type { CrossTableConfig, FilterField, FilterFieldOption, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, StackedBarDataPoint, UserSettings } from './types'
 import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
-import { aggregateIssues, aggregatePie, aggregateStackedBar } from './utils/issueAggregator'
+import { aggregateCrossTable, aggregateIssues, aggregatePie, aggregateStackedBar } from './utils/issueAggregator'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueDescription, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
 import { buildElapsedDaysBucketFilter, buildRedmineFilterUrl } from './utils/redmineFilterUrl'
 import { loadSettings, saveSettings } from './utils/storage'
@@ -94,6 +95,9 @@ export function App({ container }: Props) {
 
   // Graphセクションが開かれたときにフェッチを開始するフラグ
   const [shouldFetch, setShouldFetch] = useState(false)
+
+  // クロス集計テーブルのフィールド選択肢（行/列フィールドのすべての値。0件行/列表示のため）
+  const [crossTableFieldOptions, setCrossTableFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
 
   // グラフコピー機能
   type CopyStatus = 'idle' | 'copying' | 'ok' | 'err'
@@ -175,6 +179,32 @@ export function App({ container }: Props) {
       .catch(() => setStatuses(FALLBACK_STATUSES))
       .finally(() => setStatusesLoading(false))
   }, [apiKey, shouldFetch])
+
+  // クロス集計テーブルの行/列フィールドの全選択肢を取得（0件行/列を表示するため）
+  useEffect(() => {
+    if (!shouldFetch) return
+    const tables = settings.tables ?? []
+    const fields = new Set<string>()
+    for (const t of tables) {
+      if (t.rowGroupBy) fields.add(t.rowGroupBy)
+      if (t.colGroupBy) fields.add(t.colGroupBy)
+    }
+    Promise.all(
+      Array.from(fields).map(field =>
+        fetchFilterFieldOptions(field, apiKey).then(opts => ({ field, opts })).catch(() => null)
+      )
+    ).then(results => {
+      const next: Record<string, FilterFieldOption[]> = {}
+      for (const r of results) {
+        if (r) next[r.field] = r.opts
+      }
+      setCrossTableFieldOptions(prev => {
+        const merged = { ...prev, ...next }
+        return merged
+      })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.tables, shouldFetch, apiKey])
 
   useEffect(() => {
     if (!shouldFetch) return
@@ -301,6 +331,70 @@ export function App({ container }: Props) {
     window.open(url, '_blank', 'noopener')
   }, [])
 
+  const handleCrossTableCellClick = useCallback((
+    table: CrossTableConfig,
+    _rowKey: string,
+    _colKey: string,
+    rowFilterValues: string[],
+    colFilterValues: string[]
+  ) => {
+    const url = buildRedmineFilterUrl(
+      window.location.pathname,
+      window.location.search,
+      undefined,
+      [
+        ...(table.conditions ?? []),
+        ...(rowFilterValues.length ? [{ field: table.rowGroupBy, operator: '=' as const, values: rowFilterValues }] : []),
+        ...(colFilterValues.length ? [{ field: table.colGroupBy, operator: '=' as const, values: colFilterValues }] : []),
+      ]
+    )
+    window.open(url, '_blank', 'noopener')
+  }, [])
+
+  const handleCrossTableRowTotalClick = useCallback((
+    table: CrossTableConfig,
+    _rowKey: string,
+    rowFilterValues: string[]
+  ) => {
+    const url = buildRedmineFilterUrl(
+      window.location.pathname,
+      window.location.search,
+      undefined,
+      [
+        ...(table.conditions ?? []),
+        ...(rowFilterValues.length ? [{ field: table.rowGroupBy, operator: '=' as const, values: rowFilterValues }] : []),
+      ]
+    )
+    window.open(url, '_blank', 'noopener')
+  }, [])
+
+  const handleCrossTableColTotalClick = useCallback((
+    table: CrossTableConfig,
+    _colKey: string,
+    colFilterValues: string[]
+  ) => {
+    const url = buildRedmineFilterUrl(
+      window.location.pathname,
+      window.location.search,
+      undefined,
+      [
+        ...(table.conditions ?? []),
+        ...(colFilterValues.length ? [{ field: table.colGroupBy, operator: '=' as const, values: colFilterValues }] : []),
+      ]
+    )
+    window.open(url, '_blank', 'noopener')
+  }, [])
+
+  const handleCrossTableGrandTotalClick = useCallback((table: CrossTableConfig) => {
+    const url = buildRedmineFilterUrl(
+      window.location.pathname,
+      window.location.search,
+      undefined,
+      table.conditions ?? []
+    )
+    window.open(url, '_blank', 'noopener')
+  }, [])
+
   const handleSummaryCardClick = useCallback((conditions: SeriesCondition[]) => {
     const url = buildRedmineFilterUrl(
       window.location.pathname,
@@ -332,6 +426,16 @@ export function App({ container }: Props) {
       return generatePieDummyData(i === 0 ? 'status' : 'tracker')
     })
   }, [issueState.issues, settings.pies])
+
+  const crossTablesData = useMemo(() => {
+    return (settings.tables ?? []).map(table => {
+      if (issueState.issues === null) return null
+      if (!table.rowGroupBy || !table.colGroupBy) return null
+      const rowOptions = crossTableFieldOptions[table.rowGroupBy]
+      const colOptions = crossTableFieldOptions[table.colGroupBy]
+      return aggregateCrossTable(issueState.issues, table, rowOptions, colOptions)
+    })
+  }, [issueState.issues, settings.tables, crossTableFieldOptions])
 
   // 積み上げ棒グラフ用データ（colorBy指定時のみ生成）
   const piesStackedData = useMemo((): (StackedBarDataPoint[] | null)[] => {
@@ -480,6 +584,48 @@ export function App({ container }: Props) {
                     groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
                     onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
                     wide={isWide}
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* クロス集計テーブル */}
+      {(settings.tables ?? []).length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 0 }}>
+          {(settings.tables ?? []).map((table, i) => {
+            const data = crossTablesData[i]
+            const rowName = filterFields.find(f => f.key === table.rowGroupBy)?.name ?? table.rowGroupBy
+            const colName = filterFields.find(f => f.key === table.colGroupBy)?.name ?? table.colGroupBy
+            const title = table.label || `${rowName} × ${colName}`
+            return (
+              <div
+                key={i}
+                style={{
+                  ...(table.fullWidth !== false ? { gridColumn: '1 / -1' } : {}),
+                  background: '#fff',
+                  borderRadius: 20,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  padding: '20px 24px',
+                }}
+              >
+                {!data ? (
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>{title}</div>
+                    <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
+                      {issueState.loading ? 'Now Loading...' : (!table.rowGroupBy || !table.colGroupBy) ? '行・列のフィールドを設定パネルで選択してください' : '該当チケットがありません'}
+                    </div>
+                  </div>
+                ) : (
+                  <CrossTable
+                    data={data}
+                    title={title}
+                    onCellClick={issueState.issues !== null ? (rk, ck, rfv, cfv) => handleCrossTableCellClick(table, rk, ck, rfv, cfv) : undefined}
+                    onRowTotalClick={issueState.issues !== null ? (rk, rfv) => handleCrossTableRowTotalClick(table, rk, rfv) : undefined}
+                    onColTotalClick={issueState.issues !== null ? (ck, cfv) => handleCrossTableColTotalClick(table, ck, cfv) : undefined}
+                    onGrandTotalClick={issueState.issues !== null ? () => handleCrossTableGrandTotalClick(table) : undefined}
                   />
                 )}
               </div>

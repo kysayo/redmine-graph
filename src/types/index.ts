@@ -98,6 +98,31 @@ export interface SeriesConfig {
   visible?: boolean                                 // 表示/非表示（省略時 = true として扱う）
 }
 
+// クロス集計テーブル設定
+export interface CrossTableConfig {
+  label?: string                  // 表のタイトル（省略時 = 行フィールド × 列フィールド名）
+  rowGroupBy: string              // 行のグループキー（availableFiltersのキー、例: 'cf_628'）
+  colGroupBy: string              // 列のグループキー
+  conditions?: SeriesCondition[]  // 集計対象の絞り込み条件（AND条件）
+  rowGroupRules?: PieGroupRule[]  // 行のグルーピングルール（PieGroupRule を再利用）
+  colGroupRules?: PieGroupRule[]  // 列のグルーピングルール
+  fullWidth?: boolean             // false=3列グリッドに収まるサイズ、省略/true=全幅（デフォルト）
+}
+
+// クロス集計テーブルの集計結果
+export interface CrossTableData {
+  rowKeys: string[]                          // 行のキー（オプション順 or 件数降順）
+  colKeys: string[]                          // 列のキー
+  rowLabels: Record<string, string>          // key -> 表示名
+  colLabels: Record<string, string>
+  rowFilterValues: Record<string, string[]>  // rowKey -> URLフィルタ用ID/値
+  colFilterValues: Record<string, string[]>  // colKey -> URLフィルタ用ID/値
+  cells: Record<string, Record<string, { count: number }>>
+  rowTotals: Record<string, number>
+  colTotals: Record<string, number>
+  grandTotal: number
+}
+
 // ユーザー設定全体（localStorageに保存する形）
 export interface UserSettings {
   version: number
@@ -115,6 +140,7 @@ export interface UserSettings {
   pieRight?: PieSeriesConfig  // deprecated: pies に移行済み
   pies?: PieSeriesConfig[]    // 任意個数の円グラフ設定
   summaryCards?: SummaryCardConfig[]  // 集計カード設定
+  tables?: CrossTableConfig[] // 任意個数のクロス集計テーブル設定
 }
 
 // fetchAllIssues の進捗コールバック用
