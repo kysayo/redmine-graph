@@ -1,4 +1,4 @@
-import type { ElapsedDaysBucket, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
+import type { CrossTableConfig, CrossTableData, ElapsedDaysBucket, FilterFieldOption, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
 import { calcBusinessDaysUntilStr, calcBusinessElapsedDaysFromStr, getIssueDateByField, utcToJstDate } from './dateUtils'
 
 /**
@@ -553,4 +553,155 @@ export function aggregateStackedBar(
       }
     })
     .sort((a, b) => b.total - a.total)
+}
+
+/**
+ * Redmineチケット一覧を rowGroupBy × colGroupBy でクロス集計し、
+ * テーブル表示用データに変換する。
+ *
+ * - rowOptions/colOptions が指定された場合は、チケットがなくても全選択肢を行/列に表示する
+ * - rowGroupRules/colGroupRules が指定された場合は複数値を1行/列にグルーピングする
+ * - 行/列キーの順序: options指定時はoptions順（末尾に未知値を件数降順で追加）、未指定時は件数降順
+ */
+export function aggregateCrossTable(
+  issues: RedmineIssue[],
+  config: CrossTableConfig,
+  rowOptions?: FilterFieldOption[],
+  colOptions?: FilterFieldOption[],
+): CrossTableData {
+  const { rowGroupBy, colGroupBy, conditions, rowGroupRules, colGroupRules } = config
+
+  const rowLabels: Record<string, string> = {}
+  const colLabels: Record<string, string> = {}
+  const rowFvMap = new Map<string, Set<string>>()  // rowKey -> URL フィルタ値の集合
+  const colFvMap = new Map<string, Set<string>>()
+  const rowOptionsOrder: string[] = []  // options由来の行キー（出現順）
+  const colOptionsOrder: string[] = []
+
+  // Step 1: options から行/列キーを事前登録（0件行/列を含めるため）
+  // グルーピング定義がある場合: ルール定義のみを表示対象として登録（未グループ値は除外）
+  if (rowGroupRules?.length) {
+    for (const rule of rowGroupRules) {
+      if (!rule.name) continue
+      if (!rowFvMap.has(rule.name)) {
+        rowFvMap.set(rule.name, new Set())
+        rowLabels[rule.name] = rule.name
+        rowOptionsOrder.push(rule.name)
+      }
+      if (rowOptions) {
+        for (const val of rule.values) {
+          const opt = rowOptions.find(o => o.label === val)
+          if (opt) rowFvMap.get(rule.name)!.add(opt.value)
+        }
+      }
+    }
+  } else if (rowOptions) {
+    for (const opt of rowOptions) {
+      const key = opt.label
+      if (!rowFvMap.has(key)) {
+        rowFvMap.set(key, new Set())
+        rowLabels[key] = key
+        rowOptionsOrder.push(key)
+      }
+      rowFvMap.get(key)!.add(opt.value)
+    }
+  }
+  if (colGroupRules?.length) {
+    for (const rule of colGroupRules) {
+      if (!rule.name) continue
+      if (!colFvMap.has(rule.name)) {
+        colFvMap.set(rule.name, new Set())
+        colLabels[rule.name] = rule.name
+        colOptionsOrder.push(rule.name)
+      }
+      if (colOptions) {
+        for (const val of rule.values) {
+          const opt = colOptions.find(o => o.label === val)
+          if (opt) colFvMap.get(rule.name)!.add(opt.value)
+        }
+      }
+    }
+  } else if (colOptions) {
+    for (const opt of colOptions) {
+      const key = opt.label
+      if (!colFvMap.has(key)) {
+        colFvMap.set(key, new Set())
+        colLabels[key] = key
+        colOptionsOrder.push(key)
+      }
+      colFvMap.get(key)!.add(opt.value)
+    }
+  }
+
+  // Step 2: チケットを集計
+  const cells: CrossTableData['cells'] = {}
+  const rowTotals: Record<string, number> = {}
+  const colTotals: Record<string, number> = {}
+  let grandTotal = 0
+
+  for (const issue of issues) {
+    if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
+
+    const rawRowLabel = getIssueGroupValue(issue, rowGroupBy)
+    const rawColLabel = getIssueGroupValue(issue, colGroupBy)
+    if (rawRowLabel === null || rawRowLabel === '' || rawColLabel === null || rawColLabel === '') continue
+
+    const rowKey = rowGroupRules?.length ? applyGroupRules(rawRowLabel, rowGroupRules) : rawRowLabel
+    const colKey = colGroupRules?.length ? applyGroupRules(rawColLabel, colGroupRules) : rawColLabel
+
+    // グルーピング定義がある場合: いずれのルールにもマッチしない値はスキップ
+    if (rowGroupRules?.length) {
+      const inAnyRule = rowGroupRules.some(r => r.values.includes(rawRowLabel))
+      if (!inAnyRule) continue
+    }
+    if (colGroupRules?.length) {
+      const inAnyRule = colGroupRules.some(r => r.values.includes(rawColLabel))
+      if (!inAnyRule) continue
+    }
+
+    if (!rowLabels[rowKey]) rowLabels[rowKey] = rowKey
+    if (!colLabels[colKey]) colLabels[colKey] = colKey
+    if (!rowFvMap.has(rowKey)) rowFvMap.set(rowKey, new Set())
+    if (!colFvMap.has(colKey)) colFvMap.set(colKey, new Set())
+
+    // フィルタ値を蓄積（options有無によらず常に追加。Set が重複を除去）
+    const rowFv = getIssueGroupFilterValue(issue, rowGroupBy)
+    if (rowFv !== null) rowFvMap.get(rowKey)!.add(rowFv)
+    const colFv = getIssueGroupFilterValue(issue, colGroupBy)
+    if (colFv !== null) colFvMap.get(colKey)!.add(colFv)
+
+    if (!cells[rowKey]) cells[rowKey] = {}
+    if (!cells[rowKey][colKey]) cells[rowKey][colKey] = { count: 0 }
+    cells[rowKey][colKey].count++
+    rowTotals[rowKey] = (rowTotals[rowKey] ?? 0) + 1
+    colTotals[colKey] = (colTotals[colKey] ?? 0) + 1
+    grandTotal++
+  }
+
+  // Step 3: 行/列キーの最終順序を確定
+  const rowOptionsSet = new Set(rowOptionsOrder)
+  const colOptionsSet = new Set(colOptionsOrder)
+
+  const rowKeys = rowOptions
+    ? [
+        ...rowOptionsOrder,
+        ...Object.keys(rowLabels).filter(k => !rowOptionsSet.has(k))
+          .sort((a, b) => (rowTotals[b] ?? 0) - (rowTotals[a] ?? 0)),
+      ]
+    : Object.keys(rowLabels).sort((a, b) => (rowTotals[b] ?? 0) - (rowTotals[a] ?? 0))
+
+  const colKeys = colOptions
+    ? [
+        ...colOptionsOrder,
+        ...Object.keys(colLabels).filter(k => !colOptionsSet.has(k))
+          .sort((a, b) => (colTotals[b] ?? 0) - (colTotals[a] ?? 0)),
+      ]
+    : Object.keys(colLabels).sort((a, b) => (colTotals[b] ?? 0) - (colTotals[a] ?? 0))
+
+  const rowFilterValues: Record<string, string[]> = {}
+  for (const [k, s] of rowFvMap.entries()) rowFilterValues[k] = Array.from(s)
+  const colFilterValues: Record<string, string[]> = {}
+  for (const [k, s] of colFvMap.entries()) colFilterValues[k] = Array.from(s)
+
+  return { rowKeys, colKeys, rowLabels, colLabels, rowFilterValues, colFilterValues, cells, rowTotals, colTotals, grandTotal }
 }
