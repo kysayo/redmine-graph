@@ -1424,15 +1424,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i < pies.length - 1 ? 'pointer' : 'default', color: i < pies.length - 1 ? '#333' : '#ccc' }}
                           title="右へ移動"
                         >→</button>
-                        {pies.length > 1 && (
-                          <button
+                        <button
                             type="button"
                             onClick={() => onChange({ ...settings, pies: pies.filter((_, j) => j !== i) })}
                             style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#666' }}
                           >
                             ×
                           </button>
-                        )}
                       </div>
                     </div>
                     <div style={{ marginBottom: 4 }}>
