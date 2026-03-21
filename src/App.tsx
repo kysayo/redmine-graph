@@ -448,7 +448,7 @@ export function App({ container }: Props) {
           </div>
         )}
         {shouldFetch && !issueState.loading && (
-          <ComboChart data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisLeftMinAuto={settings.yAxisLeftMinAuto} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} chartHeight={settings.chartHeight} />
+          <ComboChart data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisLeftMinAuto={settings.yAxisLeftMinAuto} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} chartHeight={settings.chartHeight} showLabelsLeft={settings.showLabelsLeft} showLabelsRight={settings.showLabelsRight} />
         )}
       </TileCard>
 

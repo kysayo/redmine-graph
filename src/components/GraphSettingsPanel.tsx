@@ -1179,6 +1179,15 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   </select>
                 </div>
               )}
+              {/* 左軸 件数表示 */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={settings.showLabelsLeft ?? false}
+                  onChange={(e) => onChange({ ...settings, showLabelsLeft: e.target.checked })}
+                />
+                左軸の件数表示
+              </label>
               {/* 左軸の最小値 */}
               <div>
                 <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>左軸の最小値</label>
@@ -1220,6 +1229,15 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 />
                 <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
               </div>
+              {/* 右軸 件数表示 */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={settings.showLabelsRight ?? false}
+                  onChange={(e) => onChange({ ...settings, showLabelsRight: e.target.checked })}
+                />
+                右軸の件数表示
+              </label>
               {/* グラフ高さ */}
               <div>
                 <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>グラフ高さ (px)</label>

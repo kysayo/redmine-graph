@@ -10,6 +10,7 @@ import {
   Legend,
   ResponsiveContainer,
   Brush,
+  LabelList,
 } from 'recharts'
 import type { SeriesConfig, SeriesDataPoint } from '../types'
 
@@ -49,6 +50,8 @@ interface Props {
   dateFormat?: 'yyyy-mm-dd' | 'M/D'
   chartHeight?: number
   showBrush?: boolean
+  showLabelsLeft?: boolean
+  showLabelsRight?: boolean
 }
 
 function formatDateTick(dateStr: string, fmt: 'yyyy-mm-dd' | 'M/D'): string {
@@ -81,7 +84,7 @@ function CustomXAxisTick({ x = 0, y = 0, payload, index = 0, tickInterval, fmt }
   )
 }
 
-export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxisRightMax, dateFormat, chartHeight, showBrush }: Props) {
+export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxisRightMax, dateFormat, chartHeight, showBrush, showLabelsLeft, showLabelsRight }: Props) {
     const fmt = dateFormat ?? 'yyyy-mm-dd'
     const maxTicks = fmt === 'M/D' ? 20 : 10
     const tickInterval = Math.max(0, Math.ceil(data.length / maxTicks) - 1)
@@ -106,10 +109,12 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
 
     const effectiveLeftMin = yAxisLeftMinAuto ? autoLeftMin : yAxisLeftMin
 
+    const marginTop = (showLabelsLeft || showLabelsRight) ? 24 : 8
+
     return (
       <div>
         <ResponsiveContainer width="100%" height={(chartHeight ?? 320) + (brushEnabled ? 40 : 0)}>
-          <ComposedChart data={data} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
+          <ComposedChart data={data} margin={{ top: marginTop, right: 40, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#d1d5db" vertical={false} yAxisId="left" />
             <XAxis
               dataKey="date"
@@ -149,6 +154,7 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
 
             {series.map((s) => {
               if (!(s.visible ?? true)) return null
+              const showLabel = s.yAxisId === 'left' ? (showLabelsLeft ?? false) : (showLabelsRight ?? false)
               return s.chartType === 'line' ? (
                 <Line
                   key={s.id}
@@ -160,7 +166,16 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
                   dot={{ r: 3, fill: s.color, stroke: '#fff', strokeWidth: 1.5 }}
                   activeDot={{ r: 5 }}
                   strokeWidth={2}
-                />
+                >
+                  {showLabel && (
+                    <LabelList
+                      dataKey={s.id}
+                      position="top"
+                      formatter={(v: unknown) => (v as number) === 0 ? '' : String(v)}
+                      style={{ fontSize: 10, fill: s.color, fontWeight: 600 }}
+                    />
+                  )}
+                </Line>
               ) : (
                 <Bar
                   key={s.id}
@@ -169,7 +184,16 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
                   name={s.label}
                   fill={s.color}
                   barSize={12}
-                />
+                >
+                  {showLabel && (
+                    <LabelList
+                      dataKey={s.id}
+                      position="top"
+                      formatter={(v: unknown) => (v as number) === 0 ? '' : String(v)}
+                      style={{ fontSize: 10, fill: s.color, fontWeight: 600 }}
+                    />
+                  )}
+                </Bar>
               )
             })}
           </ComposedChart>

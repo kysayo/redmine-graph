@@ -132,6 +132,8 @@ export interface UserSettings {
   yAxisLeftMin?: number      // 左軸Y軸の最小値。未設定=自動スケール
   yAxisLeftMinAuto?: boolean // true=左軸最小値を「最大値の8割」で自動設定
   yAxisRightMax?: number     // 右軸Y軸の最大値。未設定=自動スケール
+  showLabelsLeft?: boolean   // true = 左軸系列のラベルを常時表示
+  showLabelsRight?: boolean  // true = 右軸系列のラベルを常時表示
   weeklyMode?: boolean   // true = 週次集計。false/undefined = 日次（従来）
   anchorDay?: number     // 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1
   dateFormat?: 'yyyy-mm-dd' | 'M/D'  // X軸の日付表示形式。デフォルト 'yyyy-mm-dd'
