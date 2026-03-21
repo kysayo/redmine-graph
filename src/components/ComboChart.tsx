@@ -1,4 +1,4 @@
-import { forwardRef, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -81,8 +81,7 @@ function CustomXAxisTick({ x = 0, y = 0, payload, index = 0, tickInterval, fmt }
   )
 }
 
-export const ComboChart = forwardRef<HTMLDivElement, Props>(
-  function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxisRightMax, dateFormat, chartHeight, showBrush }, ref) {
+export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxisRightMax, dateFormat, chartHeight, showBrush }: Props) {
     const fmt = dateFormat ?? 'yyyy-mm-dd'
     const maxTicks = fmt === 'M/D' ? 20 : 10
     const tickInterval = Math.max(0, Math.ceil(data.length / maxTicks) - 1)
@@ -108,7 +107,7 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
     const effectiveLeftMin = yAxisLeftMinAuto ? autoLeftMin : yAxisLeftMin
 
     return (
-      <div ref={ref}>
+      <div>
         <ResponsiveContainer width="100%" height={(chartHeight ?? 320) + (brushEnabled ? 40 : 0)}>
           <ComposedChart data={data} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#d1d5db" vertical={false} yAxisId="left" />
@@ -177,5 +176,4 @@ export const ComboChart = forwardRef<HTMLDivElement, Props>(
         </ResponsiveContainer>
       </div>
     )
-  }
-)
+}

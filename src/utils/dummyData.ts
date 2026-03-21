@@ -92,7 +92,7 @@ export function generateSeriesDummyData(
 
   const fromDate = startDate ? new Date(startDate) : (() => {
     const d = new Date()
-    d.setDate(d.getDate() - 14)
+    d.setDate(d.getDate() - (weeklyMode ? 70 : 14))
     return d
   })()
   const toDate = new Date()

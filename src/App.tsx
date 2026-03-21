@@ -1,27 +1,8 @@
-import { toPng } from 'html-to-image'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-
-function useHover() {
-  const [hovered, setHovered] = useState(false)
-  return {
-    hovered,
-    onMouseEnter: () => setHovered(true),
-    onMouseLeave: () => setHovered(false),
-  }
-}
-
-const btnBase: React.CSSProperties = {
-  fontSize: 12,
-  padding: '3px 12px',
-  border: '1px solid #d1d5db',
-  borderRadius: 6,
-  cursor: 'pointer',
-  transition: 'background 0.15s, border-color 0.15s',
-  fontFamily: 'sans-serif',
-}
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ComboChart } from './components/ComboChart'
 import { CrossTable } from './components/CrossTable'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
+import { TileCard } from './components/TileCard'
 import { HBarChart } from './components/HBarChart'
 import { PieChart } from './components/PieChart'
 import { SummaryCards } from './components/SummaryCards'
@@ -98,13 +79,6 @@ export function App({ container }: Props) {
 
   // クロス集計テーブルのフィールド選択肢（行/列フィールドのすべての値。0件行/列表示のため）
   const [crossTableFieldOptions, setCrossTableFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
-
-  // グラフコピー機能
-  type CopyStatus = 'idle' | 'copying' | 'ok' | 'err'
-  const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
-  const comboChartRef = useRef<HTMLDivElement>(null)
-  const copyBtnHover = useHover()
-  const saveBtnHover = useHover()
 
   // fieldset#graph-section の折り畳み制御（Redmine の toggleFieldset に依存しない独自実装）
   useEffect(() => {
@@ -239,41 +213,6 @@ export function App({ container }: Props) {
     (fieldKey: string) => fetchFilterFieldOptions(fieldKey, apiKey),
     [apiKey]
   )
-
-  const handleDownloadSvg = useCallback(async () => {
-    const wrapper = comboChartRef.current
-    if (!wrapper) return
-    // グラフ全体（凡例含む）を高解像度PNGとして保存
-    const dataUrl = await toPng(wrapper, { backgroundColor: '#ffffff', pixelRatio: 2, skipFonts: true })
-    const a = document.createElement('a')
-    a.href = dataUrl
-    a.download = `redmine-graph-${new Date().toISOString().slice(0, 10)}.png`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-  }, [])
-
-  const handleCopyChart = useCallback(async () => {
-    const wrapper = comboChartRef.current
-    if (!wrapper) return
-    if (typeof ClipboardItem === 'undefined') {
-      setCopyStatus('err')
-      setTimeout(() => setCopyStatus('idle'), 2000)
-      return
-    }
-    setCopyStatus('copying')
-    try {
-      const dataUrl = await toPng(wrapper, { backgroundColor: '#ffffff', skipFonts: true })
-      const res = await fetch(dataUrl)
-      const blob = await res.blob()
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-      setCopyStatus('ok')
-      setTimeout(() => setCopyStatus('idle'), 2000)
-    } catch {
-      setCopyStatus('err')
-      setTimeout(() => setCopyStatus('idle'), 2000)
-    }
-  }, [])
 
   const handlePieSliceClick = useCallback((pie: PieSeriesConfig, slice: PieDataPoint) => {
     if (pie.groupBy === 'elapsed_days') {
@@ -478,37 +417,8 @@ export function App({ container }: Props) {
         />
       )}
 
-      <div style={card}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <h2 style={{ fontSize: 15, margin: 0, fontWeight: 600, color: '#111827' }}>チケット推移</h2>
-          <button
-            type="button"
-            onClick={handleCopyChart}
-            disabled={copyStatus === 'copying'}
-            {...copyBtnHover}
-            style={{
-              ...btnBase,
-              background: copyBtnHover.hovered && copyStatus === 'idle' ? '#f3f4f6' : '#fff',
-              cursor: copyStatus === 'copying' ? 'default' : 'pointer',
-              color: copyStatus === 'ok' ? '#059669' : copyStatus === 'err' ? '#dc2626' : '#374151',
-              borderColor: copyStatus === 'ok' ? '#6ee7b7' : copyStatus === 'err' ? '#fca5a5' : '#d1d5db',
-            }}
-          >
-            {copyStatus === 'ok' ? 'コピー完了!' : copyStatus === 'err' ? 'コピー失敗' : copyStatus === 'copying' ? 'コピー中...' : 'PNG コピー'}
-          </button>
-          <button
-            type="button"
-            onClick={handleDownloadSvg}
-            {...saveBtnHover}
-            style={{
-              ...btnBase,
-              background: saveBtnHover.hovered ? '#f3f4f6' : '#fff',
-              color: '#374151',
-            }}
-          >
-            PNG 保存
-          </button>
-        </div>
+      <TileCard style={{ padding: '20px 24px', marginBottom: 16 }} fileName="combo-chart">
+        <h2 style={{ fontSize: 15, margin: '0 0 16px', fontWeight: 600, color: '#111827' }}>チケット推移</h2>
         {shouldFetch && issueState.loading && (
           <div style={{ padding: '12px 0', color: '#666', fontSize: 13 }}>
             <div style={{ marginBottom: 6 }}>
@@ -538,9 +448,9 @@ export function App({ container }: Props) {
           </div>
         )}
         {shouldFetch && !issueState.loading && (
-          <ComboChart ref={comboChartRef} data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisLeftMinAuto={settings.yAxisLeftMinAuto} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} chartHeight={settings.chartHeight} />
+          <ComboChart data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisLeftMinAuto={settings.yAxisLeftMinAuto} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} chartHeight={settings.chartHeight} />
         )}
-      </div>
+      </TileCard>
 
       {shouldFetch && issueState.loading ? (
         <div style={{ ...card, marginBottom: 0, textAlign: 'center', padding: '40px 24px', color: '#666', fontSize: 13 }}>
@@ -552,15 +462,13 @@ export function App({ container }: Props) {
             const pieData = piesData[i] ?? []
             const isWide = pieData.length > 10
             return (
-              <div
+              <TileCard
                 key={i}
                 style={{
                   ...((pie.chartType === 'bar' ? pie.fullWidth !== false : isWide) ? { gridColumn: '1 / -1' } : {}),
-                  background: '#fff',
-                  borderRadius: 20,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                   padding: '20px 16px',
                 }}
+                fileName={`tile-${i}`}
               >
                 {pie.chartType === 'bar' ? (
                   <HBarChart
@@ -586,7 +494,7 @@ export function App({ container }: Props) {
                     wide={isWide}
                   />
                 )}
-              </div>
+              </TileCard>
             )
           })}
         </div>
@@ -601,15 +509,13 @@ export function App({ container }: Props) {
             const colName = filterFields.find(f => f.key === table.colGroupBy)?.name ?? table.colGroupBy
             const title = table.label || `${rowName} × ${colName}`
             return (
-              <div
+              <TileCard
                 key={i}
                 style={{
                   ...(table.fullWidth !== false ? { gridColumn: '1 / -1' } : {}),
-                  background: '#fff',
-                  borderRadius: 20,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                   padding: '20px 24px',
                 }}
+                fileName={`cross-table-${i}`}
               >
                 {!data ? (
                   <div>
@@ -628,7 +534,7 @@ export function App({ container }: Props) {
                     onGrandTotalClick={issueState.issues !== null ? () => handleCrossTableGrandTotalClick(table) : undefined}
                   />
                 )}
-              </div>
+              </TileCard>
             )
           })}
         </div>

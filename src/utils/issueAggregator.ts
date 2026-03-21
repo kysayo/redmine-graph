@@ -248,7 +248,7 @@ export function aggregateIssues(
     fromDate = new Date(startDate)
   } else {
     fromDate = new Date()
-    fromDate.setDate(fromDate.getDate() - 14)
+    fromDate.setDate(fromDate.getDate() - (weeklyMode ? 70 : 14))
   }
 
   const toDate = new Date()
