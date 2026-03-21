@@ -171,6 +171,28 @@ export function jstDateWithBusinessDaysOffset(n: number): string {
 }
 
 /**
+ * startDate（含む）から endDate（含む）までの営業日数を返す。
+ * 土日・祝日（_holidays）をスキップする。
+ * startDate > endDate の場合は 0 を返す。
+ * EVM の「対象期間の総営業日数」計算に使用する。
+ */
+export function countBusinessDaysBetween(startDate: string, endDate: string): number {
+  const start = new Date(startDate + 'T00:00:00Z')
+  const end = new Date(endDate + 'T00:00:00Z')
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0
+  if (start > end) return 0
+  let count = 0
+  const d = new Date(start)
+  while (d <= end) {
+    const day = d.getUTCDay()
+    const ds = d.toISOString().slice(0, 10)
+    if (day !== 0 && day !== 6 && !_holidays.has(ds)) count++
+    d.setUTCDate(d.getUTCDate() + 1)
+  }
+  return count
+}
+
+/**
  * フィールドキーに対応する日付文字列をチケットから取得する。
  * 値が空/未設定の場合は null を返す。
  * - updated_on / created_on / closed_on: UTC ISO文字列

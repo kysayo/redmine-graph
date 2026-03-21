@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ComboChart } from './components/ComboChart'
 import { CrossTable } from './components/CrossTable'
+import { EvmTile } from './components/EvmTile'
 import { GraphSettingsPanel } from './components/GraphSettingsPanel'
 import { TileCard } from './components/TileCard'
 import { HBarChart } from './components/HBarChart'
@@ -10,7 +11,8 @@ import type { CrossTableConfig, FilterField, FilterFieldOption, PieDataPoint, Pi
 import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
-import { aggregateCrossTable, aggregateIssues, aggregatePie, aggregateStackedBar } from './utils/issueAggregator'
+import { aggregateCrossTable, aggregateEVM, aggregateIssues, aggregatePie, aggregateStackedBar } from './utils/issueAggregator'
+import type { EVMAggregateResult } from './utils/issueAggregator'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueDescription, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
 import { buildElapsedDaysBucketFilter, buildRedmineFilterUrl } from './utils/redmineFilterUrl'
 import { loadSettings, saveSettings } from './utils/storage'
@@ -376,6 +378,14 @@ export function App({ container }: Props) {
     })
   }, [issueState.issues, settings.tables, crossTableFieldOptions])
 
+  // EVMタイル集計
+  const evmTilesData = useMemo((): (EVMAggregateResult | null)[] => {
+    return (settings.evmTiles ?? []).map(tile => {
+      if (issueState.issues === null) return null
+      return aggregateEVM(issueState.issues, tile)
+    })
+  }, [issueState.issues, settings.evmTiles])
+
   // 積み上げ棒グラフ用データ（colorBy指定時のみ生成）
   const piesStackedData = useMemo((): (StackedBarDataPoint[] | null)[] => {
     return (settings.pies ?? []).map(pie => {
@@ -533,6 +543,33 @@ export function App({ container }: Props) {
                     onColTotalClick={issueState.issues !== null ? (ck, cfv) => handleCrossTableColTotalClick(table, ck, cfv) : undefined}
                     onGrandTotalClick={issueState.issues !== null ? () => handleCrossTableGrandTotalClick(table) : undefined}
                   />
+                )}
+              </TileCard>
+            )
+          })}
+        </div>
+      )}
+
+      {/* EVMタイル */}
+      {(settings.evmTiles ?? []).length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+          {(settings.evmTiles ?? []).map((tile, i) => {
+            const data = evmTilesData[i]
+            return (
+              <TileCard
+                key={i}
+                style={{ padding: '20px 24px' }}
+                fileName={`evm-tile-${i}`}
+              >
+                {!data ? (
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>{tile.title || 'チケット数EVM'}</div>
+                    <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
+                      {issueState.loading ? 'Now Loading...' : (!tile.startDate || !tile.endDate) ? '対象期間を設定パネルで入力してください' : 'データを集計中...'}
+                    </div>
+                  </div>
+                ) : (
+                  <EvmTile config={tile} result={data} />
                 )}
               </TileCard>
             )

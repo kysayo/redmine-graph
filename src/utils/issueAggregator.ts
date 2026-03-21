@@ -1,5 +1,5 @@
-import type { CrossTableConfig, CrossTableData, ElapsedDaysBucket, FilterFieldOption, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
-import { calcBusinessDaysUntilStr, calcBusinessElapsedDaysFromStr, getIssueDateByField, utcToJstDate } from './dateUtils'
+import type { CrossTableConfig, CrossTableData, ElapsedDaysBucket, EVMTileConfig, FilterFieldOption, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
+import { calcBusinessDaysUntilStr, calcBusinessElapsedDaysFromStr, countBusinessDaysBetween, getIssueDateByField, utcToJstDate } from './dateUtils'
 
 /**
  * ベース日付フィールドを元にチケットの経過営業日数（月〜金）または到来営業日数を計算する。
@@ -704,4 +704,99 @@ export function aggregateCrossTable(
   for (const [k, s] of colFvMap.entries()) colFilterValues[k] = Array.from(s)
 
   return { rowKeys, colKeys, rowLabels, colLabels, rowFilterValues, colFilterValues, cells, rowTotals, colTotals, grandTotal }
+}
+
+// --- EVM集計 ---
+
+export interface EVMRowResult {
+  groupName: string
+  plannedCount: number
+  effortPerTicket: number
+  actualCount: number    // Actual期間内にactualDateFieldが入るチケット数
+  plannedEffort: number  // plannedCount × effortPerTicket
+  actualEffort: number   // actualCount × effortPerTicket
+}
+
+export interface EVMAggregateResult {
+  rows: EVMRowResult[]
+  otherActualCount: number  // 設定グループ外のチケット数（「その他」行）
+  totalBizDays: number
+  elapsedBizDays: number
+  plannedTotal: number   // Σ(plannedEffort)
+  earnedEffort: number   // plannedTotal × (elapsedBizDays / totalBizDays)
+  actualTotal: number    // Σ(actualEffort)
+}
+
+/**
+ * EVMタイル用の集計を行う。
+ * Planned/Earned/Actualをグループ単位で計算して返す。
+ */
+export function aggregateEVM(issues: RedmineIssue[], config: EVMTileConfig): EVMAggregateResult {
+  const { startDate, endDate, conditions, actualDateField, groupByField, groups } = config
+
+  // 今日のJST日付
+  const todayJst = utcToJstDate(new Date().toISOString())
+
+  // Earned: 営業日計算
+  const totalBizDays = countBusinessDaysBetween(startDate, endDate)
+  let elapsedBizDays: number
+  if (!startDate || !endDate) {
+    elapsedBizDays = 0
+  } else if (todayJst < startDate) {
+    elapsedBizDays = 0
+  } else if (todayJst > endDate) {
+    elapsedBizDays = totalBizDays
+  } else {
+    elapsedBizDays = countBusinessDaysBetween(startDate, todayJst)
+  }
+
+  const plannedTotal = groups.reduce((s, g) => s + g.plannedCount * g.effortPerTicket, 0)
+  const earnedEffort = totalBizDays > 0 ? plannedTotal * (elapsedBizDays / totalBizDays) : 0
+
+  // Actual: conditions でフィルタ
+  const condFiltered = (conditions && conditions.length > 0)
+    ? issues.filter(issue => issueMatchesConditions(issue, conditions))
+    : issues
+
+  // actualDateField の値が [startDate, endDate] 内のものに絞り込む
+  const actualIssues = condFiltered.filter(issue => {
+    const raw = getIssueDateByField(issue, actualDateField)
+    if (!raw) return false
+    const dateStr = (raw.includes('T') || raw.endsWith('Z')) ? utcToJstDate(raw) : raw.slice(0, 10)
+    return dateStr >= startDate && dateStr <= endDate
+  })
+
+  // groupByField でグルーピング
+  const groupCounts = new Map<string, number>()
+  for (const issue of actualIssues) {
+    const val = getIssueGroupValue(issue, groupByField)
+    if (val === null || val === '') continue
+    groupCounts.set(val, (groupCounts.get(val) ?? 0) + 1)
+  }
+
+  // 設定グループ名とマッチング
+  const configuredGroupNames = new Set(groups.map(g => g.groupName))
+  let otherActualCount = 0
+
+  const rows: EVMRowResult[] = groups.map(g => {
+    const actualCount = groupCounts.get(g.groupName) ?? 0
+    return {
+      groupName: g.groupName,
+      plannedCount: g.plannedCount,
+      effortPerTicket: g.effortPerTicket,
+      actualCount,
+      plannedEffort: g.plannedCount * g.effortPerTicket,
+      actualEffort: actualCount * g.effortPerTicket,
+    }
+  })
+
+  for (const [name, count] of groupCounts.entries()) {
+    if (!configuredGroupNames.has(name)) {
+      otherActualCount += count
+    }
+  }
+
+  const actualTotal = rows.reduce((s, r) => s + r.actualEffort, 0)
+
+  return { rows, otherActualCount, totalBizDays, elapsedBizDays, plannedTotal, earnedEffort, actualTotal }
 }

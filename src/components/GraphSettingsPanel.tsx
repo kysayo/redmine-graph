@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { CrossTableConfig, ElapsedDaysBucket, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, UserSettings } from '../types'
+import type { CrossTableConfig, ElapsedDaysBucket, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -916,6 +916,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
       anchorDay: preset.anchorDay,
       dateFormat: preset.dateFormat,
       chartHeight: preset.chartHeight,
+      evmTiles: preset.evmTiles,
     }
   }
 
@@ -1812,6 +1813,266 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 }}
               >
                 ＋ 表を追加
+              </button>
+            </div>
+          </div>
+
+          {/* EVMタイル設定 */}
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>EVMタイル設定</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(settings.evmTiles ?? []).map((evm, i) => {
+                const evmTiles = settings.evmTiles ?? []
+                const actualDateOptions = [
+                  { key: 'closed_on', name: '完了日' },
+                  { key: 'created_on', name: '登録日' },
+                  { key: 'updated_on', name: '更新日' },
+                  ...dateFilterFields,
+                ]
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 6,
+                      padding: '10px 12px',
+                      background: '#fafafa',
+                    }}
+                  >
+                    {/* タイトル・並べ替え・削除 */}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>タイトル</span>
+                      <input
+                        type="text"
+                        value={evm.title}
+                        onChange={(e) => {
+                          const next = evmTiles.map((t, j) => j === i ? { ...t, title: e.target.value } : t)
+                          onChange({ ...settings, evmTiles: next })
+                        }}
+                        placeholder="チケット数EVM"
+                        style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, flex: 1, minWidth: 80 }}
+                      />
+                      <button
+                        type="button"
+                        disabled={i === 0}
+                        onClick={() => {
+                          const next = [...evmTiles]
+                          ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+                          onChange({ ...settings, evmTiles: next })
+                        }}
+                        style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#bbb' : '#444' }}
+                      >↑</button>
+                      <button
+                        type="button"
+                        disabled={i === evmTiles.length - 1}
+                        onClick={() => {
+                          const next = [...evmTiles]
+                          ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+                          onChange({ ...settings, evmTiles: next })
+                        }}
+                        style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === evmTiles.length - 1 ? 'default' : 'pointer', color: i === evmTiles.length - 1 ? '#bbb' : '#444' }}
+                      >↓</button>
+                      <button
+                        type="button"
+                        onClick={() => onChange({ ...settings, evmTiles: evmTiles.filter((_, j) => j !== i) })}
+                        style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                      >削除</button>
+                    </div>
+
+                    {/* 対象期間 */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>対象期間</span>
+                      <input
+                        type="date"
+                        value={evm.startDate}
+                        onChange={(e) => {
+                          const next = evmTiles.map((t, j) => j === i ? { ...t, startDate: e.target.value } : t)
+                          onChange({ ...settings, evmTiles: next })
+                        }}
+                        style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
+                      />
+                      <span style={{ fontSize: 11, color: '#666' }}>〜</span>
+                      <input
+                        type="date"
+                        value={evm.endDate}
+                        onChange={(e) => {
+                          const next = evmTiles.map((t, j) => j === i ? { ...t, endDate: e.target.value } : t)
+                          onChange({ ...settings, evmTiles: next })
+                        }}
+                        style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
+                      />
+                    </div>
+
+                    {/* Actual日付フィールド */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>Actualとする日付項目</span>
+                      <select
+                        value={evm.actualDateField}
+                        onChange={(e) => {
+                          const next = evmTiles.map((t, j) => j === i ? { ...t, actualDateField: e.target.value } : t)
+                          onChange({ ...settings, evmTiles: next })
+                        }}
+                        style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
+                      >
+                        {actualDateOptions.map(f => (
+                          <option key={f.key} value={f.key}>{f.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* グルーピングフィールド */}
+                    <div style={{ marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>グルーピングに使う項目</span>
+                      <div style={{ maxWidth: 280 }}>
+                        <Select
+                          instanceId={`evm-group-${i}`}
+                          styles={fieldSelectStyles}
+                          options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                          value={evm.groupByField ? (filterFields.find(f => f.key === evm.groupByField) ? { label: filterFields.find(f => f.key === evm.groupByField)!.name, value: evm.groupByField } : { label: evm.groupByField, value: evm.groupByField }) : null}
+                          onChange={(selected) => {
+                            const next = evmTiles.map((t, j) => j === i ? { ...t, groupByField: selected?.value ?? '' } : t)
+                            onChange({ ...settings, evmTiles: next })
+                          }}
+                          placeholder="フィールドを選択..."
+                          isClearable={false}
+                          menuPortalTarget={document.body}
+                          menuPosition="fixed"
+                        />
+                      </div>
+                    </div>
+
+                    {/* チケット絞り込み条件 */}
+                    <div style={{ marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 4 }}>対象とするチケット条件</span>
+                      <ConditionsEditor
+                        conditions={evm.conditions ?? []}
+                        filterFields={filterFields}
+                        dateFilterFields={dateFilterFields}
+                        getFieldOptions={getFieldOptions}
+                        onChange={(next) => {
+                          const updated = evmTiles.map((t, j) => j === i ? { ...t, conditions: next } : t)
+                          onChange({ ...settings, evmTiles: updated })
+                        }}
+                      />
+                    </div>
+
+                    {/* グループ設定テーブル */}
+                    <div>
+                      <span style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 4 }}>
+                        グループ設定（グループ名はグルーピング項目の実際の値と一致させてください）
+                      </span>
+                      <table style={{ borderCollapse: 'collapse', fontSize: 12, marginBottom: 6 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ padding: '3px 8px', borderBottom: '1px solid #e5e7eb', textAlign: 'left', fontSize: 11, color: '#666', fontWeight: 600 }}>グループ名</th>
+                            <th style={{ padding: '3px 8px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontSize: 11, color: '#666', fontWeight: 600 }}>予定数</th>
+                            <th style={{ padding: '3px 8px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontSize: 11, color: '#666', fontWeight: 600 }}>工数/枚</th>
+                            <th style={{ padding: '3px 8px', borderBottom: '1px solid #e5e7eb', fontSize: 11 }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {evm.groups.map((group, gi) => (
+                            <tr key={gi}>
+                              <td style={{ padding: '2px 4px' }}>
+                                <input
+                                  type="text"
+                                  value={group.groupName}
+                                  onChange={(e) => {
+                                    const newGroups = evm.groups.map((g, gj) => gj === gi ? { ...g, groupName: e.target.value } : g)
+                                    const next = evmTiles.map((t, j) => j === i ? { ...t, groups: newGroups } : t)
+                                    onChange({ ...settings, evmTiles: next })
+                                  }}
+                                  placeholder="グループ名"
+                                  style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 120 }}
+                                />
+                              </td>
+                              <td style={{ padding: '2px 4px', textAlign: 'right' }}>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={group.plannedCount}
+                                  onChange={(e) => {
+                                    const newGroups = evm.groups.map((g, gj) => gj === gi ? { ...g, plannedCount: Number(e.target.value) } : g)
+                                    const next = evmTiles.map((t, j) => j === i ? { ...t, groups: newGroups } : t)
+                                    onChange({ ...settings, evmTiles: next })
+                                  }}
+                                  style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 60, textAlign: 'right' }}
+                                />
+                              </td>
+                              <td style={{ padding: '2px 4px', textAlign: 'right' }}>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="0.1"
+                                  value={group.effortPerTicket}
+                                  onChange={(e) => {
+                                    const newGroups = evm.groups.map((g, gj) => gj === gi ? { ...g, effortPerTicket: Number(e.target.value) } : g)
+                                    const next = evmTiles.map((t, j) => j === i ? { ...t, groups: newGroups } : t)
+                                    onChange({ ...settings, evmTiles: next })
+                                  }}
+                                  style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 60, textAlign: 'right' }}
+                                />
+                              </td>
+                              <td style={{ padding: '2px 4px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newGroups = evm.groups.filter((_, gj) => gj !== gi)
+                                    const next = evmTiles.map((t, j) => j === i ? { ...t, groups: newGroups } : t)
+                                    onChange({ ...settings, evmTiles: next })
+                                  }}
+                                  style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                                >×</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newGroup: EVMGroupRow = { groupName: '', plannedCount: 0, effortPerTicket: 1 }
+                          const next = evmTiles.map((t, j) => j === i ? { ...t, groups: [...t.groups, newGroup] } : t)
+                          onChange({ ...settings, evmTiles: next })
+                        }}
+                        style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+                      >
+                        ＋ グループを追加
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const today = new Date()
+                  const y = today.getFullYear()
+                  const m = String(today.getMonth() + 1).padStart(2, '0')
+                  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+                  const newEvm: EVMTileConfig = {
+                    title: 'チケット数EVM',
+                    startDate: `${y}-${m}-01`,
+                    endDate: `${y}-${m}-${String(lastDay).padStart(2, '0')}`,
+                    conditions: [],
+                    actualDateField: 'closed_on',
+                    groupByField: filterFields[0]?.key ?? 'tracker_id',
+                    groups: [],
+                  }
+                  onChange({ ...settings, evmTiles: [...(settings.evmTiles ?? []), newEvm] })
+                }}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  border: '1px solid #ccc',
+                  borderRadius: 3,
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                ＋ EVMタイルを追加
               </button>
             </div>
           </div>

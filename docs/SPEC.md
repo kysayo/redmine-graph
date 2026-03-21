@@ -112,7 +112,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー形式**: `redmine-graph:settings:{projectId}`（プロジェクトID別に独立）
 - **バージョン管理**: `version: 1`（スキーマ変更時にリセット）
 - 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
-- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `showLabelsLeft?`, `showLabelsRight?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`, `summaryCards?`
+- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `showLabelsLeft?`, `showLabelsRight?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`, `summaryCards?`, `tables?`, `evmTiles?`
   - `yAxisLeftMinAuto?: boolean`: `true` のとき左軸最小値を「最大値の8割」で自動計算（`yAxisLeftMin` より優先）
   - `showLabelsLeft?: boolean`: `true` のとき左軸系列の各データ点に値ラベルを常時表示
   - `showLabelsRight?: boolean`: `true` のとき右軸系列の各データ点に値ラベルを常時表示
@@ -374,6 +374,11 @@ if (container) {
 - **レイアウト**: `fullWidth`（省略時 = `true`）が `true` のとき全幅（`gridColumn: 1/-1`）、`false` のとき3列グリッドの1マスで表示。設定パネルの「全幅表示」チェックボックスで切り替え
 - **設定**: `GraphSettingsPanel` の「クロス集計テーブル設定」セクションから追加・編集・削除・並べ替え可能
 - **設定は `localStorage` の `UserSettings.tables` へ保存**
+- **EVMタイル設定**（クロス集計テーブル設定の下に表示）:
+  - 「＋ EVMタイルを追加」ボタンで任意個数追加可能
+  - 各タイルに設定できる項目: タイトル / 対象期間（開始日〜終了日）/ Actualとする日付項目（完了日・登録日・更新日・カスタム日付フィールドから選択）/ グルーピングに使う項目（リスト系フィールドから選択）/ 対象とするチケット条件（`ConditionsEditor` を再利用）/ グループ設定（グループ名・予定数・工数/枚を手動入力、行の追加・削除が可能）
+  - グループ名は `getIssueGroupValue()` が返す値（フィールドの表示名）と一致させる必要がある
+  - ↑↓ ボタンで並び順を変更。削除ボタンでタイルを削除
 
 #### `CrossTableConfig` 型
 
@@ -386,6 +391,46 @@ if (container) {
 | `rowGroupRules` | `PieGroupRule[]?` | 行のグルーピングルール。設定時はルール定義の行のみ表示（未グループ値は除外） |
 | `colGroupRules` | `PieGroupRule[]?` | 列のグルーピングルール。設定時はルール定義の列のみ表示（未グループ値は除外） |
 | `fullWidth` | `boolean?` | 全幅表示（省略/`true` = 全幅、`false` = 3列グリッドの1マスで表示） |
+
+### EVMタイル（EvmTile）
+
+EVM（Earned Value Management）の考え方をチケット数に適用して、計画値・予想実績・実績を可視化するタイル。
+
+- **Planned（計画値）**: グループごとに「予定チケット数 × 1枚あたり工数」で計算した計画工数を表示。グループ行の合計工数を下部に表示
+- **Earned（予想実績）**: 対象期間の総営業日数に対する現時点の経過営業日数の割合（`経過営業日数 / 総営業日数`）× Planned合計工数を表示。進捗バーとKPIボックスで視覚的に示す
+  - 今日 < 開始日: 進捗 = 0%
+  - 今日 > 終了日: 進捗 = 100%
+  - 期間中: 開始日〜今日の営業日数 / 開始日〜終了日の営業日数
+  - 営業日計算は `data-holidays-issue-id` で指定された祝日を参照（設定済みの場合）
+- **Actual（実績）**: 対象チケット条件にマッチし、かつ指定した日付項目の値が対象期間内のチケットをグルーピングフィールドで集計。Planned設定の工数単価をもとに実績工数を計算
+  - 設定グループ名（`EVMGroupRow.groupName`）と一致するチケットはその行にカウント
+  - 設定に存在しないグループ値のチケットは「その他」行にまとめる（工数 = 0）
+- **表示レイアウト**: テーブル形式（グループ名 / Planned件数・工数 / Actual件数・工数）+ ヘッダエリア（期間・営業日進捗・KPIボックス）
+- **KPIボックス**: Planned合計・Earned工数・Actual合計を色分けボックスで並べて表示
+- **集計対象チケット**: App.tsx でフェッチ済みのチケット（URLの現在フィルタ条件で取得されたもの）を使用。URLに日付絞り込みがある場合は対象外になるチケットがある点に注意
+- **複数タイル**: `evmTiles[]` 配列で任意個数追加可能
+- **設定**: `GraphSettingsPanel` の「EVMタイル設定」セクションから追加・編集・削除・並べ替え可能
+- **設定は `localStorage` の `UserSettings.evmTiles` へ保存**
+
+#### `EVMTileConfig` 型
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `title` | `string` | タイルのタイトル |
+| `startDate` | `string` | 対象期間 開始日（YYYY-MM-DD） |
+| `endDate` | `string` | 対象期間 終了日（YYYY-MM-DD） |
+| `conditions` | `SeriesCondition[]?` | 集計対象チケットの絞り込み条件（AND条件） |
+| `actualDateField` | `string` | Actual判定に使う日付フィールドのキー（例: `'closed_on'`, `'cf_XXX'`） |
+| `groupByField` | `string` | グルーピングフィールドのキー（例: `'tracker_id'`, `'cf_XXX'`） |
+| `groups` | `EVMGroupRow[]` | グループ設定（手動定義） |
+
+#### `EVMGroupRow` 型
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `groupName` | `string` | グループ値名。`getIssueGroupValue()` が返す値（名前文字列）と一致させる必要がある |
+| `plannedCount` | `number` | 予定チケット数 |
+| `effortPerTicket` | `number` | 1チケットあたりの工数 |
 
 ## 今後の課題
 

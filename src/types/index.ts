@@ -98,6 +98,24 @@ export interface SeriesConfig {
   visible?: boolean                                 // 表示/非表示（省略時 = true として扱う）
 }
 
+// EVMタイル グループ行設定
+export interface EVMGroupRow {
+  groupName: string        // getIssueGroupValue() が返す値名と一致させる（例: "QA", "BUG"）
+  plannedCount: number     // 予定チケット数
+  effortPerTicket: number  // 1チケットあたりの工数
+}
+
+// EVMタイル設定
+export interface EVMTileConfig {
+  title: string                   // タイルタイトル
+  startDate: string               // 対象期間 開始日（YYYY-MM-DD）
+  endDate: string                 // 対象期間 終了日（YYYY-MM-DD）
+  conditions?: SeriesCondition[]  // 集計対象チケットの絞り込み条件
+  actualDateField: string         // Actual判定に使う日付フィールド（例: 'closed_on', 'cf_XXX'）
+  groupByField: string            // グルーピングフィールド（例: 'tracker_id', 'cf_XXX'）
+  groups: EVMGroupRow[]           // グループ設定（手動定義）
+}
+
 // クロス集計テーブル設定
 export interface CrossTableConfig {
   label?: string                  // 表のタイトル（省略時 = 行フィールド × 列フィールド名）
@@ -143,6 +161,7 @@ export interface UserSettings {
   pies?: PieSeriesConfig[]    // 任意個数の円グラフ設定
   summaryCards?: SummaryCardConfig[]  // 集計カード設定
   tables?: CrossTableConfig[] // 任意個数のクロス集計テーブル設定
+  evmTiles?: EVMTileConfig[]  // EVMタイル設定
 }
 
 // fetchAllIssues の進捗コールバック用
