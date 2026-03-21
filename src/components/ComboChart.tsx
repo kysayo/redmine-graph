@@ -109,7 +109,7 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
 
     const effectiveLeftMin = yAxisLeftMinAuto ? autoLeftMin : yAxisLeftMin
 
-    const marginTop = (showLabelsLeft || showLabelsRight) ? 24 : 8
+    const marginTop = (showLabelsLeft || showLabelsRight) ? 32 : 8
 
     return (
       <div>
@@ -171,6 +171,7 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
                     <LabelList
                       dataKey={s.id}
                       position="top"
+                      offset={12}
                       formatter={(v: unknown) => (v as number) === 0 ? '' : String(v)}
                       style={{ fontSize: 10, fill: s.color, fontWeight: 600 }}
                     />
