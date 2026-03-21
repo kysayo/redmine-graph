@@ -56,13 +56,15 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - 開始日: グラフX軸の表示開始日（空欄=自動、デフォルト: 今日の14日前）
   - 土日を非表示: チェック時は土日をX軸から除外し、土日分のチケットは月曜に計上
   - 左軸の最小値: Y軸左軸の最小値を指定（空欄=自動スケール）。「最大値の8割」チェックボックスをオンにすると入力欄が無効になり、左軸系列データの最大値×0.8を `floor(/10)×10`（1の位=0）で計算した値が自動適用される（例: 最大613 → 490）
+  - 左軸の件数表示: チェック時は左軸系列の棒グラフ・折れ線グラフの各データ点に値ラベルを常時表示（デフォルト: 非表示）。0値は表示しない。折れ線は `offset={12}` でドットから離して表示。ラベル表示時はグラフ上部マージンを自動拡張（8px→32px）してラベルの見切れを防ぐ
   - 右軸の最大値: Y軸右軸の最大値を指定（空欄=自動スケール）
+  - 右軸の件数表示: チェック時は右軸系列の値ラベルを常時表示（左軸の件数表示と同様）
 - **チームプリセット**（グラフ表示設定と個人プリセットの間に表示）:
   - `data-team-presets` 属性に `TeamPreset[]` 形式のJSONが設定されている場合のみ表示（管理者が View Customize で定義）
   - ボタンクリックで現在の設定に即時適用（削除・保存不可の読取専用）
   - チームメンバー全員が同じプリセットを使用可能
 - **プリセット**（チームプリセットの下に表示）:
-  - 名前を入力して「プリセットとして保存」: 現在の全設定（系列・開始日・土日非表示・軸最小/最大値等）を名前付きで保存
+  - 名前を入力して「プリセットとして保存」: 現在の全設定（系列・開始日・土日非表示・軸最小/最大値等）を名前付きで保存。同名のプリセットが既に存在する場合は上書き更新（`id` を維持したまま `settings` を差し替え）。存在しない名前の場合は新規追加
   - 「Preset JSON DL」: 現在の設定を `data-team-presets` にそのまま貼り付けられる `TeamPreset[]` 形式のJSONとしてダウンロード。管理者が View Customize に設定するためのワークフロー用
   - ドロップダウンから選択して「読み込む」: 現在のプロジェクトの設定に上書き適用（即時グラフ反映）
   - 「削除」: 選択中のプリセットを削除
@@ -110,8 +112,10 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー形式**: `redmine-graph:settings:{projectId}`（プロジェクトID別に独立）
 - **バージョン管理**: `version: 1`（スキーマ変更時にリセット）
 - 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
-- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`, `summaryCards?`
+- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `showLabelsLeft?`, `showLabelsRight?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`, `summaryCards?`
   - `yAxisLeftMinAuto?: boolean`: `true` のとき左軸最小値を「最大値の8割」で自動計算（`yAxisLeftMin` より優先）
+  - `showLabelsLeft?: boolean`: `true` のとき左軸系列の各データ点に値ラベルを常時表示
+  - `showLabelsRight?: boolean`: `true` のとき右軸系列の各データ点に値ラベルを常時表示
   - `pies?: PieSeriesConfig[]`: 任意個数の円グラフ設定。各要素は `{ groupBy, label?, conditions?, groupRules?, elapsedDaysBuckets?, elapsedDaysBaseField? }`
   - `summaryCards?: SummaryCardConfig[]`: 任意個数の集計カード設定。各要素は `{ title, color, numerator: { conditions }, denominator?: { conditions } }`
 

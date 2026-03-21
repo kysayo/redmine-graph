@@ -892,12 +892,10 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     const name = presetNameInput.trim()
     if (!name) return
     const { version: _version, ...presetSettings } = settings
-    const newPreset: Preset = {
-      id: String(Date.now()),
-      name,
-      settings: presetSettings,
-    }
-    const next = [...presets, newPreset]
+    const existing = presets.find(p => p.name === name)
+    const next = existing
+      ? presets.map(p => p.name === name ? { ...p, settings: presetSettings } : p)
+      : [...presets, { id: String(Date.now()), name, settings: presetSettings }]
     setPresets(next)
     savePresets(next)
     setPresetNameInput('')
