@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { CrossTableConfig, ElapsedDaysBucket, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, UserSettings } from '../types'
+import type { CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -2039,6 +2039,86 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       >
                         ＋ グループを追加
                       </button>
+
+                      {/* 月別実績工数（係数逆算用） */}
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed #e5e7eb' }}>
+                        <span style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 6, fontWeight: 600 }}>
+                          月別実績工数（係数逆算用）
+                        </span>
+                        {(evm.monthlyActuals ?? []).length > 0 && (
+                          <table style={{ borderCollapse: 'collapse', fontSize: 12, marginBottom: 6 }}>
+                            <thead>
+                              <tr>
+                                <th style={{ padding: '3px 6px', textAlign: 'left', fontWeight: 600, color: '#555', fontSize: 11, borderBottom: '1px solid #e5e7eb' }}>年月</th>
+                                <th style={{ padding: '3px 6px', textAlign: 'right', fontWeight: 600, color: '#555', fontSize: 11, borderBottom: '1px solid #e5e7eb' }}>実際工数</th>
+                                <th style={{ padding: '3px 6px', borderBottom: '1px solid #e5e7eb' }}></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(evm.monthlyActuals ?? []).map((ma, mi) => (
+                                <tr key={mi}>
+                                  <td style={{ padding: '2px 4px' }}>
+                                    <input
+                                      type="month"
+                                      value={ma.month}
+                                      onChange={(e) => {
+                                        const newActuals = (evm.monthlyActuals ?? []).map((a, aj) =>
+                                          aj === mi ? { ...a, month: e.target.value } : a
+                                        )
+                                        const next = evmTiles.map((t, j) => j === i ? { ...t, monthlyActuals: newActuals } : t)
+                                        onChange({ ...settings, evmTiles: next })
+                                      }}
+                                      style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '2px 4px' }}>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.1"
+                                      value={ma.actualEffort}
+                                      onChange={(e) => {
+                                        const newActuals = (evm.monthlyActuals ?? []).map((a, aj) =>
+                                          aj === mi ? { ...a, actualEffort: Number(e.target.value) } : a
+                                        )
+                                        const next = evmTiles.map((t, j) => j === i ? { ...t, monthlyActuals: newActuals } : t)
+                                        onChange({ ...settings, evmTiles: next })
+                                      }}
+                                      style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 70, textAlign: 'right' }}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '2px 4px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newActuals = (evm.monthlyActuals ?? []).filter((_, aj) => aj !== mi)
+                                        const next = evmTiles.map((t, j) => j === i ? { ...t, monthlyActuals: newActuals } : t)
+                                        onChange({ ...settings, evmTiles: next })
+                                      }}
+                                      style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                                    >×</button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const today = new Date()
+                            const newMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+                            const newActual: EvmMonthlyActual = { month: newMonth, actualEffort: 0 }
+                            const next = evmTiles.map((t, j) =>
+                              j === i ? { ...t, monthlyActuals: [...(t.monthlyActuals ?? []), newActual] } : t
+                            )
+                            onChange({ ...settings, evmTiles: next })
+                          }}
+                          style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+                        >
+                          ＋ 月を追加
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )

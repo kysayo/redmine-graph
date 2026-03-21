@@ -105,6 +105,12 @@ export interface EVMGroupRow {
   effortPerTicket: number  // 1チケットあたりの工数
 }
 
+// EVM係数逆算用 月別実績工数
+export interface EvmMonthlyActual {
+  month: string        // YYYY-MM形式（例: "2026-01"）
+  actualEffort: number // その月の実際投入工数（ユーザー手入力）
+}
+
 // EVMタイル設定
 export interface EVMTileConfig {
   title: string                   // タイルタイトル
@@ -114,6 +120,7 @@ export interface EVMTileConfig {
   actualDateField: string         // Actual判定に使う日付フィールド（例: 'closed_on', 'cf_XXX'）
   groupByField: string            // グルーピングフィールド（例: 'tracker_id', 'cf_XXX'）
   groups: EVMGroupRow[]           // グループ設定（手動定義）
+  monthlyActuals?: EvmMonthlyActual[]  // 係数逆算用の月別実績工数（省略可）
 }
 
 // クロス集計テーブル設定

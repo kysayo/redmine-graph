@@ -1,9 +1,13 @@
 import type { EVMTileConfig } from '../types'
 import type { EVMAggregateResult } from '../utils/issueAggregator'
+import type { EvmRegressionResult } from '../utils/evmRegression'
+import { EvmRegressionPanel } from './EvmRegressionPanel'
 
 interface EvmTileProps {
   config: EVMTileConfig
   result: EVMAggregateResult
+  regressionResult?: EvmRegressionResult | null
+  onApplyCoefficients?: (coefficients: number[]) => void
 }
 
 const fmtEffort = (v: number) => {
@@ -11,7 +15,7 @@ const fmtEffort = (v: number) => {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
 }
 
-export function EvmTile({ config, result }: EvmTileProps) {
+export function EvmTile({ config, result, regressionResult, onApplyCoefficients }: EvmTileProps) {
   const { title, startDate, endDate } = config
   const { rows, otherActualCount, totalBizDays, elapsedBizDays, plannedTotal, earnedEffort, actualTotal } = result
   const ratioPercent = totalBizDays > 0 ? Math.round((elapsedBizDays / totalBizDays) * 100) : 0
@@ -149,6 +153,16 @@ export function EvmTile({ config, result }: EvmTileProps) {
           </tfoot>
         </table>
       </div>
+
+      {/* 係数逆算パネル */}
+      {regressionResult && (
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+          <EvmRegressionPanel
+            result={regressionResult}
+            onApplyCoefficients={onApplyCoefficients ?? (() => {})}
+          />
+        </div>
+      )}
     </div>
   )
 }

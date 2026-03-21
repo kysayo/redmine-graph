@@ -13,6 +13,8 @@ import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
 import { aggregateCrossTable, aggregateEVM, aggregateIssues, aggregatePie, aggregateStackedBar } from './utils/issueAggregator'
 import type { EVMAggregateResult } from './utils/issueAggregator'
+import { computeEvmRegression } from './utils/evmRegression'
+import type { EvmRegressionResult } from './utils/evmRegression'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueDescription, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
 import { buildElapsedDaysBucketFilter, buildRedmineFilterUrl } from './utils/redmineFilterUrl'
 import { loadSettings, saveSettings } from './utils/storage'
@@ -386,6 +388,15 @@ export function App({ container }: Props) {
     })
   }, [issueState.issues, settings.evmTiles])
 
+  // EVM係数逆算結果
+  const evmRegressionResults = useMemo((): (EvmRegressionResult | null)[] => {
+    return (settings.evmTiles ?? []).map(tile => {
+      if (issueState.issues === null) return null
+      if (!tile.monthlyActuals?.length) return null
+      return computeEvmRegression(issueState.issues, tile)
+    })
+  }, [issueState.issues, settings.evmTiles])
+
   // 積み上げ棒グラフ用データ（colorBy指定時のみ生成）
   const piesStackedData = useMemo((): (StackedBarDataPoint[] | null)[] => {
     return (settings.pies ?? []).map(pie => {
@@ -569,7 +580,23 @@ export function App({ container }: Props) {
                     </div>
                   </div>
                 ) : (
-                  <EvmTile config={tile} result={data} />
+                  <EvmTile
+                    config={tile}
+                    result={data}
+                    regressionResult={evmRegressionResults[i]}
+                    onApplyCoefficients={(coefficients) => {
+                      const newGroups = tile.groups.map((g, gi) => ({
+                        ...g,
+                        effortPerTicket: coefficients[gi] ?? g.effortPerTicket,
+                      }))
+                      handleSettingsChange({
+                        ...settings,
+                        evmTiles: (settings.evmTiles ?? []).map((t, ti) =>
+                          ti === i ? { ...t, groups: newGroups } : t
+                        ),
+                      })
+                    }}
+                  />
                 )}
               </TileCard>
             )
