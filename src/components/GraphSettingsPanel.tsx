@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -861,6 +861,116 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
               getFieldOptions={getFieldOptions}
               onChange={(next) => onChange({ ...card, denominator: { conditions: next ?? [] } })}
             />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// 担当者追加エディタ
+interface AssignmentPersonEditorProps {
+  mapping: AssignmentMappingConfig
+  getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
+  onChange: (persons: AssignmentMappingPerson[]) => void
+}
+
+function AssignmentPersonEditor({ mapping, getFieldOptions, onChange }: AssignmentPersonEditorProps) {
+  const [inputText, setInputText] = useState('')
+  const [candidates, setCandidates] = useState<FilterFieldOption[]>([])
+  const [allOptions, setAllOptions] = useState<FilterFieldOption[]>([])
+
+  // assigneeField が変わったら選択肢を取得
+  useEffect(() => {
+    if (!mapping.assigneeField) return
+    getFieldOptions(mapping.assigneeField).then(opts => {
+      setAllOptions(opts)
+    }).catch(() => {})
+  }, [mapping.assigneeField, getFieldOptions])
+
+  // 入力テキストに応じて候補を絞り込む
+  useEffect(() => {
+    if (!inputText.trim()) {
+      setCandidates([])
+      return
+    }
+    const lower = inputText.toLowerCase()
+    setCandidates(allOptions.filter(opt => opt.label.toLowerCase().includes(lower)).slice(0, 8))
+  }, [inputText, allOptions])
+
+  function addPerson(opt: FilterFieldOption) {
+    // 同じIDがすでに追加されていれば無視
+    if (mapping.persons.some(p => p.id === opt.value)) return
+    onChange([...mapping.persons, { name: opt.label, id: opt.value }])
+    setInputText('')
+    setCandidates([])
+  }
+
+  function removePerson(id: string) {
+    onChange(mapping.persons.filter(p => p.id !== id))
+  }
+
+  const inputStyle: React.CSSProperties = {
+    fontSize: 12,
+    padding: '2px 6px',
+    border: '1px solid #ccc',
+    borderRadius: 3,
+    width: 160,
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: '#555', marginBottom: 4 }}>担当者</div>
+      {/* 追加済み担当者 */}
+      {mapping.persons.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+          {mapping.persons.map(p => (
+            <span
+              key={p.id}
+              style={{ fontSize: 11, padding: '2px 6px', background: '#e0e7ff', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              {p.name}
+              <button
+                type="button"
+                onClick={() => removePerson(p.id)}
+                style={{ fontSize: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', padding: 0, lineHeight: 1 }}
+              >×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      {/* 担当者追加 オートコンプリート */}
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        <input
+          type="text"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="名前で検索して追加..."
+          style={inputStyle}
+        />
+        {candidates.length > 0 && (
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            background: '#fff',
+            border: '1px solid #ccc',
+            borderRadius: 3,
+            zIndex: 9999,
+            minWidth: 200,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+          }}>
+            {candidates.map(opt => (
+              <div
+                key={opt.value}
+                onClick={() => addPerson(opt)}
+                style={{ padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: '#111827' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+              >
+                {opt.label}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -2155,6 +2265,224 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 ＋ EVMタイルを追加
               </button>
             </div>
+
+          {/* 担当数マッピング設定 */}
+          <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>担当数マッピング設定</div>
+            <div>
+              {(settings.assignmentMappings ?? []).map((mapping, i) => {
+                const mappings = settings.assignmentMappings ?? []
+                return (
+                  <div
+                    key={i}
+                    style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 10, marginBottom: 8, background: '#fafafa' }}
+                  >
+                    {/* ヘッダ行: タイトル・↑↓・削除 */}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        value={mapping.title ?? ''}
+                        onChange={(e) => {
+                          const next = mappings.map((t, j) => j === i ? { ...t, title: e.target.value || undefined } : t)
+                          onChange({ ...settings, assignmentMappings: next })
+                        }}
+                        placeholder="タイトル（省略可）"
+                        style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, flex: 1, minWidth: 120 }}
+                      />
+                      <button
+                        type="button"
+                        disabled={i === 0}
+                        onClick={() => {
+                          const next = [...mappings]
+                          ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+                          onChange({ ...settings, assignmentMappings: next })
+                        }}
+                        style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#bbb' : '#444' }}
+                      >↑</button>
+                      <button
+                        type="button"
+                        disabled={i === mappings.length - 1}
+                        onClick={() => {
+                          const next = [...mappings]
+                          ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+                          onChange({ ...settings, assignmentMappings: next })
+                        }}
+                        style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === mappings.length - 1 ? 'default' : 'pointer', color: i === mappings.length - 1 ? '#bbb' : '#444' }}
+                      >↓</button>
+                      <button
+                        type="button"
+                        onClick={() => onChange({ ...settings, assignmentMappings: mappings.filter((_, j) => j !== i) })}
+                        style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #e53e3e', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                      >削除</button>
+                    </div>
+
+                    {/* 担当者フィールド選択 */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#555', minWidth: 100 }}>担当者フィールド</span>
+                      <div style={{ flex: 1, minWidth: 160 }}>
+                        <Select
+                          styles={fieldSelectStyles}
+                          options={filterFields.map(f => ({ label: f.name, value: f.key }))}
+                          value={mapping.assigneeField
+                            ? { label: filterFields.find(f => f.key === mapping.assigneeField)?.name ?? mapping.assigneeField, value: mapping.assigneeField }
+                            : null}
+                          onChange={(selected) => {
+                            const next = mappings.map((t, j) => j === i ? { ...t, assigneeField: selected?.value ?? '', persons: [] } : t)
+                            onChange({ ...settings, assignmentMappings: next })
+                          }}
+                          placeholder="フィールドを選択..."
+                        />
+                      </div>
+                    </div>
+
+                    {/* 終了日フィールド選択 */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#555', minWidth: 100 }}>終了日フィールド</span>
+                      <div style={{ flex: 1, minWidth: 160 }}>
+                        <Select
+                          styles={fieldSelectStyles}
+                          options={dateFilterFields.map(f => ({ label: f.name, value: f.key }))}
+                          value={mapping.endDateField
+                            ? { label: dateFilterFields.find(f => f.key === mapping.endDateField)?.name ?? mapping.endDateField, value: mapping.endDateField }
+                            : null}
+                          onChange={(selected) => {
+                            const next = mappings.map((t, j) => j === i ? { ...t, endDateField: selected?.value ?? '' } : t)
+                            onChange({ ...settings, assignmentMappings: next })
+                          }}
+                          placeholder="フィールドを選択..."
+                        />
+                      </div>
+                    </div>
+
+                    {/* 終了日未記入時の営業日数 */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#555', minWidth: 100 }}>終了日空の場合</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={mapping.fallbackDays}
+                        onChange={(e) => {
+                          const next = mappings.map((t, j) => j === i ? { ...t, fallbackDays: Number(e.target.value) } : t)
+                          onChange({ ...settings, assignmentMappings: next })
+                        }}
+                        style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 50 }}
+                      />
+                      <span style={{ fontSize: 11, color: '#777' }}>営業日後まで</span>
+                    </div>
+
+                    {/* 表示期間 */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#555', minWidth: 100 }}>表示期間</span>
+                      <input
+                        type="date"
+                        value={mapping.displayStartDate}
+                        onChange={(e) => {
+                          const next = mappings.map((t, j) => j === i ? { ...t, displayStartDate: e.target.value } : t)
+                          onChange({ ...settings, assignmentMappings: next })
+                        }}
+                        style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
+                      />
+                      <span style={{ fontSize: 11, color: '#777' }}>〜</span>
+                      <input
+                        type="date"
+                        value={mapping.displayEndDate}
+                        onChange={(e) => {
+                          const next = mappings.map((t, j) => j === i ? { ...t, displayEndDate: e.target.value } : t)
+                          onChange({ ...settings, assignmentMappings: next })
+                        }}
+                        style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
+                      />
+                    </div>
+
+                    {/* オプション */}
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: 11, color: '#555', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={mapping.hideWeekends ?? false}
+                          onChange={(e) => {
+                            const next = mappings.map((t, j) => j === i ? { ...t, hideWeekends: e.target.checked } : t)
+                            onChange({ ...settings, assignmentMappings: next })
+                          }}
+                        />
+                        土日を非表示
+                      </label>
+                      <label style={{ fontSize: 11, color: '#555', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={mapping.fullWidth !== false}
+                          onChange={(e) => {
+                            const next = mappings.map((t, j) => j === i ? { ...t, fullWidth: e.target.checked } : t)
+                            onChange({ ...settings, assignmentMappings: next })
+                          }}
+                        />
+                        全幅表示
+                      </label>
+                    </div>
+
+                    {/* 絞り込み条件 */}
+                    <div style={{ marginBottom: 8 }}>
+                      <ConditionsEditor
+                        conditions={mapping.conditions ?? []}
+                        filterFields={filterFields}
+                        dateFilterFields={dateFilterFields}
+                        getFieldOptions={getFieldOptions}
+                        onChange={(next) => {
+                          const updated = mappings.map((t, j) => j === i ? { ...t, conditions: next } : t)
+                          onChange({ ...settings, assignmentMappings: updated })
+                        }}
+                      />
+                    </div>
+
+                    {/* 担当者リスト */}
+                    <AssignmentPersonEditor
+                      mapping={mapping}
+                      getFieldOptions={getFieldOptions}
+                      onChange={(persons) => {
+                        const next = mappings.map((t, j) => j === i ? { ...t, persons } : t)
+                        onChange({ ...settings, assignmentMappings: next })
+                      }}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const today = new Date()
+                  const y = today.getFullYear()
+                  const m = String(today.getMonth() + 1).padStart(2, '0')
+                  const d = String(today.getDate()).padStart(2, '0')
+                  const endDay = new Date(today.getTime() + 13 * 24 * 60 * 60 * 1000)
+                  const ey = endDay.getFullYear()
+                  const em = String(endDay.getMonth() + 1).padStart(2, '0')
+                  const ed = String(endDay.getDate()).padStart(2, '0')
+                  const newMapping: AssignmentMappingConfig = {
+                    assigneeField: filterFields.find(f => f.key === 'assigned_to_id')?.key ?? filterFields[0]?.key ?? 'assigned_to_id',
+                    endDateField: dateFilterFields.find(f => f.key === 'due_date')?.key ?? dateFilterFields[0]?.key ?? 'due_date',
+                    fallbackDays: 5,
+                    displayStartDate: `${y}-${m}-${d}`,
+                    displayEndDate: `${ey}-${em}-${ed}`,
+                    persons: [],
+                  }
+                  onChange({ ...settings, assignmentMappings: [...(settings.assignmentMappings ?? []), newMapping] })
+                }}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  border: '1px solid #ccc',
+                  borderRadius: 3,
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                ＋ 担当数マッピングを追加
+              </button>
+            </div>
+          </div>
+
           </div>
         </div>
       )}

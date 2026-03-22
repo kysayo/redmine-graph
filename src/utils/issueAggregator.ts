@@ -161,7 +161,7 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
   return operator === '=' ? hasMatch : !hasMatch
 }
 
-function issueMatchesConditions(issue: RedmineIssue, conditions: SeriesCondition[]): boolean {
+export function issueMatchesConditions(issue: RedmineIssue, conditions: SeriesCondition[]): boolean {
   return conditions.every(c => conditionMatchesIssue(c, issue))
 }
 

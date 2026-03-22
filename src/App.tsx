@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AssignmentMappingPanel } from './components/AssignmentMappingPanel'
 import { ComboChart } from './components/ComboChart'
 import { CrossTable } from './components/CrossTable'
 import { EvmTile } from './components/EvmTile'
@@ -601,6 +602,27 @@ export function App({ container }: Props) {
               </TileCard>
             )
           })}
+        </div>
+      )}
+
+      {/* 担当数マッピング */}
+      {(settings.assignmentMappings ?? []).length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 16 }}>
+          {(settings.assignmentMappings ?? []).map((mapping, i) => (
+            <TileCard
+              key={i}
+              style={{
+                ...(mapping.fullWidth !== false ? { gridColumn: '1 / -1' } : {}),
+                padding: '20px 24px',
+              }}
+              fileName={`assignment-mapping-${i}`}
+            >
+              <AssignmentMappingPanel
+                config={mapping}
+                issues={issueState.issues}
+              />
+            </TileCard>
+          ))}
         </div>
       )}
     </div>

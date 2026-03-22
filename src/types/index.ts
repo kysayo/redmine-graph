@@ -123,6 +123,26 @@ export interface EVMTileConfig {
   monthlyActuals?: EvmMonthlyActual[]  // 係数逆算用の月別実績工数（省略可）
 }
 
+// 担当数マッピング 担当者1名の設定
+export interface AssignmentMappingPerson {
+  name: string  // 表示名（ユーザーが選択した時点の名前）
+  id: string    // フィールド値ID（実際の集計に使う）
+}
+
+// 担当数マッピング設定
+export interface AssignmentMappingConfig {
+  title?: string
+  assigneeField: string          // 担当者フィールドキー（例: 'assigned_to_id'）
+  endDateField: string           // 終了日フィールドキー（例: 'due_date', 'cf_XXX'）
+  fallbackDays: number           // 終了日が空の場合の営業日数（デフォルト: 5）
+  displayStartDate: string       // 表示開始日（YYYY-MM-DD）
+  displayEndDate: string         // 表示終了日（YYYY-MM-DD）
+  conditions?: SeriesCondition[]
+  persons: AssignmentMappingPerson[]
+  hideWeekends?: boolean
+  fullWidth?: boolean
+}
+
 // クロス集計テーブル設定
 export interface CrossTableConfig {
   label?: string                  // 表のタイトル（省略時 = 行フィールド × 列フィールド名）
@@ -169,6 +189,7 @@ export interface UserSettings {
   summaryCards?: SummaryCardConfig[]  // 集計カード設定
   tables?: CrossTableConfig[] // 任意個数のクロス集計テーブル設定
   evmTiles?: EVMTileConfig[]  // EVMタイル設定
+  assignmentMappings?: AssignmentMappingConfig[]  // 担当数マッピング設定
 }
 
 // fetchAllIssues の進捗コールバック用

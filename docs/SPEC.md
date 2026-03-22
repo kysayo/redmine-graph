@@ -450,6 +450,46 @@ EVM（Earned Value Management）の考え方をチケット数に適用して、
 | `month` | `string` | 対象月（YYYY-MM形式、例: `"2026-01"`） |
 | `actualEffort` | `number` | その月に実際に投入した工数（ユーザー手入力） |
 
+## 担当数マッピング（AssignmentMappingPanel）
+
+チケットの「開始日〜終了日」期間が特定の日付と重なる件数を、担当者×日付のマトリクス表で表示するパネル。
+
+- **集計ロジック**: `start_date`（開始日）〜終了日フィールドの期間が表示日付を含む場合にカウント。1チケットが複数の日付列に計上される
+- **開始日フィールド**: `start_date` 固定。空のチケットはスキップ
+- **終了日フィールド**: ユーザーが選択（`due_date` 等の日付型フィールド）
+- **終了日が空の場合**: `start_date + fallbackDays 営業日`（祝日を考慮した `addBusinessDaysToDate` を使用）
+- **担当者フィールド**: リスト系フィールドから選択（例: `assigned_to_id`）
+- **担当者追加UI**: テキスト部分入力 → オートコンプリート候補 → 選択でID自動紐付け（`fetchFilterFieldOptions` で取得した選択肢を検索）
+- **0件セル**: 空欄表示
+- **土日非表示**: `hideWeekends` オプションで日付列から除外
+- **全幅表示**: `fullWidth` オプション（デフォルト: `true`）
+- **セルクリック**: 担当者フィールド条件 + `start_date <= クリック日付` + `終了日フィールド >= クリック日付` + 設定済みconditionsで Redmine チケット一覧を新タブで開く
+- **複数マッピング**: `assignmentMappings[]` 配列で任意個数追加可能
+- **設定**: `GraphSettingsPanel` の「担当数マッピング設定」セクションから追加・編集・削除・並べ替え可能
+- **設定は `localStorage` の `UserSettings.assignmentMappings` へ保存**
+
+### `AssignmentMappingConfig` 型
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `title` | `string?` | パネルのタイトル（省略時 = 「担当数マッピング」） |
+| `assigneeField` | `string` | 担当者フィールドキー（例: `'assigned_to_id'`） |
+| `endDateField` | `string` | 終了日フィールドキー（例: `'due_date'`, `'cf_XXX'`） |
+| `fallbackDays` | `number` | 終了日が空の場合に `start_date` からの営業日数（デフォルト: 5） |
+| `displayStartDate` | `string` | 表示開始日（YYYY-MM-DD） |
+| `displayEndDate` | `string` | 表示終了日（YYYY-MM-DD） |
+| `conditions` | `SeriesCondition[]?` | 集計対象チケットの絞り込み条件（AND条件） |
+| `persons` | `AssignmentMappingPerson[]` | 表示する担当者リスト（name + id） |
+| `hideWeekends` | `boolean?` | 土日を非表示（省略時 = `false`） |
+| `fullWidth` | `boolean?` | 全幅表示（省略/`true` = 全幅、`false` = 3列グリッドの1マスで表示） |
+
+### `AssignmentMappingPerson` 型
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `name` | `string` | 表示名（担当者選択時点の名前） |
+| `id` | `string` | フィールド値ID（実際の集計に使う。名前が変わっても影響なし） |
+
 ## 今後の課題
 
 （特になし）

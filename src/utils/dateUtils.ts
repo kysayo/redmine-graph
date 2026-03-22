@@ -193,6 +193,24 @@ export function countBusinessDaysBetween(startDate: string, endDate: string): nu
 }
 
 /**
+ * YYYY-MM-DD の日付から N 営業日後の YYYY-MM-DD を返す。
+ * n=0 → そのまま返す。土日・祝日をスキップする。
+ * 担当数マッピングの「終了日が空の場合 start_date + N営業日」計算に使用する。
+ */
+export function addBusinessDaysToDate(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T00:00:00Z')
+  if (isNaN(d.getTime())) return dateStr
+  let count = 0
+  while (count < n) {
+    d.setUTCDate(d.getUTCDate() + 1)
+    const day = d.getUTCDay()
+    const ds = d.toISOString().slice(0, 10)
+    if (day !== 0 && day !== 6 && !_holidays.has(ds)) count++
+  }
+  return d.toISOString().slice(0, 10)
+}
+
+/**
  * フィールドキーに対応する日付文字列をチケットから取得する。
  * 値が空/未設定の場合は null を返す。
  * - updated_on / created_on / closed_on: UTC ISO文字列
