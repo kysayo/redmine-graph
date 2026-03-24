@@ -74,6 +74,17 @@ export function loadSettings(): UserSettings | null {
       // バージョン違い（v1）→ マイグレーションして返す（設定を失わない）
       return migrateV1ToV2(parsed)
     }
+    // v2だが tileOrder が欠落している場合（旧バージョン保存設定との互換）→ 再構築
+    if (!parsed.tileOrder) {
+      const tileOrder: TileRef[] = [
+        ...(parsed.combos ?? []).map(c => ({ type: 'combo' as const, id: c.id })),
+        ...(parsed.pies ?? []).map(p => ({ type: 'pie' as const, id: p.id! })),
+        ...(parsed.tables ?? []).map(t => ({ type: 'table' as const, id: t.id! })),
+        ...(parsed.evmTiles ?? []).map(e => ({ type: 'evm' as const, id: e.id! })),
+        ...(parsed.assignmentMappings ?? []).map(a => ({ type: 'assignment' as const, id: a.id! })),
+      ]
+      return { ...parsed, tileOrder }
+    }
     return parsed
   } catch {
     return null

@@ -1014,13 +1014,24 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
   // JSON.stringify は undefined を省略するため、スプレッドだけではオプショナルフィールドが
   // プリセット側で「未設定」でも現在値が残ってしまう。明示的に再設定することで正しくクリアされる。
   function mergePresetSettings(base: UserSettings, preset: PresetSettings): UserSettings {
-    return {
+    const merged: UserSettings = {
       ...base,
       ...preset,
       combos: preset.combos,
       tileOrder: preset.tileOrder,
       evmTiles: preset.evmTiles,
     }
+    // 古いプリセットには tileOrder がない場合があるため、欠落時は combos/pies 等から再構築
+    if (!merged.tileOrder) {
+      merged.tileOrder = [
+        ...(merged.combos ?? []).map(c => ({ type: 'combo' as const, id: c.id })),
+        ...(merged.pies ?? []).map(p => ({ type: 'pie' as const, id: p.id! })),
+        ...(merged.tables ?? []).map(t => ({ type: 'table' as const, id: t.id! })),
+        ...(merged.evmTiles ?? []).map(e => ({ type: 'evm' as const, id: e.id! })),
+        ...(merged.assignmentMappings ?? []).map(a => ({ type: 'assignment' as const, id: a.id! })),
+      ]
+    }
+    return merged
   }
 
   function handleLoadPreset() {
