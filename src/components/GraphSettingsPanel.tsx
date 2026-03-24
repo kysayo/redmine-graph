@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { AssignmentMappingConfig, AssignmentMappingPerson, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -1017,15 +1017,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     return {
       ...base,
       ...preset,
-      startDate: preset.startDate,
-      hideWeekends: preset.hideWeekends,
-      yAxisLeftMin: preset.yAxisLeftMin,
-      yAxisLeftMinAuto: preset.yAxisLeftMinAuto,
-      yAxisRightMax: preset.yAxisRightMax,
-      weeklyMode: preset.weeklyMode,
-      anchorDay: preset.anchorDay,
-      dateFormat: preset.dateFormat,
-      chartHeight: preset.chartHeight,
+      combos: preset.combos,
+      tileOrder: preset.tileOrder,
       evmTiles: preset.evmTiles,
     }
   }
@@ -1062,36 +1055,52 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     if (selectedPresetId === id) setSelectedPresetId('')
   }
 
-  function updateSeries(index: number, updated: SeriesConfig) {
-    const next = [...settings.series]
-    next[index] = updated
-    onChange({ ...settings, series: next })
+  function generateId() {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
   }
 
-  function deleteSeries(index: number) {
-    const next = settings.series.filter((_, i) => i !== index)
-    onChange({ ...settings, series: next })
+  // --- Combo (2軸グラフ) 管理 ---
+  function updateCombo(comboIdx: number, patch: Partial<ComboChartConfig>) {
+    const combos = (settings.combos ?? []).map((c, i) => i === comboIdx ? { ...c, ...patch } : c)
+    onChange({ ...settings, combos })
   }
 
-  function moveSeries(from: number, to: number) {
-    const next = [...settings.series]
-    const [item] = next.splice(from, 1)
-    next.splice(to, 0, item)
-    onChange({ ...settings, series: next })
+  function updateComboSeries(comboIdx: number, seriesIdx: number, updated: SeriesConfig) {
+    const combos = (settings.combos ?? []).map((c, i) => {
+      if (i !== comboIdx) return c
+      const series = [...c.series]
+      series[seriesIdx] = updated
+      return { ...c, series }
+    })
+    onChange({ ...settings, combos })
   }
 
-  function movePie(from: number, to: number) {
-    const pies = [...(settings.pies ?? [])]
-    const [item] = pies.splice(from, 1)
-    pies.splice(to, 0, item)
-    onChange({ ...settings, pies })
+  function deleteComboSeries(comboIdx: number, seriesIdx: number) {
+    const combos = (settings.combos ?? []).map((c, i) => {
+      if (i !== comboIdx) return c
+      return { ...c, series: c.series.filter((_, j) => j !== seriesIdx) }
+    })
+    onChange({ ...settings, combos })
   }
 
-  function addSeries() {
-    const colorIndex = settings.series.length % COLOR_PALETTE.length
+  function moveComboSeries(comboIdx: number, from: number, to: number) {
+    const combos = (settings.combos ?? []).map((c, i) => {
+      if (i !== comboIdx) return c
+      const series = [...c.series]
+      const [item] = series.splice(from, 1)
+      series.splice(to, 0, item)
+      return { ...c, series }
+    })
+    onChange({ ...settings, combos })
+  }
+
+  function addComboSeries(comboIdx: number) {
+    const combo = (settings.combos ?? [])[comboIdx]
+    if (!combo) return
+    const colorIndex = combo.series.length % COLOR_PALETTE.length
     const newSeries: SeriesConfig = {
       id: `series-${Date.now()}`,
-      label: `系列${settings.series.length + 1}`,
+      label: `系列${combo.series.length + 1}`,
       dateField: 'created_on',
       statusIds: [],
       chartType: 'bar',
@@ -1099,7 +1108,68 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
       aggregation: 'daily',
       color: COLOR_PALETTE[colorIndex],
     }
-    onChange({ ...settings, series: [...settings.series, newSeries] })
+    const combos = (settings.combos ?? []).map((c, i) =>
+      i === comboIdx ? { ...c, series: [...c.series, newSeries] } : c
+    )
+    onChange({ ...settings, combos })
+  }
+
+  function addCombo() {
+    const id = generateId()
+    const startDate = (() => {
+      const d = new Date()
+      d.setDate(d.getDate() - 14)
+      return d.toISOString().slice(0, 10)
+    })()
+    const newCombo: ComboChartConfig = {
+      id,
+      name: '',
+      startDate,
+      hideWeekends: false,
+      series: [
+        {
+          id: `series-${Date.now()}`,
+          label: '発生チケット数',
+          dateField: 'created_on',
+          statusIds: [],
+          chartType: 'bar',
+          yAxisId: 'left',
+          aggregation: 'daily',
+          color: '#93c5fd',
+        },
+      ],
+    }
+    const tileOrder: TileRef[] = [...(settings.tileOrder ?? []), { type: 'combo', id }]
+    onChange({ ...settings, combos: [...(settings.combos ?? []), newCombo], tileOrder })
+  }
+
+  function deleteCombo(comboId: string) {
+    const combos = (settings.combos ?? []).filter(c => c.id !== comboId)
+    const tileOrder = (settings.tileOrder ?? []).filter(r => !(r.type === 'combo' && r.id === comboId))
+    onChange({ ...settings, combos, tileOrder })
+  }
+
+  // --- タイル順序 ---
+  function moveTileOrder(from: number, to: number) {
+    const order = [...(settings.tileOrder ?? [])]
+    const [item] = order.splice(from, 1)
+    order.splice(to, 0, item)
+    onChange({ ...settings, tileOrder: order })
+  }
+
+  // --- Pie 管理（tileOrder同期つき） ---
+  function movePie(from: number, to: number) {
+    const pies = [...(settings.pies ?? [])]
+    const [item] = pies.splice(from, 1)
+    pies.splice(to, 0, item)
+    // tileOrder の pie エントリも同様に入れ替える
+    const tileOrder = [...(settings.tileOrder ?? [])]
+    const fromTOIdx = tileOrder.findIndex(r => r.type === 'pie' && r.id === (settings.pies ?? [])[from]?.id)
+    const toTOIdx = tileOrder.findIndex(r => r.type === 'pie' && r.id === (settings.pies ?? [])[to]?.id)
+    if (fromTOIdx !== -1 && toTOIdx !== -1) {
+      ;[tileOrder[fromTOIdx], tileOrder[toTOIdx]] = [tileOrder[toTOIdx], tileOrder[fromTOIdx]]
+    }
+    onChange({ ...settings, pies, tileOrder })
   }
 
   function addSummaryCard() {
@@ -1208,163 +1278,50 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
       {/* パネル本体 */}
       {isOpen && (
         <div style={{ padding: '8px 12px 12px' }}>
-          {/* グラフ表示設定 */}
+          {/* タイル順序 */}
           <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
-            <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              {/* 開始日 */}
-              <div>
-                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>開始日</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <input
-                    type="date"
-                    value={settings.startDate ?? ''}
-                    onChange={(e) => onChange({ ...settings, startDate: e.target.value || undefined })}
-                    style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 140 }}
-                  />
-                  {settings.startDate && (
-                    <button
-                      onClick={() => onChange({ ...settings, startDate: undefined })}
-                      title="空欄に戻す（自動=14日前）"
-                      style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, cursor: 'pointer', background: '#fff' }}
-                    >
-                      クリア
-                    </button>
-                  )}
-                  <span style={{ fontSize: 11, color: '#999' }}>（空欄=14日前）</span>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>タイル順序</div>
+            {(settings.tileOrder ?? []).length === 0 && (
+              <div style={{ fontSize: 12, color: '#aaa' }}>タイルがありません</div>
+            )}
+            {(settings.tileOrder ?? []).map((ref, i) => {
+              const order = settings.tileOrder ?? []
+              // タイル名を取得
+              let label = ''
+              if (ref.type === 'combo') {
+                const combo = (settings.combos ?? []).find(c => c.id === ref.id)
+                label = `2軸グラフ: ${combo?.name || '（名前なし）'}`
+              } else if (ref.type === 'pie') {
+                const pie = (settings.pies ?? []).find(p => p.id === ref.id)
+                label = `${pie?.chartType === 'bar' ? '横棒グラフ' : '円グラフ'}: ${pie?.label || pie?.groupBy || ''}`
+              } else if (ref.type === 'table') {
+                const table = (settings.tables ?? []).find(t => t.id === ref.id)
+                label = `クロス集計: ${table?.label || table?.rowGroupBy || ''}`
+              } else if (ref.type === 'evm') {
+                const evm = (settings.evmTiles ?? []).find(e => e.id === ref.id)
+                label = `EVM: ${evm?.title || ''}`
+              } else if (ref.type === 'assignment') {
+                const a = (settings.assignmentMappings ?? []).find(x => x.id === ref.id)
+                label = `担当数マッピング: ${a?.title || ''}`
+              }
+              return (
+                <div key={ref.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, padding: '3px 6px', background: '#f9f9f9', borderRadius: 3, border: '1px solid #e5e7eb' }}>
+                  <span style={{ fontSize: 12, color: '#374151', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                  <button
+                    type="button"
+                    onClick={() => moveTileOrder(i, i - 1)}
+                    disabled={i === 0}
+                    style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i > 0 ? 'pointer' : 'default', color: i > 0 ? '#333' : '#ccc' }}
+                  >↑</button>
+                  <button
+                    type="button"
+                    onClick={() => moveTileOrder(i, i + 1)}
+                    disabled={i === order.length - 1}
+                    style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i < order.length - 1 ? 'pointer' : 'default', color: i < order.length - 1 ? '#333' : '#ccc' }}
+                  >↓</button>
                 </div>
-              </div>
-              {/* 日付形式 */}
-              <div>
-                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>日付形式</label>
-                <select
-                  value={settings.dateFormat ?? 'yyyy-mm-dd'}
-                  onChange={(e) => onChange({ ...settings, dateFormat: e.target.value as UserSettings['dateFormat'] })}
-                  style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
-                >
-                  <option value="yyyy-mm-dd">2026-02-10</option>
-                  <option value="M/D">2/10</option>
-                </select>
-              </div>
-              {/* 土日非表示 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <input
-                  type="checkbox"
-                  id="hideWeekends"
-                  checked={settings.hideWeekends ?? false}
-                  onChange={(e) => onChange({ ...settings, hideWeekends: e.target.checked })}
-                  style={{ cursor: 'pointer' }}
-                />
-                <label htmlFor="hideWeekends" style={{ fontSize: 12, color: '#555', cursor: 'pointer' }}>
-                  土日を非表示
-                </label>
-              </div>
-              {/* 週次集計 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <input
-                  type="checkbox"
-                  id="weeklyMode"
-                  checked={settings.weeklyMode ?? false}
-                  onChange={(e) => onChange({ ...settings, weeklyMode: e.target.checked })}
-                  style={{ cursor: 'pointer' }}
-                />
-                <label htmlFor="weeklyMode" style={{ fontSize: 12, color: '#555', cursor: 'pointer' }}>
-                  週次集計
-                </label>
-              </div>
-              {/* 基準曜日（週次モード時のみ） */}
-              {(settings.weeklyMode ?? false) && (
-                <div>
-                  <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>基準曜日</label>
-                  <select
-                    value={settings.anchorDay ?? 1}
-                    onChange={(e) => onChange({ ...settings, anchorDay: Number(e.target.value) })}
-                    style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
-                  >
-                    <option value={1}>月曜</option>
-                    <option value={2}>火曜</option>
-                    <option value={3}>水曜</option>
-                    <option value={4}>木曜</option>
-                    <option value={5}>金曜</option>
-                  </select>
-                </div>
-              )}
-              {/* 左軸 件数表示 */}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={settings.showLabelsLeft ?? false}
-                  onChange={(e) => onChange({ ...settings, showLabelsLeft: e.target.checked })}
-                />
-                左軸の件数表示
-              </label>
-              {/* 左軸の最小値 */}
-              <div>
-                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>左軸の最小値</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={settings.yAxisLeftMinAuto ?? false}
-                      onChange={(e) => onChange({ ...settings, yAxisLeftMinAuto: e.target.checked })}
-                    />
-                    最大値の8割
-                  </label>
-                  <input
-                    type="number"
-                    value={settings.yAxisLeftMinAuto ? '' : (settings.yAxisLeftMin ?? '')}
-                    disabled={settings.yAxisLeftMinAuto ?? false}
-                    onChange={(e) => {
-                      const raw = e.target.value
-                      onChange({ ...settings, yAxisLeftMin: raw === '' ? undefined : Number(raw) })
-                    }}
-                    placeholder="0"
-                    style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 80, opacity: settings.yAxisLeftMinAuto ? 0.4 : 1 }}
-                  />
-                  <span style={{ fontSize: 11, color: '#999' }}>（空欄=自動）</span>
-                </div>
-              </div>
-              {/* 右軸の最大値 */}
-              <div>
-                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>右軸の最大値</label>
-                <input
-                  type="number"
-                  value={settings.yAxisRightMax ?? ''}
-                  onChange={(e) => {
-                    const raw = e.target.value
-                    onChange({ ...settings, yAxisRightMax: raw === '' ? undefined : Number(raw) })
-                  }}
-                  placeholder="自動"
-                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 80 }}
-                />
-                <span style={{ fontSize: 11, color: '#999', marginLeft: 6 }}>（空欄=自動）</span>
-              </div>
-              {/* 右軸 件数表示 */}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={settings.showLabelsRight ?? false}
-                  onChange={(e) => onChange({ ...settings, showLabelsRight: e.target.checked })}
-                />
-                右軸の件数表示
-              </label>
-              {/* グラフ高さ */}
-              <div>
-                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 2 }}>グラフ高さ (px)</label>
-                <input
-                  type="number"
-                  min={100}
-                  max={800}
-                  step={10}
-                  value={settings.chartHeight ?? 320}
-                  onChange={(e) => {
-                    const raw = e.target.value
-                    onChange({ ...settings, chartHeight: raw === '' ? undefined : Number(raw) })
-                  }}
-                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 80 }}
-                />
-              </div>
-            </div>
-
+              )
+            })}
           </div>
 
           {/* チームプリセット（管理者定義・読取専用） */}
@@ -1457,39 +1414,211 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
           {/* 2軸グラフ設定 */}
           <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
             <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>2軸グラフ設定</div>
-            {settings.series.map((s, i) => (
-              <SeriesRow
-                key={s.id}
-                series={s}
-                allSeries={settings.series}
-                statuses={statuses}
-                statusesLoading={statusesLoading}
-                canDelete={settings.series.length > 1}
-                canMoveUp={i > 0}
-                canMoveDown={i < settings.series.length - 1}
-                filterFields={filterFields}
-                dateFilterFields={dateFilterFields}
-                getFieldOptions={getFieldOptions}
-                onChange={(updated) => updateSeries(i, updated)}
-                onDelete={() => deleteSeries(i)}
-                onMoveUp={() => moveSeries(i, i - 1)}
-                onMoveDown={() => moveSeries(i, i + 1)}
-              />
+            {(settings.combos ?? []).map((combo, comboIdx) => (
+              <div
+                key={combo.id}
+                style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: '10px 12px', marginBottom: 12, background: '#fafafa' }}
+              >
+                {/* グラフ名・削除 */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>グラフ名</span>
+                  <input
+                    type="text"
+                    value={combo.name ?? ''}
+                    onChange={(e) => updateCombo(comboIdx, { name: e.target.value || undefined })}
+                    placeholder="チケット推移"
+                    style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, flex: 1, minWidth: 80 }}
+                  />
+                  {(settings.combos ?? []).length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => deleteCombo(combo.id)}
+                      style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                    >
+                      削除
+                    </button>
+                  )}
+                </div>
+                {/* 軸設定 */}
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
+                  {/* 開始日 */}
+                  <div>
+                    <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>開始日</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <input
+                        type="date"
+                        value={combo.startDate ?? ''}
+                        onChange={(e) => updateCombo(comboIdx, { startDate: e.target.value || undefined })}
+                        style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 140 }}
+                      />
+                      {combo.startDate && (
+                        <button
+                          type="button"
+                          onClick={() => updateCombo(comboIdx, { startDate: undefined })}
+                          style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, cursor: 'pointer', background: '#fff' }}
+                        >
+                          クリア
+                        </button>
+                      )}
+                      <span style={{ fontSize: 11, color: '#999' }}>（空=14日前）</span>
+                    </div>
+                  </div>
+                  {/* 日付形式 */}
+                  <div>
+                    <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>日付形式</label>
+                    <select
+                      value={combo.dateFormat ?? 'yyyy-mm-dd'}
+                      onChange={(e) => updateCombo(comboIdx, { dateFormat: e.target.value as ComboChartConfig['dateFormat'] })}
+                      style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
+                    >
+                      <option value="yyyy-mm-dd">2026-02-10</option>
+                      <option value="M/D">2/10</option>
+                    </select>
+                  </div>
+                  {/* 土日非表示 */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={combo.hideWeekends ?? false}
+                      onChange={(e) => updateCombo(comboIdx, { hideWeekends: e.target.checked })}
+                    />
+                    土日非表示
+                  </label>
+                  {/* 週次集計 */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={combo.weeklyMode ?? false}
+                      onChange={(e) => updateCombo(comboIdx, { weeklyMode: e.target.checked })}
+                    />
+                    週次集計
+                  </label>
+                  {/* 基準曜日 */}
+                  {(combo.weeklyMode ?? false) && (
+                    <div>
+                      <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>基準曜日</label>
+                      <select
+                        value={combo.anchorDay ?? 1}
+                        onChange={(e) => updateCombo(comboIdx, { anchorDay: Number(e.target.value) })}
+                        style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
+                      >
+                        <option value={1}>月曜</option>
+                        <option value={2}>火曜</option>
+                        <option value={3}>水曜</option>
+                        <option value={4}>木曜</option>
+                        <option value={5}>金曜</option>
+                      </select>
+                    </div>
+                  )}
+                  {/* 左軸 件数表示 */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={combo.showLabelsLeft ?? false}
+                      onChange={(e) => updateCombo(comboIdx, { showLabelsLeft: e.target.checked })}
+                    />
+                    左軸の件数表示
+                  </label>
+                  {/* 左軸の最小値 */}
+                  <div>
+                    <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>左軸の最小値</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={combo.yAxisLeftMinAuto ?? false}
+                          onChange={(e) => updateCombo(comboIdx, { yAxisLeftMinAuto: e.target.checked })}
+                        />
+                        最大値の8割
+                      </label>
+                      <input
+                        type="number"
+                        value={combo.yAxisLeftMinAuto ? '' : (combo.yAxisLeftMin ?? '')}
+                        disabled={combo.yAxisLeftMinAuto ?? false}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          updateCombo(comboIdx, { yAxisLeftMin: raw === '' ? undefined : Number(raw) })
+                        }}
+                        placeholder="0"
+                        style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 70, opacity: combo.yAxisLeftMinAuto ? 0.4 : 1 }}
+                      />
+                    </div>
+                  </div>
+                  {/* 右軸の最大値 */}
+                  <div>
+                    <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>右軸の最大値</label>
+                    <input
+                      type="number"
+                      value={combo.yAxisRightMax ?? ''}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        updateCombo(comboIdx, { yAxisRightMax: raw === '' ? undefined : Number(raw) })
+                      }}
+                      placeholder="自動"
+                      style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 70 }}
+                    />
+                  </div>
+                  {/* 右軸 件数表示 */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={combo.showLabelsRight ?? false}
+                      onChange={(e) => updateCombo(comboIdx, { showLabelsRight: e.target.checked })}
+                    />
+                    右軸の件数表示
+                  </label>
+                  {/* グラフ高さ */}
+                  <div>
+                    <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>グラフ高さ (px)</label>
+                    <input
+                      type="number"
+                      min={100}
+                      max={800}
+                      step={10}
+                      value={combo.chartHeight ?? 320}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        updateCombo(comboIdx, { chartHeight: raw === '' ? undefined : Number(raw) })
+                      }}
+                      style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 70 }}
+                    />
+                  </div>
+                </div>
+                {/* 系列設定 */}
+                {combo.series.map((s, i) => (
+                  <SeriesRow
+                    key={s.id}
+                    series={s}
+                    allSeries={combo.series}
+                    statuses={statuses}
+                    statusesLoading={statusesLoading}
+                    canDelete={combo.series.length > 1}
+                    canMoveUp={i > 0}
+                    canMoveDown={i < combo.series.length - 1}
+                    filterFields={filterFields}
+                    dateFilterFields={dateFilterFields}
+                    getFieldOptions={getFieldOptions}
+                    onChange={(updated) => updateComboSeries(comboIdx, i, updated)}
+                    onDelete={() => deleteComboSeries(comboIdx, i)}
+                    onMoveUp={() => moveComboSeries(comboIdx, i, i - 1)}
+                    onMoveDown={() => moveComboSeries(comboIdx, i, i + 1)}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addComboSeries(comboIdx)}
+                  style={{ marginTop: 8, fontSize: 12, padding: '3px 10px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+                >
+                  ＋ 系列を追加
+                </button>
+              </div>
             ))}
             <button
               type="button"
-              onClick={addSeries}
-              style={{
-                marginTop: 8,
-                fontSize: 12,
-                padding: '3px 10px',
-                border: '1px solid #ccc',
-                borderRadius: 3,
-                background: '#fff',
-                cursor: 'pointer',
-              }}
+              onClick={addCombo}
+              style={{ fontSize: 12, padding: '3px 10px', border: '1px solid #3b82f6', borderRadius: 3, background: '#eff6ff', cursor: 'pointer', color: '#1d4ed8' }}
             >
-              ＋ 系列を追加
+              ＋ 2軸グラフを追加
             </button>
           </div>
 
@@ -1553,7 +1682,10 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         >→</button>
                         <button
                             type="button"
-                            onClick={() => onChange({ ...settings, pies: pies.filter((_, j) => j !== i) })}
+                            onClick={() => {
+                              const removedId = pie.id
+                              onChange({ ...settings, pies: pies.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'pie' && r.id === removedId)) : (settings.tileOrder ?? []) })
+                            }}
                             style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#666' }}
                           >
                             ×
@@ -1720,7 +1852,10 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button
                 type="button"
-                onClick={() => onChange({ ...settings, pies: [...(settings.pies ?? []), { groupBy: 'status_id' }] })}
+                onClick={() => {
+                  const id = generateId()
+                  onChange({ ...settings, pies: [...(settings.pies ?? []), { id, groupBy: 'status_id' }], tileOrder: [...(settings.tileOrder ?? []), { type: 'pie', id }] })
+                }}
                 style={{
                   fontSize: 12,
                   padding: '3px 10px',
@@ -1734,7 +1869,10 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               </button>
               <button
                 type="button"
-                onClick={() => onChange({ ...settings, pies: [...(settings.pies ?? []), { groupBy: 'assigned_to_id', chartType: 'bar' }] })}
+                onClick={() => {
+                  const id = generateId()
+                  onChange({ ...settings, pies: [...(settings.pies ?? []), { id, groupBy: 'assigned_to_id', chartType: 'bar' }], tileOrder: [...(settings.tileOrder ?? []), { type: 'pie', id }] })
+                }}
                 style={{
                   fontSize: 12,
                   padding: '3px 10px',
@@ -1784,7 +1922,12 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         onClick={() => {
                           const next = [...tables]
                           ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-                          onChange({ ...settings, tables: next })
+                          const idA = tables[i].id, idB = tables[i - 1].id
+                          const order = [...(settings.tileOrder ?? [])]
+                          const tA = order.findIndex(r => r.type === 'table' && r.id === idA)
+                          const tB = order.findIndex(r => r.type === 'table' && r.id === idB)
+                          if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
+                          onChange({ ...settings, tables: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#bbb' : '#444' }}
                       >↑</button>
@@ -1794,13 +1937,21 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         onClick={() => {
                           const next = [...tables]
                           ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
-                          onChange({ ...settings, tables: next })
+                          const idA = tables[i].id, idB = tables[i + 1].id
+                          const order = [...(settings.tileOrder ?? [])]
+                          const tA = order.findIndex(r => r.type === 'table' && r.id === idA)
+                          const tB = order.findIndex(r => r.type === 'table' && r.id === idB)
+                          if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
+                          onChange({ ...settings, tables: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === tables.length - 1 ? 'default' : 'pointer', color: i === tables.length - 1 ? '#bbb' : '#444' }}
                       >↓</button>
                       <button
                         type="button"
-                        onClick={() => onChange({ ...settings, tables: tables.filter((_, j) => j !== i) })}
+                        onClick={() => {
+                          const removedId = table.id
+                          onChange({ ...settings, tables: tables.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'table' && r.id === removedId)) : (settings.tileOrder ?? []) })
+                        }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                       >削除</button>
                     </div>
@@ -1912,7 +2063,10 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
             <div style={{ marginTop: 8 }}>
               <button
                 type="button"
-                onClick={() => onChange({ ...settings, tables: [...(settings.tables ?? []), { rowGroupBy: 'tracker_id', colGroupBy: 'status_id' } as CrossTableConfig] })}
+                onClick={() => {
+                  const id = generateId()
+                  onChange({ ...settings, tables: [...(settings.tables ?? []), { id, rowGroupBy: 'tracker_id', colGroupBy: 'status_id' } as CrossTableConfig], tileOrder: [...(settings.tileOrder ?? []), { type: 'table', id }] })
+                }}
                 style={{
                   fontSize: 12,
                   padding: '3px 10px',
@@ -1968,7 +2122,12 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         onClick={() => {
                           const next = [...evmTiles]
                           ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-                          onChange({ ...settings, evmTiles: next })
+                          const idA = evmTiles[i].id, idB = evmTiles[i - 1].id
+                          const order = [...(settings.tileOrder ?? [])]
+                          const tA = order.findIndex(r => r.type === 'evm' && r.id === idA)
+                          const tB = order.findIndex(r => r.type === 'evm' && r.id === idB)
+                          if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
+                          onChange({ ...settings, evmTiles: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#bbb' : '#444' }}
                       >↑</button>
@@ -1978,13 +2137,21 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         onClick={() => {
                           const next = [...evmTiles]
                           ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
-                          onChange({ ...settings, evmTiles: next })
+                          const idA = evmTiles[i].id, idB = evmTiles[i + 1].id
+                          const order = [...(settings.tileOrder ?? [])]
+                          const tA = order.findIndex(r => r.type === 'evm' && r.id === idA)
+                          const tB = order.findIndex(r => r.type === 'evm' && r.id === idB)
+                          if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
+                          onChange({ ...settings, evmTiles: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === evmTiles.length - 1 ? 'default' : 'pointer', color: i === evmTiles.length - 1 ? '#bbb' : '#444' }}
                       >↓</button>
                       <button
                         type="button"
-                        onClick={() => onChange({ ...settings, evmTiles: evmTiles.filter((_, j) => j !== i) })}
+                        onClick={() => {
+                          const removedId = evm.id
+                          onChange({ ...settings, evmTiles: evmTiles.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'evm' && r.id === removedId)) : (settings.tileOrder ?? []) })
+                        }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                       >削除</button>
                     </div>
@@ -2242,7 +2409,9 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   const y = today.getFullYear()
                   const m = String(today.getMonth() + 1).padStart(2, '0')
                   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+                  const evmId = generateId()
                   const newEvm: EVMTileConfig = {
+                    id: evmId,
                     title: 'チケット数EVM',
                     startDate: `${y}-${m}-01`,
                     endDate: `${y}-${m}-${String(lastDay).padStart(2, '0')}`,
@@ -2251,7 +2420,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     groupByField: filterFields[0]?.key ?? 'tracker_id',
                     groups: [],
                   }
-                  onChange({ ...settings, evmTiles: [...(settings.evmTiles ?? []), newEvm] })
+                  onChange({ ...settings, evmTiles: [...(settings.evmTiles ?? []), newEvm], tileOrder: [...(settings.tileOrder ?? []), { type: 'evm', id: evmId }] })
                 }}
                 style={{
                   fontSize: 12,
@@ -2295,7 +2464,12 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         onClick={() => {
                           const next = [...mappings]
                           ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-                          onChange({ ...settings, assignmentMappings: next })
+                          const idA = mappings[i].id, idB = mappings[i - 1].id
+                          const order = [...(settings.tileOrder ?? [])]
+                          const tA = order.findIndex(r => r.type === 'assignment' && r.id === idA)
+                          const tB = order.findIndex(r => r.type === 'assignment' && r.id === idB)
+                          if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
+                          onChange({ ...settings, assignmentMappings: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#bbb' : '#444' }}
                       >↑</button>
@@ -2305,13 +2479,21 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         onClick={() => {
                           const next = [...mappings]
                           ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
-                          onChange({ ...settings, assignmentMappings: next })
+                          const idA = mappings[i].id, idB = mappings[i + 1].id
+                          const order = [...(settings.tileOrder ?? [])]
+                          const tA = order.findIndex(r => r.type === 'assignment' && r.id === idA)
+                          const tB = order.findIndex(r => r.type === 'assignment' && r.id === idB)
+                          if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
+                          onChange({ ...settings, assignmentMappings: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === mappings.length - 1 ? 'default' : 'pointer', color: i === mappings.length - 1 ? '#bbb' : '#444' }}
                       >↓</button>
                       <button
                         type="button"
-                        onClick={() => onChange({ ...settings, assignmentMappings: mappings.filter((_, j) => j !== i) })}
+                        onClick={() => {
+                          const removedId = mapping.id
+                          onChange({ ...settings, assignmentMappings: mappings.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'assignment' && r.id === removedId)) : (settings.tileOrder ?? []) })
+                        }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #e53e3e', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                       >削除</button>
                     </div>
@@ -2459,7 +2641,9 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   const ey = endDay.getFullYear()
                   const em = String(endDay.getMonth() + 1).padStart(2, '0')
                   const ed = String(endDay.getDate()).padStart(2, '0')
+                  const assignmentId = generateId()
                   const newMapping: AssignmentMappingConfig = {
+                    id: assignmentId,
                     assigneeField: filterFields.find(f => f.key === 'assigned_to_id')?.key ?? filterFields[0]?.key ?? 'assigned_to_id',
                     endDateField: dateFilterFields.find(f => f.key === 'due_date')?.key ?? dateFilterFields[0]?.key ?? 'due_date',
                     fallbackDays: 5,
@@ -2467,7 +2651,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     displayEndDate: `${ey}-${em}-${ed}`,
                     persons: [],
                   }
-                  onChange({ ...settings, assignmentMappings: [...(settings.assignmentMappings ?? []), newMapping] })
+                  onChange({ ...settings, assignmentMappings: [...(settings.assignmentMappings ?? []), newMapping], tileOrder: [...(settings.tileOrder ?? []), { type: 'assignment', id: assignmentId }] })
                 }}
                 style={{
                   fontSize: 12,

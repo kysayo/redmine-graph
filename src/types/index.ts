@@ -59,6 +59,7 @@ export interface StackedBarDataPoint {
 
 // 円グラフ系列設定
 export interface PieSeriesConfig {
+  id?: string                // タイル識別子（tileOrder参照用）
   groupBy: string            // フィールドキー（例: 'status_id', 'tracker_id', 'cf_123', 'elapsed_days'）
   label?: string             // グラフタイトル（省略時 = フィールド表示名）
   conditions?: SeriesCondition[]  // 集計対象の絞り込み条件（省略時 = フィルタなし）
@@ -113,6 +114,7 @@ export interface EvmMonthlyActual {
 
 // EVMタイル設定
 export interface EVMTileConfig {
+  id?: string                     // タイル識別子（tileOrder参照用）
   title: string                   // タイルタイトル
   startDate: string               // 対象期間 開始日（YYYY-MM-DD）
   endDate: string                 // 対象期間 終了日（YYYY-MM-DD）
@@ -131,6 +133,7 @@ export interface AssignmentMappingPerson {
 
 // 担当数マッピング設定
 export interface AssignmentMappingConfig {
+  id?: string                    // タイル識別子（tileOrder参照用）
   title?: string
   assigneeField: string          // 担当者フィールドキー（例: 'assigned_to_id'）
   endDateField: string           // 終了日フィールドキー（例: 'due_date', 'cf_XXX'）
@@ -145,6 +148,7 @@ export interface AssignmentMappingConfig {
 
 // クロス集計テーブル設定
 export interface CrossTableConfig {
+  id?: string                     // タイル識別子（tileOrder参照用）
   label?: string                  // 表のタイトル（省略時 = 行フィールド × 列フィールド名）
   rowGroupBy: string              // 行のグループキー（availableFiltersのキー、例: 'cf_628'）
   colGroupBy: string              // 列のグループキー
@@ -168,28 +172,58 @@ export interface CrossTableData {
   grandTotal: number
 }
 
-// ユーザー設定全体（localStorageに保存する形）
-export interface UserSettings {
-  version: number
+// 2軸グラフ1枚分の設定（v2以降。軸設定をグラフごとに独立して保持）
+export interface ComboChartConfig {
+  id: string
+  name?: string              // タイル見出し（省略時 = '2軸グラフ'）
   series: SeriesConfig[]
-  startDate?: string     // グラフX軸の開始日（YYYY-MM-DD）。未設定=自動
-  hideWeekends?: boolean // true のとき土日をX軸から除外し、土日分は月曜に計上
+  startDate?: string         // グラフX軸の開始日（YYYY-MM-DD）。未設定=自動
+  hideWeekends?: boolean     // true のとき土日をX軸から除外し、土日分は月曜に計上
   yAxisLeftMin?: number      // 左軸Y軸の最小値。未設定=自動スケール
   yAxisLeftMinAuto?: boolean // true=左軸最小値を「最大値の8割」で自動設定
   yAxisRightMax?: number     // 右軸Y軸の最大値。未設定=自動スケール
   showLabelsLeft?: boolean   // true = 左軸系列のラベルを常時表示
   showLabelsRight?: boolean  // true = 右軸系列のラベルを常時表示
-  weeklyMode?: boolean   // true = 週次集計。false/undefined = 日次（従来）
-  anchorDay?: number     // 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1
+  weeklyMode?: boolean       // true = 週次集計。false/undefined = 日次（従来）
+  anchorDay?: number         // 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1
   dateFormat?: 'yyyy-mm-dd' | 'M/D'  // X軸の日付表示形式。デフォルト 'yyyy-mm-dd'
   chartHeight?: number               // グラフ高さ(px)。未設定=320
-  pieLeft?: PieSeriesConfig   // deprecated: pies に移行済み
-  pieRight?: PieSeriesConfig  // deprecated: pies に移行済み
-  pies?: PieSeriesConfig[]    // 任意個数の円グラフ設定
-  summaryCards?: SummaryCardConfig[]  // 集計カード設定
-  tables?: CrossTableConfig[] // 任意個数のクロス集計テーブル設定
-  evmTiles?: EVMTileConfig[]  // EVMタイル設定
-  assignmentMappings?: AssignmentMappingConfig[]  // 担当数マッピング設定
+}
+
+// タイル表示順序のエントリ
+export interface TileRef {
+  type: 'combo' | 'pie' | 'table' | 'evm' | 'assignment'
+  id: string
+}
+
+// ユーザー設定全体（localStorageに保存する形）
+export interface UserSettings {
+  version: number
+  // v2以降: 複数2軸グラフとタイル順序
+  combos?: ComboChartConfig[]        // 任意個数の2軸グラフ設定
+  tileOrder?: TileRef[]              // タイル表示順序
+  // deprecated（v1からの移行用。新規設定では combos[] を使う）
+  series?: SeriesConfig[]
+  startDate?: string
+  hideWeekends?: boolean
+  yAxisLeftMin?: number
+  yAxisLeftMinAuto?: boolean
+  yAxisRightMax?: number
+  showLabelsLeft?: boolean
+  showLabelsRight?: boolean
+  weeklyMode?: boolean
+  anchorDay?: number
+  dateFormat?: 'yyyy-mm-dd' | 'M/D'
+  chartHeight?: number
+  // deprecated: pies に移行済み
+  pieLeft?: PieSeriesConfig
+  pieRight?: PieSeriesConfig
+  // 変更なし
+  pies?: PieSeriesConfig[]
+  summaryCards?: SummaryCardConfig[]
+  tables?: CrossTableConfig[]
+  evmTiles?: EVMTileConfig[]
+  assignmentMappings?: AssignmentMappingConfig[]
 }
 
 // fetchAllIssues の進捗コールバック用

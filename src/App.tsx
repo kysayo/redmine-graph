@@ -209,7 +209,6 @@ export function App({ container }: Props) {
 
   const handleResetSettings = useCallback(() => {
     const defaults = buildDefaultSettings(container)
-    defaults.startDate = undefined
     setSettings(defaults)
     saveSettings(defaults)
   }, [container])
@@ -349,20 +348,22 @@ export function App({ container }: Props) {
     window.open(url, '_blank', 'noopener')
   }, [])
 
-  // チケットデータを系列設定に基づいて集計（取得済みチケットから再計算）
-  const comboData = useMemo(() => {
-    const options = {
-      startDate: settings.startDate,
-      hideWeekends: settings.hideWeekends ?? false,
-      weeklyMode: settings.weeklyMode ?? false,
-      anchorDay: settings.anchorDay ?? 1,
-    }
-    if (issueState.issues !== null) {
-      return aggregateIssues(issueState.issues, settings.series, options)
-    }
-    // Redmineに接続できない場合はダミーデータ
-    return generateSeriesDummyData(settings.series, options)
-  }, [issueState.issues, settings.series, settings.startDate, settings.hideWeekends, settings.weeklyMode, settings.anchorDay])
+  // 複数2軸グラフ用データ（combos配列の長さ分を集計）
+  const combosData = useMemo(() => {
+    return (settings.combos ?? []).map(combo => {
+      const options = {
+        startDate: combo.startDate,
+        hideWeekends: combo.hideWeekends ?? false,
+        weeklyMode: combo.weeklyMode ?? false,
+        anchorDay: combo.anchorDay ?? 1,
+      }
+      if (issueState.issues !== null) {
+        return aggregateIssues(issueState.issues, combo.series, options)
+      }
+      // Redmineに接続できない場合はダミーデータ
+      return generateSeriesDummyData(combo.series, options)
+    })
+  }, [issueState.issues, settings.combos])
 
   const piesData = useMemo(() => {
     return (settings.pies ?? []).map((pie, i) => {
@@ -408,12 +409,211 @@ export function App({ container }: Props) {
     })
   }, [issueState.issues, settings.pies])
 
-  const card: React.CSSProperties = {
-    background: '#fff',
-    borderRadius: 20,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-    padding: '20px 24px',
-    marginBottom: 16,
+  // tileOrder に基づいて各タイルを描画するヘルパー
+  function renderTile(ref: { type: string; id: string }, key: string) {
+    if (ref.type === 'combo') {
+      const idx = (settings.combos ?? []).findIndex(c => c.id === ref.id)
+      if (idx === -1) return null
+      const combo = settings.combos![idx]
+      const comboData = combosData[idx]
+      return (
+        <TileCard key={key} style={{ gridColumn: '1 / -1', padding: '20px 24px' }} fileName={`combo-chart-${idx}`}>
+          <h2 style={{ fontSize: 15, margin: '0 0 16px', fontWeight: 600, color: '#111827' }}>{combo.name || 'チケット推移'}</h2>
+          {shouldFetch && issueState.loading && (
+            <div style={{ padding: '12px 0', color: '#666', fontSize: 13 }}>
+              <div style={{ marginBottom: 6 }}>
+                {issueState.totalCount !== null
+                  ? `チケットデータを取得中... (${issueState.fetchedCount}/${issueState.totalCount}件)`
+                  : 'チケットデータを取得中...'
+                }
+              </div>
+              {issueState.totalCount !== null && issueState.totalCount > 0 && (
+                <div style={{ background: '#e5e7eb', borderRadius: 4, height: 6, width: '100%', maxWidth: 320 }}>
+                  <div
+                    style={{
+                      background: '#3b82f6',
+                      borderRadius: 4,
+                      height: '100%',
+                      width: `${Math.min(100, (issueState.fetchedCount / issueState.totalCount) * 100)}%`,
+                      transition: 'width 0.2s ease',
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {shouldFetch && !issueState.loading && issueState.error && issueState.issues === null && (
+            <div style={{ padding: '4px 0 8px', color: '#999', fontSize: 11 }}>
+              ※ Redmineに接続できないため、サンプルデータを表示しています
+            </div>
+          )}
+          {shouldFetch && !issueState.loading && (
+            <ComboChart
+              data={comboData}
+              series={combo.series}
+              yAxisLeftMin={combo.yAxisLeftMin}
+              yAxisLeftMinAuto={combo.yAxisLeftMinAuto}
+              yAxisRightMax={combo.yAxisRightMax}
+              dateFormat={combo.dateFormat}
+              chartHeight={combo.chartHeight}
+              showLabelsLeft={combo.showLabelsLeft}
+              showLabelsRight={combo.showLabelsRight}
+            />
+          )}
+        </TileCard>
+      )
+    }
+
+    if (ref.type === 'pie') {
+      const pies = settings.pies ?? []
+      const i = pies.findIndex(p => p.id === ref.id)
+      if (i === -1) return null
+      const pie = pies[i]
+      const pieData = piesData[i] ?? []
+      const isWide = pieData.length > 10
+      return (
+        <TileCard
+          key={key}
+          style={{
+            ...((pie.chartType === 'bar' ? pie.fullWidth !== false : isWide) ? { gridColumn: '1 / -1' } : {}),
+            padding: '20px 16px',
+          }}
+          fileName={`tile-${i}`}
+        >
+          {issueState.loading ? (
+            <div style={{ textAlign: 'center', padding: '40px 24px', color: '#666', fontSize: 13 }}>Now Loading...</div>
+          ) : pie.chartType === 'bar' ? (
+            <HBarChart
+              data={pieData}
+              stackedData={piesStackedData[i] ?? undefined}
+              title={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
+              topN={pie.topN}
+              onBarClick={!pie.colorBy && issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
+              onSegmentClick={pie.colorBy && issueState.issues !== null ? (name, mfv, seg, sfv) => handleBarSegmentClick(pie, name, mfv, seg, sfv) : undefined}
+              onLabelClick={pie.colorBy && issueState.issues !== null ? (name, mfv) => handleBarLabelClick(pie, name, mfv) : undefined}
+            />
+          ) : pie.groupBy === 'elapsed_days' && issueState.issues !== null && !pie.elapsedDaysBuckets?.length ? (
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>{pie.label || '経過日数'}</div>
+              <div>バケット定義が設定されていません。</div>
+              <div>設定パネルの「バケット定義」から「＋ バケットを追加」してください。</div>
+            </div>
+          ) : (
+            <PieChart
+              data={pieData}
+              groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
+              onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
+              wide={isWide}
+            />
+          )}
+        </TileCard>
+      )
+    }
+
+    if (ref.type === 'table') {
+      const tables = settings.tables ?? []
+      const i = tables.findIndex(t => t.id === ref.id)
+      if (i === -1) return null
+      const table = tables[i]
+      const data = crossTablesData[i]
+      const rowName = filterFields.find(f => f.key === table.rowGroupBy)?.name ?? table.rowGroupBy
+      const colName = filterFields.find(f => f.key === table.colGroupBy)?.name ?? table.colGroupBy
+      const title = table.label || `${rowName} × ${colName}`
+      return (
+        <TileCard
+          key={key}
+          style={{
+            ...(table.fullWidth !== false ? { gridColumn: '1 / -1' } : {}),
+            padding: '20px 24px',
+          }}
+          fileName={`cross-table-${i}`}
+        >
+          {!data ? (
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>{title}</div>
+              <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
+                {issueState.loading ? 'Now Loading...' : (!table.rowGroupBy || !table.colGroupBy) ? '行・列のフィールドを設定パネルで選択してください' : '該当チケットがありません'}
+              </div>
+            </div>
+          ) : (
+            <CrossTable
+              data={data}
+              title={title}
+              onCellClick={issueState.issues !== null ? (rk, ck, rfv, cfv) => handleCrossTableCellClick(table, rk, ck, rfv, cfv) : undefined}
+              onRowTotalClick={issueState.issues !== null ? (rk, rfv) => handleCrossTableRowTotalClick(table, rk, rfv) : undefined}
+              onColTotalClick={issueState.issues !== null ? (ck, cfv) => handleCrossTableColTotalClick(table, ck, cfv) : undefined}
+              onGrandTotalClick={issueState.issues !== null ? () => handleCrossTableGrandTotalClick(table) : undefined}
+            />
+          )}
+        </TileCard>
+      )
+    }
+
+    if (ref.type === 'evm') {
+      const evmTiles = settings.evmTiles ?? []
+      const i = evmTiles.findIndex(e => e.id === ref.id)
+      if (i === -1) return null
+      const tile = evmTiles[i]
+      const data = evmTilesData[i]
+      return (
+        <TileCard
+          key={key}
+          style={{ gridColumn: '1 / -1', padding: '20px 24px' }}
+          fileName={`evm-tile-${i}`}
+        >
+          {!data ? (
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>{tile.title || 'チケット数EVM'}</div>
+              <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
+                {issueState.loading ? 'Now Loading...' : (!tile.startDate || !tile.endDate) ? '対象期間を設定パネルで入力してください' : 'データを集計中...'}
+              </div>
+            </div>
+          ) : (
+            <EvmTile
+              config={tile}
+              result={data}
+              regressionResult={evmRegressionResults[i]}
+              onApplyCoefficients={(coefficients) => {
+                const newGroups = tile.groups.map((g, gi) => ({
+                  ...g,
+                  effortPerTicket: coefficients[gi] ?? g.effortPerTicket,
+                }))
+                handleSettingsChange({
+                  ...settings,
+                  evmTiles: (settings.evmTiles ?? []).map((t, ti) =>
+                    ti === i ? { ...t, groups: newGroups } : t
+                  ),
+                })
+              }}
+            />
+          )}
+        </TileCard>
+      )
+    }
+
+    if (ref.type === 'assignment') {
+      const mappings = settings.assignmentMappings ?? []
+      const i = mappings.findIndex(a => a.id === ref.id)
+      if (i === -1) return null
+      const mapping = mappings[i]
+      return (
+        <TileCard
+          key={key}
+          style={{
+            ...(mapping.fullWidth !== false ? { gridColumn: '1 / -1' } : {}),
+            padding: '20px 24px',
+          }}
+          fileName={`assignment-mapping-${i}`}
+        >
+          <AssignmentMappingPanel
+            config={mapping}
+            issues={issueState.issues}
+          />
+        </TileCard>
+      )
+    }
+
+    return null
   }
 
   return (
@@ -439,192 +639,9 @@ export function App({ container }: Props) {
         />
       )}
 
-      <TileCard style={{ padding: '20px 24px', marginBottom: 16 }} fileName="combo-chart">
-        <h2 style={{ fontSize: 15, margin: '0 0 16px', fontWeight: 600, color: '#111827' }}>チケット推移</h2>
-        {shouldFetch && issueState.loading && (
-          <div style={{ padding: '12px 0', color: '#666', fontSize: 13 }}>
-            <div style={{ marginBottom: 6 }}>
-              {issueState.totalCount !== null
-                ? `チケットデータを取得中... (${issueState.fetchedCount}/${issueState.totalCount}件)`
-                : 'チケットデータを取得中...'
-              }
-            </div>
-            {issueState.totalCount !== null && issueState.totalCount > 0 && (
-              <div style={{ background: '#e5e7eb', borderRadius: 4, height: 6, width: '100%', maxWidth: 320 }}>
-                <div
-                  style={{
-                    background: '#3b82f6',
-                    borderRadius: 4,
-                    height: '100%',
-                    width: `${Math.min(100, (issueState.fetchedCount / issueState.totalCount) * 100)}%`,
-                    transition: 'width 0.2s ease',
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        )}
-        {shouldFetch && !issueState.loading && issueState.error && issueState.issues === null && (
-          <div style={{ padding: '4px 0 8px', color: '#999', fontSize: 11 }}>
-            ※ Redmineに接続できないため、サンプルデータを表示しています
-          </div>
-        )}
-        {shouldFetch && !issueState.loading && (
-          <ComboChart data={comboData} series={settings.series} yAxisLeftMin={settings.yAxisLeftMin} yAxisLeftMinAuto={settings.yAxisLeftMinAuto} yAxisRightMax={settings.yAxisRightMax} dateFormat={settings.dateFormat} chartHeight={settings.chartHeight} showLabelsLeft={settings.showLabelsLeft} showLabelsRight={settings.showLabelsRight} />
-        )}
-      </TileCard>
-
-      {shouldFetch && issueState.loading ? (
-        <div style={{ ...card, marginBottom: 0, textAlign: 'center', padding: '40px 24px', color: '#666', fontSize: 13 }}>
-          Now Loading...
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-          {(settings.pies ?? []).map((pie, i) => {
-            const pieData = piesData[i] ?? []
-            const isWide = pieData.length > 10
-            return (
-              <TileCard
-                key={i}
-                style={{
-                  ...((pie.chartType === 'bar' ? pie.fullWidth !== false : isWide) ? { gridColumn: '1 / -1' } : {}),
-                  padding: '20px 16px',
-                }}
-                fileName={`tile-${i}`}
-              >
-                {pie.chartType === 'bar' ? (
-                  <HBarChart
-                    data={pieData}
-                    stackedData={piesStackedData[i] ?? undefined}
-                    title={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
-                    topN={pie.topN}
-                    onBarClick={!pie.colorBy && issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
-                    onSegmentClick={pie.colorBy && issueState.issues !== null ? (name, mfv, seg, sfv) => handleBarSegmentClick(pie, name, mfv, seg, sfv) : undefined}
-                    onLabelClick={pie.colorBy && issueState.issues !== null ? (name, mfv) => handleBarLabelClick(pie, name, mfv) : undefined}
-                  />
-                ) : pie.groupBy === 'elapsed_days' && issueState.issues !== null && !pie.elapsedDaysBuckets?.length ? (
-                  <div style={{ padding: '24px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 6 }}>{pie.label || '経過日数'}</div>
-                    <div>バケット定義が設定されていません。</div>
-                    <div>設定パネルの「バケット定義」から「＋ バケットを追加」してください。</div>
-                  </div>
-                ) : (
-                  <PieChart
-                    data={pieData}
-                    groupBy={pie.label || filterFields.find(f => f.key === pie.groupBy)?.name || pie.groupBy}
-                    onSliceClick={issueState.issues !== null ? (slice) => handlePieSliceClick(pie, slice) : undefined}
-                    wide={isWide}
-                  />
-                )}
-              </TileCard>
-            )
-          })}
-        </div>
-      )}
-
-      {/* クロス集計テーブル */}
-      {(settings.tables ?? []).length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 16 }}>
-          {(settings.tables ?? []).map((table, i) => {
-            const data = crossTablesData[i]
-            const rowName = filterFields.find(f => f.key === table.rowGroupBy)?.name ?? table.rowGroupBy
-            const colName = filterFields.find(f => f.key === table.colGroupBy)?.name ?? table.colGroupBy
-            const title = table.label || `${rowName} × ${colName}`
-            return (
-              <TileCard
-                key={i}
-                style={{
-                  ...(table.fullWidth !== false ? { gridColumn: '1 / -1' } : {}),
-                  padding: '20px 24px',
-                }}
-                fileName={`cross-table-${i}`}
-              >
-                {!data ? (
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>{title}</div>
-                    <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
-                      {issueState.loading ? 'Now Loading...' : (!table.rowGroupBy || !table.colGroupBy) ? '行・列のフィールドを設定パネルで選択してください' : '該当チケットがありません'}
-                    </div>
-                  </div>
-                ) : (
-                  <CrossTable
-                    data={data}
-                    title={title}
-                    onCellClick={issueState.issues !== null ? (rk, ck, rfv, cfv) => handleCrossTableCellClick(table, rk, ck, rfv, cfv) : undefined}
-                    onRowTotalClick={issueState.issues !== null ? (rk, rfv) => handleCrossTableRowTotalClick(table, rk, rfv) : undefined}
-                    onColTotalClick={issueState.issues !== null ? (ck, cfv) => handleCrossTableColTotalClick(table, ck, cfv) : undefined}
-                    onGrandTotalClick={issueState.issues !== null ? () => handleCrossTableGrandTotalClick(table) : undefined}
-                  />
-                )}
-              </TileCard>
-            )
-          })}
-        </div>
-      )}
-
-      {/* EVMタイル */}
-      {(settings.evmTiles ?? []).length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
-          {(settings.evmTiles ?? []).map((tile, i) => {
-            const data = evmTilesData[i]
-            return (
-              <TileCard
-                key={i}
-                style={{ padding: '20px 24px' }}
-                fileName={`evm-tile-${i}`}
-              >
-                {!data ? (
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>{tile.title || 'チケット数EVM'}</div>
-                    <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
-                      {issueState.loading ? 'Now Loading...' : (!tile.startDate || !tile.endDate) ? '対象期間を設定パネルで入力してください' : 'データを集計中...'}
-                    </div>
-                  </div>
-                ) : (
-                  <EvmTile
-                    config={tile}
-                    result={data}
-                    regressionResult={evmRegressionResults[i]}
-                    onApplyCoefficients={(coefficients) => {
-                      const newGroups = tile.groups.map((g, gi) => ({
-                        ...g,
-                        effortPerTicket: coefficients[gi] ?? g.effortPerTicket,
-                      }))
-                      handleSettingsChange({
-                        ...settings,
-                        evmTiles: (settings.evmTiles ?? []).map((t, ti) =>
-                          ti === i ? { ...t, groups: newGroups } : t
-                        ),
-                      })
-                    }}
-                  />
-                )}
-              </TileCard>
-            )
-          })}
-        </div>
-      )}
-
-      {/* 担当数マッピング */}
-      {(settings.assignmentMappings ?? []).length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 16 }}>
-          {(settings.assignmentMappings ?? []).map((mapping, i) => (
-            <TileCard
-              key={i}
-              style={{
-                ...(mapping.fullWidth !== false ? { gridColumn: '1 / -1' } : {}),
-                padding: '20px 24px',
-              }}
-              fileName={`assignment-mapping-${i}`}
-            >
-              <AssignmentMappingPanel
-                config={mapping}
-                issues={issueState.issues}
-              />
-            </TileCard>
-          ))}
-        </div>
-      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        {(settings.tileOrder ?? []).map(ref => renderTile(ref, `${ref.type}-${ref.id}`))}
+      </div>
     </div>
   )
 }
