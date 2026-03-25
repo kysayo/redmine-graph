@@ -3,7 +3,7 @@ import { AssignmentMappingPanel } from './components/AssignmentMappingPanel'
 import { ComboChart } from './components/ComboChart'
 import { CrossTable } from './components/CrossTable'
 import { EvmTile } from './components/EvmTile'
-import { GraphSettingsPanel } from './components/GraphSettingsPanel'
+import { GraphSettingsPanel, mergePresetSettings } from './components/GraphSettingsPanel'
 import { TileCard } from './components/TileCard'
 import { HBarChart } from './components/HBarChart'
 import { PieChart } from './components/PieChart'
@@ -45,6 +45,19 @@ export function App({ container }: Props) {
     const raw = container.dataset.holidaysIssueId
     return raw ? Number(raw) : null
   }, [container])
+
+  // チームプリセット自動追従：ページロード時に適用済みプリセットを再適用
+  useEffect(() => {
+    if (!settings.appliedTeamPreset || teamPresets.length === 0) return
+    const preset = teamPresets.find(tp => tp.name === settings.appliedTeamPreset)
+    if (!preset) return
+    const applied: UserSettings = {
+      ...mergePresetSettings(settings, preset.settings),
+      appliedTeamPreset: settings.appliedTeamPreset,
+    }
+    setSettings(applied)
+    saveSettings(applied)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!holidaysIssueId) return

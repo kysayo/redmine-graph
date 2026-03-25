@@ -224,6 +224,7 @@ export interface UserSettings {
   tables?: CrossTableConfig[]
   evmTiles?: EVMTileConfig[]
   assignmentMappings?: AssignmentMappingConfig[]
+  appliedTeamPreset?: string
 }
 
 // fetchAllIssues の進捗コールバック用

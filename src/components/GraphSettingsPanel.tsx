@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Select from 'react-select'
 import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
@@ -978,6 +978,29 @@ function AssignmentPersonEditor({ mapping, getFieldOptions, onChange }: Assignme
   )
 }
 
+// JSON.stringify は undefined を省略するため、スプレッドだけではオプショナルフィールドが
+// プリセット側で「未設定」でも現在値が残ってしまう。明示的に再設定することで正しくクリアされる。
+export function mergePresetSettings(base: UserSettings, preset: PresetSettings): UserSettings {
+  const merged: UserSettings = {
+    ...base,
+    ...preset,
+    combos: preset.combos,
+    tileOrder: preset.tileOrder,
+    evmTiles: preset.evmTiles,
+  }
+  // 古いプリセットには tileOrder がない場合があるため、欠落時は combos/pies 等から再構築
+  if (!merged.tileOrder) {
+    merged.tileOrder = [
+      ...(merged.combos ?? []).map(c => ({ type: 'combo' as const, id: c.id })),
+      ...(merged.pies ?? []).map(p => ({ type: 'pie' as const, id: p.id! })),
+      ...(merged.tables ?? []).map(t => ({ type: 'table' as const, id: t.id! })),
+      ...(merged.evmTiles ?? []).map(e => ({ type: 'evm' as const, id: e.id! })),
+      ...(merged.assignmentMappings ?? []).map(a => ({ type: 'assignment' as const, id: a.id! })),
+    ]
+  }
+  return merged
+}
+
 interface Props {
   settings: UserSettings
   statuses: RedmineStatus[]
@@ -998,6 +1021,12 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
   const [showJsonModal, setShowJsonModal] = useState(false)
   const [jsonModalName, setJsonModalName] = useState('設定')
 
+  // 手動設定変更時に appliedTeamPreset をクリアするラッパー
+  const onChangeManual = useCallback(
+    (s: UserSettings) => onChange({ ...s, appliedTeamPreset: undefined }),
+    [onChange]
+  )
+
   function handleSavePreset() {
     const name = presetNameInput.trim()
     if (!name) return
@@ -1011,33 +1040,10 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     setPresetNameInput('')
   }
 
-  // JSON.stringify は undefined を省略するため、スプレッドだけではオプショナルフィールドが
-  // プリセット側で「未設定」でも現在値が残ってしまう。明示的に再設定することで正しくクリアされる。
-  function mergePresetSettings(base: UserSettings, preset: PresetSettings): UserSettings {
-    const merged: UserSettings = {
-      ...base,
-      ...preset,
-      combos: preset.combos,
-      tileOrder: preset.tileOrder,
-      evmTiles: preset.evmTiles,
-    }
-    // 古いプリセットには tileOrder がない場合があるため、欠落時は combos/pies 等から再構築
-    if (!merged.tileOrder) {
-      merged.tileOrder = [
-        ...(merged.combos ?? []).map(c => ({ type: 'combo' as const, id: c.id })),
-        ...(merged.pies ?? []).map(p => ({ type: 'pie' as const, id: p.id! })),
-        ...(merged.tables ?? []).map(t => ({ type: 'table' as const, id: t.id! })),
-        ...(merged.evmTiles ?? []).map(e => ({ type: 'evm' as const, id: e.id! })),
-        ...(merged.assignmentMappings ?? []).map(a => ({ type: 'assignment' as const, id: a.id! })),
-      ]
-    }
-    return merged
-  }
-
   function handleLoadPreset() {
     const preset = presets.find(p => p.id === selectedPresetId)
     if (!preset) return
-    onChange(mergePresetSettings(settings, preset.settings))
+    onChangeManual(mergePresetSettings(settings, preset.settings))
   }
 
   function handleDownloadPresetJson(name: string) {
@@ -1073,7 +1079,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
   // --- Combo (2軸グラフ) 管理 ---
   function updateCombo(comboIdx: number, patch: Partial<ComboChartConfig>) {
     const combos = (settings.combos ?? []).map((c, i) => i === comboIdx ? { ...c, ...patch } : c)
-    onChange({ ...settings, combos })
+    onChangeManual({ ...settings, combos })
   }
 
   function updateComboSeries(comboIdx: number, seriesIdx: number, updated: SeriesConfig) {
@@ -1083,7 +1089,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
       series[seriesIdx] = updated
       return { ...c, series }
     })
-    onChange({ ...settings, combos })
+    onChangeManual({ ...settings, combos })
   }
 
   function deleteComboSeries(comboIdx: number, seriesIdx: number) {
@@ -1091,7 +1097,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
       if (i !== comboIdx) return c
       return { ...c, series: c.series.filter((_, j) => j !== seriesIdx) }
     })
-    onChange({ ...settings, combos })
+    onChangeManual({ ...settings, combos })
   }
 
   function moveComboSeries(comboIdx: number, from: number, to: number) {
@@ -1102,7 +1108,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
       series.splice(to, 0, item)
       return { ...c, series }
     })
-    onChange({ ...settings, combos })
+    onChangeManual({ ...settings, combos })
   }
 
   function addComboSeries(comboIdx: number) {
@@ -1122,7 +1128,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     const combos = (settings.combos ?? []).map((c, i) =>
       i === comboIdx ? { ...c, series: [...c.series, newSeries] } : c
     )
-    onChange({ ...settings, combos })
+    onChangeManual({ ...settings, combos })
   }
 
   function addCombo() {
@@ -1151,13 +1157,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
       ],
     }
     const tileOrder: TileRef[] = [...(settings.tileOrder ?? []), { type: 'combo', id }]
-    onChange({ ...settings, combos: [...(settings.combos ?? []), newCombo], tileOrder })
+    onChangeManual({ ...settings, combos: [...(settings.combos ?? []), newCombo], tileOrder })
   }
 
   function deleteCombo(comboId: string) {
     const combos = (settings.combos ?? []).filter(c => c.id !== comboId)
     const tileOrder = (settings.tileOrder ?? []).filter(r => !(r.type === 'combo' && r.id === comboId))
-    onChange({ ...settings, combos, tileOrder })
+    onChangeManual({ ...settings, combos, tileOrder })
   }
 
   // --- タイル順序 ---
@@ -1165,7 +1171,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     const order = [...(settings.tileOrder ?? [])]
     const [item] = order.splice(from, 1)
     order.splice(to, 0, item)
-    onChange({ ...settings, tileOrder: order })
+    onChangeManual({ ...settings, tileOrder: order })
   }
 
   // --- Pie 管理（tileOrder同期つき） ---
@@ -1180,7 +1186,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     if (fromTOIdx !== -1 && toTOIdx !== -1) {
       ;[tileOrder[fromTOIdx], tileOrder[toTOIdx]] = [tileOrder[toTOIdx], tileOrder[fromTOIdx]]
     }
-    onChange({ ...settings, pies, tileOrder })
+    onChangeManual({ ...settings, pies, tileOrder })
   }
 
   function addSummaryCard() {
@@ -1190,25 +1196,25 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
       color: COLOR_PALETTE[colorIndex],
       numerator: { conditions: [] },
     }
-    onChange({ ...settings, summaryCards: [...(settings.summaryCards ?? []), newCard] })
+    onChangeManual({ ...settings, summaryCards: [...(settings.summaryCards ?? []), newCard] })
   }
 
   function updateSummaryCard(index: number, updated: SummaryCardConfig) {
     const next = [...(settings.summaryCards ?? [])]
     next[index] = updated
-    onChange({ ...settings, summaryCards: next })
+    onChangeManual({ ...settings, summaryCards: next })
   }
 
   function deleteSummaryCard(index: number) {
     const next = (settings.summaryCards ?? []).filter((_, i) => i !== index)
-    onChange({ ...settings, summaryCards: next.length ? next : undefined })
+    onChangeManual({ ...settings, summaryCards: next.length ? next : undefined })
   }
 
   function moveSummaryCard(from: number, to: number) {
     const next = [...(settings.summaryCards ?? [])]
     const [item] = next.splice(from, 1)
     next.splice(to, 0, item)
-    onChange({ ...settings, summaryCards: next })
+    onChangeManual({ ...settings, summaryCards: next })
   }
 
   return (
@@ -1344,21 +1350,35 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   <button
                     key={i}
                     type="button"
-                    onClick={() => onChange(mergePresetSettings(settings, tp.settings))}
+                    onClick={() => onChange({ ...mergePresetSettings(settings, tp.settings), appliedTeamPreset: tp.name })}
                     style={{
                       fontSize: 12,
                       padding: '2px 10px',
                       border: '1px solid #93c5fd',
                       borderRadius: 3,
-                      background: '#eff6ff',
+                      background: settings.appliedTeamPreset === tp.name ? '#dbeafe' : '#eff6ff',
                       cursor: 'pointer',
                       color: '#1d4ed8',
+                      fontWeight: settings.appliedTeamPreset === tp.name ? 'bold' : 'normal',
                     }}
                   >
                     {tp.name}
                   </button>
                 ))}
               </div>
+              {settings.appliedTeamPreset && (
+                <div style={{ marginTop: 6, fontSize: 11, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>Applied: {settings.appliedTeamPreset}</span>
+                  <button
+                    type="button"
+                    onClick={() => onChangeManual({ ...settings, appliedTeamPreset: undefined })}
+                    style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #93c5fd', borderRadius: 3, background: 'none', cursor: 'pointer', color: '#6b7280' }}
+                    title="チームプリセットの自動追従を解除"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -1695,7 +1715,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             type="button"
                             onClick={() => {
                               const removedId = pie.id
-                              onChange({ ...settings, pies: pies.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'pie' && r.id === removedId)) : (settings.tileOrder ?? []) })
+                              onChangeManual({ ...settings, pies: pies.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'pie' && r.id === removedId)) : (settings.tileOrder ?? []) })
                             }}
                             style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#666' }}
                           >
@@ -1710,7 +1730,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         value={pie.label ?? ''}
                         onChange={(e) => {
                           const next = pies.map((p, j) => j === i ? { ...p, label: e.target.value || undefined } : p)
-                          onChange({ ...settings, pies: next })
+                          onChangeManual({ ...settings, pies: next })
                         }}
                         placeholder={filterFields.find(f => f.key === pie.groupBy)?.name ?? pie.groupBy}
                         style={{ width: '100%', fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, boxSizing: 'border-box' }}
@@ -1726,7 +1746,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       })()}
                       onChange={(selected) => {
                         const next = pies.map((p, j) => j === i ? { ...p, groupBy: selected?.value ?? 'status_id' } : p)
-                        onChange({ ...settings, pies: next })
+                        onChangeManual({ ...settings, pies: next })
                       }}
                       styles={fieldSelectStyles}
                       placeholder="項目を選択..."
@@ -1742,7 +1762,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         getFieldOptions={getFieldOptions}
                         onChange={(next) => {
                           const updated = pies.map((p, j) => j === i ? { ...p, conditions: next } : p)
-                          onChange({ ...settings, pies: updated })
+                          onChangeManual({ ...settings, pies: updated })
                         }}
                       />
                     </div>
@@ -1756,7 +1776,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           onChange={(e) => {
                             const v = e.target.value !== '' ? Number(e.target.value) : undefined
                             const updated = pies.map((p, j) => j === i ? { ...p, topN: v } : p)
-                            onChange({ ...settings, pies: updated })
+                            onChangeManual({ ...settings, pies: updated })
                           }}
                           placeholder="全件"
                           style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 80 }}
@@ -1768,7 +1788,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             checked={pie.fullWidth !== false}
                             onChange={(e) => {
                               const updated = pies.map((p, j) => j === i ? { ...p, fullWidth: e.target.checked } : p)
-                              onChange({ ...settings, pies: updated })
+                              onChangeManual({ ...settings, pies: updated })
                             }}
                             style={{ cursor: 'pointer', width: 13, height: 13 }}
                           />
@@ -1783,7 +1803,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             value={pie.colorBy ? (filterFields.find(f => f.key === pie.colorBy) ? { label: filterFields.find(f => f.key === pie.colorBy)!.name, value: pie.colorBy } : { label: pie.colorBy, value: pie.colorBy }) : null}
                             onChange={(selected) => {
                               const updated = pies.map((p, j) => j === i ? { ...p, colorBy: selected?.value ?? undefined, colorRules: undefined } : p)
-                              onChange({ ...settings, pies: updated })
+                              onChangeManual({ ...settings, pies: updated })
                             }}
                             isClearable
                             styles={fieldSelectStyles}
@@ -1800,7 +1820,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                               getFieldOptions={getFieldOptions}
                               onChange={(rules) => {
                                 const updated = pies.map((p, j) => j === i ? { ...p, colorRules: rules } : p)
-                                onChange({ ...settings, pies: updated })
+                                onChangeManual({ ...settings, pies: updated })
                               }}
                             />
                           )}
@@ -1814,7 +1834,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             value={pie.elapsedDaysMode ?? 'past'}
                             onChange={(e) => {
                               const updated = pies.map((p, j) => j === i ? { ...p, elapsedDaysMode: e.target.value as 'past' | 'future' } : p)
-                              onChange({ ...settings, pies: updated })
+                              onChangeManual({ ...settings, pies: updated })
                             }}
                             style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
                             title="経過日数（過去→今日）か到来日数（今日→未来）かを選択"
@@ -1827,7 +1847,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             value={pie.elapsedDaysBaseField ?? 'updated_on'}
                             onChange={(e) => {
                               const updated = pies.map((p, j) => j === i ? { ...p, elapsedDaysBaseField: e.target.value } : p)
-                              onChange({ ...settings, pies: updated })
+                              onChangeManual({ ...settings, pies: updated })
                             }}
                             style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
                           >
@@ -1840,7 +1860,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           buckets={pie.elapsedDaysBuckets ?? []}
                           onChange={(buckets) => {
                             const updated = pies.map((p, j) => j === i ? { ...p, elapsedDaysBuckets: buckets } : p)
-                            onChange({ ...settings, pies: updated })
+                            onChangeManual({ ...settings, pies: updated })
                           }}
                         />
                       </>
@@ -1852,7 +1872,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         getFieldOptions={getFieldOptions}
                         onChange={(rules) => {
                           const updated = pies.map((p, j) => j === i ? { ...p, groupRules: rules } : p)
-                          onChange({ ...settings, pies: updated })
+                          onChangeManual({ ...settings, pies: updated })
                         }}
                       />
                     )}
@@ -1865,7 +1885,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 type="button"
                 onClick={() => {
                   const id = generateId()
-                  onChange({ ...settings, pies: [...(settings.pies ?? []), { id, groupBy: 'status_id' }], tileOrder: [...(settings.tileOrder ?? []), { type: 'pie', id }] })
+                  onChangeManual({ ...settings, pies: [...(settings.pies ?? []), { id, groupBy: 'status_id' }], tileOrder: [...(settings.tileOrder ?? []), { type: 'pie', id }] })
                 }}
                 style={{
                   fontSize: 12,
@@ -1882,7 +1902,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 type="button"
                 onClick={() => {
                   const id = generateId()
-                  onChange({ ...settings, pies: [...(settings.pies ?? []), { id, groupBy: 'assigned_to_id', chartType: 'bar' }], tileOrder: [...(settings.tileOrder ?? []), { type: 'pie', id }] })
+                  onChangeManual({ ...settings, pies: [...(settings.pies ?? []), { id, groupBy: 'assigned_to_id', chartType: 'bar' }], tileOrder: [...(settings.tileOrder ?? []), { type: 'pie', id }] })
                 }}
                 style={{
                   fontSize: 12,
@@ -1922,7 +1942,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         value={table.label ?? ''}
                         onChange={(e) => {
                           const next = tables.map((t, j) => j === i ? { ...t, label: e.target.value || undefined } : t)
-                          onChange({ ...settings, tables: next })
+                          onChangeManual({ ...settings, tables: next })
                         }}
                         placeholder="（省略可）"
                         style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, flex: 1, minWidth: 80 }}
@@ -1938,7 +1958,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           const tA = order.findIndex(r => r.type === 'table' && r.id === idA)
                           const tB = order.findIndex(r => r.type === 'table' && r.id === idB)
                           if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
-                          onChange({ ...settings, tables: next, tileOrder: order })
+                          onChangeManual({ ...settings, tables: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#bbb' : '#444' }}
                       >↑</button>
@@ -1953,7 +1973,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           const tA = order.findIndex(r => r.type === 'table' && r.id === idA)
                           const tB = order.findIndex(r => r.type === 'table' && r.id === idB)
                           if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
-                          onChange({ ...settings, tables: next, tileOrder: order })
+                          onChangeManual({ ...settings, tables: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === tables.length - 1 ? 'default' : 'pointer', color: i === tables.length - 1 ? '#bbb' : '#444' }}
                       >↓</button>
@@ -1961,7 +1981,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         type="button"
                         onClick={() => {
                           const removedId = table.id
-                          onChange({ ...settings, tables: tables.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'table' && r.id === removedId)) : (settings.tileOrder ?? []) })
+                          onChangeManual({ ...settings, tables: tables.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'table' && r.id === removedId)) : (settings.tileOrder ?? []) })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                       >削除</button>
@@ -1979,7 +1999,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             value={table.rowGroupBy ? (filterFields.find(f => f.key === table.rowGroupBy) ? { label: filterFields.find(f => f.key === table.rowGroupBy)!.name, value: table.rowGroupBy } : { label: table.rowGroupBy, value: table.rowGroupBy }) : null}
                             onChange={(selected) => {
                               const next = tables.map((t, j) => j === i ? { ...t, rowGroupBy: selected?.value ?? '' } : t)
-                              onChange({ ...settings, tables: next })
+                              onChangeManual({ ...settings, tables: next })
                             }}
                             placeholder="フィールドを選択..."
                             isClearable={false}
@@ -1996,7 +2016,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             value={table.colGroupBy ? (filterFields.find(f => f.key === table.colGroupBy) ? { label: filterFields.find(f => f.key === table.colGroupBy)!.name, value: table.colGroupBy } : { label: table.colGroupBy, value: table.colGroupBy }) : null}
                             onChange={(selected) => {
                               const next = tables.map((t, j) => j === i ? { ...t, colGroupBy: selected?.value ?? '' } : t)
-                              onChange({ ...settings, tables: next })
+                              onChangeManual({ ...settings, tables: next })
                             }}
                             placeholder="フィールドを選択..."
                             isClearable={false}
@@ -2016,7 +2036,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           getFieldOptions={getFieldOptions}
                           onChange={(rules) => {
                             const next = tables.map((t, j) => j === i ? { ...t, rowGroupRules: rules ?? undefined } : t)
-                            onChange({ ...settings, tables: next })
+                            onChangeManual({ ...settings, tables: next })
                           }}
                         />
                       </div>
@@ -2033,7 +2053,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           getFieldOptions={getFieldOptions}
                           onChange={(rules) => {
                             const next = tables.map((t, j) => j === i ? { ...t, colGroupRules: rules ?? undefined } : t)
-                            onChange({ ...settings, tables: next })
+                            onChangeManual({ ...settings, tables: next })
                           }}
                         />
                       </div>
@@ -2049,7 +2069,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         getFieldOptions={getFieldOptions}
                         onChange={(next) => {
                           const updated = tables.map((t, j) => j === i ? { ...t, conditions: next } : t)
-                          onChange({ ...settings, tables: updated })
+                          onChangeManual({ ...settings, tables: updated })
                         }}
                       />
                     </div>
@@ -2061,7 +2081,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           checked={table.fullWidth !== false}
                           onChange={(e) => {
                             const next = tables.map((t, j) => j === i ? { ...t, fullWidth: e.target.checked } : t)
-                            onChange({ ...settings, tables: next })
+                            onChangeManual({ ...settings, tables: next })
                           }}
                         />
                         全幅表示
@@ -2076,7 +2096,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 type="button"
                 onClick={() => {
                   const id = generateId()
-                  onChange({ ...settings, tables: [...(settings.tables ?? []), { id, rowGroupBy: 'tracker_id', colGroupBy: 'status_id' } as CrossTableConfig], tileOrder: [...(settings.tileOrder ?? []), { type: 'table', id }] })
+                  onChangeManual({ ...settings, tables: [...(settings.tables ?? []), { id, rowGroupBy: 'tracker_id', colGroupBy: 'status_id' } as CrossTableConfig], tileOrder: [...(settings.tileOrder ?? []), { type: 'table', id }] })
                 }}
                 style={{
                   fontSize: 12,
@@ -2122,7 +2142,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         value={evm.title}
                         onChange={(e) => {
                           const next = evmTiles.map((t, j) => j === i ? { ...t, title: e.target.value } : t)
-                          onChange({ ...settings, evmTiles: next })
+                          onChangeManual({ ...settings, evmTiles: next })
                         }}
                         placeholder="チケット数EVM"
                         style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, flex: 1, minWidth: 80 }}
@@ -2138,7 +2158,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           const tA = order.findIndex(r => r.type === 'evm' && r.id === idA)
                           const tB = order.findIndex(r => r.type === 'evm' && r.id === idB)
                           if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
-                          onChange({ ...settings, evmTiles: next, tileOrder: order })
+                          onChangeManual({ ...settings, evmTiles: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#bbb' : '#444' }}
                       >↑</button>
@@ -2153,7 +2173,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           const tA = order.findIndex(r => r.type === 'evm' && r.id === idA)
                           const tB = order.findIndex(r => r.type === 'evm' && r.id === idB)
                           if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
-                          onChange({ ...settings, evmTiles: next, tileOrder: order })
+                          onChangeManual({ ...settings, evmTiles: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === evmTiles.length - 1 ? 'default' : 'pointer', color: i === evmTiles.length - 1 ? '#bbb' : '#444' }}
                       >↓</button>
@@ -2161,7 +2181,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         type="button"
                         onClick={() => {
                           const removedId = evm.id
-                          onChange({ ...settings, evmTiles: evmTiles.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'evm' && r.id === removedId)) : (settings.tileOrder ?? []) })
+                          onChangeManual({ ...settings, evmTiles: evmTiles.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'evm' && r.id === removedId)) : (settings.tileOrder ?? []) })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                       >削除</button>
@@ -2175,7 +2195,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         value={evm.startDate}
                         onChange={(e) => {
                           const next = evmTiles.map((t, j) => j === i ? { ...t, startDate: e.target.value } : t)
-                          onChange({ ...settings, evmTiles: next })
+                          onChangeManual({ ...settings, evmTiles: next })
                         }}
                         style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
                       />
@@ -2185,7 +2205,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         value={evm.endDate}
                         onChange={(e) => {
                           const next = evmTiles.map((t, j) => j === i ? { ...t, endDate: e.target.value } : t)
-                          onChange({ ...settings, evmTiles: next })
+                          onChangeManual({ ...settings, evmTiles: next })
                         }}
                         style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
                       />
@@ -2198,7 +2218,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         value={evm.actualDateField}
                         onChange={(e) => {
                           const next = evmTiles.map((t, j) => j === i ? { ...t, actualDateField: e.target.value } : t)
-                          onChange({ ...settings, evmTiles: next })
+                          onChangeManual({ ...settings, evmTiles: next })
                         }}
                         style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
                       >
@@ -2219,7 +2239,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           value={evm.groupByField ? (filterFields.find(f => f.key === evm.groupByField) ? { label: filterFields.find(f => f.key === evm.groupByField)!.name, value: evm.groupByField } : { label: evm.groupByField, value: evm.groupByField }) : null}
                           onChange={(selected) => {
                             const next = evmTiles.map((t, j) => j === i ? { ...t, groupByField: selected?.value ?? '' } : t)
-                            onChange({ ...settings, evmTiles: next })
+                            onChangeManual({ ...settings, evmTiles: next })
                           }}
                           placeholder="フィールドを選択..."
                           isClearable={false}
@@ -2239,7 +2259,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         getFieldOptions={getFieldOptions}
                         onChange={(next) => {
                           const updated = evmTiles.map((t, j) => j === i ? { ...t, conditions: next } : t)
-                          onChange({ ...settings, evmTiles: updated })
+                          onChangeManual({ ...settings, evmTiles: updated })
                         }}
                       />
                     </div>
@@ -2268,7 +2288,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                   onChange={(e) => {
                                     const newGroups = evm.groups.map((g, gj) => gj === gi ? { ...g, groupName: e.target.value } : g)
                                     const next = evmTiles.map((t, j) => j === i ? { ...t, groups: newGroups } : t)
-                                    onChange({ ...settings, evmTiles: next })
+                                    onChangeManual({ ...settings, evmTiles: next })
                                   }}
                                   placeholder="グループ名"
                                   style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 120 }}
@@ -2282,7 +2302,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                   onChange={(e) => {
                                     const newGroups = evm.groups.map((g, gj) => gj === gi ? { ...g, plannedCount: Number(e.target.value) } : g)
                                     const next = evmTiles.map((t, j) => j === i ? { ...t, groups: newGroups } : t)
-                                    onChange({ ...settings, evmTiles: next })
+                                    onChangeManual({ ...settings, evmTiles: next })
                                   }}
                                   style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 60, textAlign: 'right' }}
                                 />
@@ -2296,7 +2316,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                   onChange={(e) => {
                                     const newGroups = evm.groups.map((g, gj) => gj === gi ? { ...g, effortPerTicket: Number(e.target.value) } : g)
                                     const next = evmTiles.map((t, j) => j === i ? { ...t, groups: newGroups } : t)
-                                    onChange({ ...settings, evmTiles: next })
+                                    onChangeManual({ ...settings, evmTiles: next })
                                   }}
                                   style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 60, textAlign: 'right' }}
                                 />
@@ -2307,7 +2327,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                   onClick={() => {
                                     const newGroups = evm.groups.filter((_, gj) => gj !== gi)
                                     const next = evmTiles.map((t, j) => j === i ? { ...t, groups: newGroups } : t)
-                                    onChange({ ...settings, evmTiles: next })
+                                    onChangeManual({ ...settings, evmTiles: next })
                                   }}
                                   style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                                 >×</button>
@@ -2321,7 +2341,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         onClick={() => {
                           const newGroup: EVMGroupRow = { groupName: '', plannedCount: 0, effortPerTicket: 1 }
                           const next = evmTiles.map((t, j) => j === i ? { ...t, groups: [...t.groups, newGroup] } : t)
-                          onChange({ ...settings, evmTiles: next })
+                          onChangeManual({ ...settings, evmTiles: next })
                         }}
                         style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
                       >
@@ -2354,7 +2374,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                           aj === mi ? { ...a, month: e.target.value } : a
                                         )
                                         const next = evmTiles.map((t, j) => j === i ? { ...t, monthlyActuals: newActuals } : t)
-                                        onChange({ ...settings, evmTiles: next })
+                                        onChangeManual({ ...settings, evmTiles: next })
                                       }}
                                       style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
                                     />
@@ -2370,7 +2390,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                           aj === mi ? { ...a, actualEffort: Number(e.target.value) } : a
                                         )
                                         const next = evmTiles.map((t, j) => j === i ? { ...t, monthlyActuals: newActuals } : t)
-                                        onChange({ ...settings, evmTiles: next })
+                                        onChangeManual({ ...settings, evmTiles: next })
                                       }}
                                       style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 70, textAlign: 'right' }}
                                     />
@@ -2381,7 +2401,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                       onClick={() => {
                                         const newActuals = (evm.monthlyActuals ?? []).filter((_, aj) => aj !== mi)
                                         const next = evmTiles.map((t, j) => j === i ? { ...t, monthlyActuals: newActuals } : t)
-                                        onChange({ ...settings, evmTiles: next })
+                                        onChangeManual({ ...settings, evmTiles: next })
                                       }}
                                       style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                                     >×</button>
@@ -2400,7 +2420,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             const next = evmTiles.map((t, j) =>
                               j === i ? { ...t, monthlyActuals: [...(t.monthlyActuals ?? []), newActual] } : t
                             )
-                            onChange({ ...settings, evmTiles: next })
+                            onChangeManual({ ...settings, evmTiles: next })
                           }}
                           style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
                         >
@@ -2431,7 +2451,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     groupByField: filterFields[0]?.key ?? 'tracker_id',
                     groups: [],
                   }
-                  onChange({ ...settings, evmTiles: [...(settings.evmTiles ?? []), newEvm], tileOrder: [...(settings.tileOrder ?? []), { type: 'evm', id: evmId }] })
+                  onChangeManual({ ...settings, evmTiles: [...(settings.evmTiles ?? []), newEvm], tileOrder: [...(settings.tileOrder ?? []), { type: 'evm', id: evmId }] })
                 }}
                 style={{
                   fontSize: 12,
@@ -2464,7 +2484,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         value={mapping.title ?? ''}
                         onChange={(e) => {
                           const next = mappings.map((t, j) => j === i ? { ...t, title: e.target.value || undefined } : t)
-                          onChange({ ...settings, assignmentMappings: next })
+                          onChangeManual({ ...settings, assignmentMappings: next })
                         }}
                         placeholder="タイトル（省略可）"
                         style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, flex: 1, minWidth: 120 }}
@@ -2480,7 +2500,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           const tA = order.findIndex(r => r.type === 'assignment' && r.id === idA)
                           const tB = order.findIndex(r => r.type === 'assignment' && r.id === idB)
                           if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
-                          onChange({ ...settings, assignmentMappings: next, tileOrder: order })
+                          onChangeManual({ ...settings, assignmentMappings: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#bbb' : '#444' }}
                       >↑</button>
@@ -2495,7 +2515,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           const tA = order.findIndex(r => r.type === 'assignment' && r.id === idA)
                           const tB = order.findIndex(r => r.type === 'assignment' && r.id === idB)
                           if (tA !== -1 && tB !== -1) [order[tA], order[tB]] = [order[tB], order[tA]]
-                          onChange({ ...settings, assignmentMappings: next, tileOrder: order })
+                          onChangeManual({ ...settings, assignmentMappings: next, tileOrder: order })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: i === mappings.length - 1 ? 'default' : 'pointer', color: i === mappings.length - 1 ? '#bbb' : '#444' }}
                       >↓</button>
@@ -2503,7 +2523,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         type="button"
                         onClick={() => {
                           const removedId = mapping.id
-                          onChange({ ...settings, assignmentMappings: mappings.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'assignment' && r.id === removedId)) : (settings.tileOrder ?? []) })
+                          onChangeManual({ ...settings, assignmentMappings: mappings.filter((_, j) => j !== i), tileOrder: removedId ? (settings.tileOrder ?? []).filter(r => !(r.type === 'assignment' && r.id === removedId)) : (settings.tileOrder ?? []) })
                         }}
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #e53e3e', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                       >削除</button>
@@ -2521,7 +2541,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             : null}
                           onChange={(selected) => {
                             const next = mappings.map((t, j) => j === i ? { ...t, assigneeField: selected?.value ?? '', persons: [] } : t)
-                            onChange({ ...settings, assignmentMappings: next })
+                            onChangeManual({ ...settings, assignmentMappings: next })
                           }}
                           placeholder="フィールドを選択..."
                         />
@@ -2540,7 +2560,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             : null}
                           onChange={(selected) => {
                             const next = mappings.map((t, j) => j === i ? { ...t, endDateField: selected?.value ?? '' } : t)
-                            onChange({ ...settings, assignmentMappings: next })
+                            onChangeManual({ ...settings, assignmentMappings: next })
                           }}
                           placeholder="フィールドを選択..."
                         />
@@ -2556,7 +2576,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         value={mapping.fallbackDays}
                         onChange={(e) => {
                           const next = mappings.map((t, j) => j === i ? { ...t, fallbackDays: Number(e.target.value) } : t)
-                          onChange({ ...settings, assignmentMappings: next })
+                          onChangeManual({ ...settings, assignmentMappings: next })
                         }}
                         style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 50 }}
                       />
@@ -2571,7 +2591,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         value={mapping.displayStartDate}
                         onChange={(e) => {
                           const next = mappings.map((t, j) => j === i ? { ...t, displayStartDate: e.target.value } : t)
-                          onChange({ ...settings, assignmentMappings: next })
+                          onChangeManual({ ...settings, assignmentMappings: next })
                         }}
                         style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
                       />
@@ -2581,7 +2601,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         value={mapping.displayEndDate}
                         onChange={(e) => {
                           const next = mappings.map((t, j) => j === i ? { ...t, displayEndDate: e.target.value } : t)
-                          onChange({ ...settings, assignmentMappings: next })
+                          onChangeManual({ ...settings, assignmentMappings: next })
                         }}
                         style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
                       />
@@ -2595,7 +2615,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           checked={mapping.hideWeekends ?? false}
                           onChange={(e) => {
                             const next = mappings.map((t, j) => j === i ? { ...t, hideWeekends: e.target.checked } : t)
-                            onChange({ ...settings, assignmentMappings: next })
+                            onChangeManual({ ...settings, assignmentMappings: next })
                           }}
                         />
                         土日を非表示
@@ -2606,7 +2626,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           checked={mapping.fullWidth !== false}
                           onChange={(e) => {
                             const next = mappings.map((t, j) => j === i ? { ...t, fullWidth: e.target.checked } : t)
-                            onChange({ ...settings, assignmentMappings: next })
+                            onChangeManual({ ...settings, assignmentMappings: next })
                           }}
                         />
                         全幅表示
@@ -2622,7 +2642,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         getFieldOptions={getFieldOptions}
                         onChange={(next) => {
                           const updated = mappings.map((t, j) => j === i ? { ...t, conditions: next } : t)
-                          onChange({ ...settings, assignmentMappings: updated })
+                          onChangeManual({ ...settings, assignmentMappings: updated })
                         }}
                       />
                     </div>
@@ -2633,7 +2653,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       getFieldOptions={getFieldOptions}
                       onChange={(persons) => {
                         const next = mappings.map((t, j) => j === i ? { ...t, persons } : t)
-                        onChange({ ...settings, assignmentMappings: next })
+                        onChangeManual({ ...settings, assignmentMappings: next })
                       }}
                     />
                   </div>
@@ -2662,7 +2682,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     displayEndDate: `${ey}-${em}-${ed}`,
                     persons: [],
                   }
-                  onChange({ ...settings, assignmentMappings: [...(settings.assignmentMappings ?? []), newMapping], tileOrder: [...(settings.tileOrder ?? []), { type: 'assignment', id: assignmentId }] })
+                  onChangeManual({ ...settings, assignmentMappings: [...(settings.assignmentMappings ?? []), newMapping], tileOrder: [...(settings.tileOrder ?? []), { type: 'assignment', id: assignmentId }] })
                 }}
                 style={{
                   fontSize: 12,
