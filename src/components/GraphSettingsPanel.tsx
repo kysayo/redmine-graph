@@ -987,6 +987,10 @@ export function mergePresetSettings(base: UserSettings, preset: PresetSettings):
     combos: preset.combos,
     tileOrder: preset.tileOrder,
     evmTiles: preset.evmTiles,
+    pies: preset.pies,
+    summaryCards: preset.summaryCards,
+    tables: preset.tables,
+    assignmentMappings: preset.assignmentMappings,
   }
   // 古いプリセットには tileOrder がない場合があるため、欠落時は combos/pies 等から再構築
   if (!merged.tileOrder) {
