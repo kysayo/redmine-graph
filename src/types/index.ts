@@ -97,6 +97,7 @@ export interface SeriesConfig {
   color: string                                     // 系列の色（HEX）
   conditions?: SeriesCondition[]                    // 絞り込み条件（省略可 = フィルタなし）
   visible?: boolean                                 // 表示/非表示（省略時 = true として扱う）
+  hideFuture?: boolean                              // true のとき未来の日付の値を非表示（null）にする
 }
 
 // EVMタイル グループ行設定
@@ -188,6 +189,9 @@ export interface ComboChartConfig {
   anchorDay?: number         // 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1
   dateFormat?: 'yyyy-mm-dd' | 'M/D'  // X軸の日付表示形式。デフォルト 'yyyy-mm-dd'
   chartHeight?: number               // グラフ高さ(px)。未設定=320
+  showFuture?: boolean               // true のとき未来の日付を横軸に追加
+  futureWeeks?: number               // 未来を表示する週数（showFuture=true 時のみ有効）。デフォルト 1
+  startWeeksAgo?: number             // 設定時: 開始日を「今日からN週前」で動的計算（startDate より優先）
 }
 
 // タイル表示順序のエントリ
@@ -251,7 +255,7 @@ export interface TeamPreset {
 // 複数系列対応のデータポイント（SeriesConfigのidをキーにした値を持つ）
 export interface SeriesDataPoint {
   date: string
-  [seriesId: string]: number | string
+  [seriesId: string]: number | string | null
 }
 
 // --- 系列条件フィルタ ---

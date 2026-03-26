@@ -209,6 +209,8 @@ interface AggregateOptions {
   weeklyMode?: boolean
   /** 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1 */
   anchorDay?: number
+  /** 0または未設定=今日まで。正整数=今日+N週まで横軸を延長 */
+  futureWeeks?: number
 }
 
 /**
@@ -239,7 +241,7 @@ export function aggregateIssues(
   series: SeriesConfig[],
   options: AggregateOptions = {}
 ): SeriesDataPoint[] {
-  const { startDate, hideWeekends = false, weeklyMode = false, anchorDay = 1 } = options
+  const { startDate, hideWeekends = false, weeklyMode = false, anchorDay = 1, futureWeeks = 0 } = options
 
   // 日付範囲を確定
   let fromDate: Date
@@ -252,6 +254,9 @@ export function aggregateIssues(
   }
 
   const toDate = new Date()
+  if (futureWeeks > 0) {
+    toDate.setDate(toDate.getDate() + futureWeeks * 7)
+  }
 
   const dates = weeklyMode
     ? generateWeeklyDateRange(fromDate, toDate, anchorDay)
@@ -357,6 +362,19 @@ export function aggregateIssues(
       const a = (point[idA] as number) ?? 0
       const b = (point[idB] as number) ?? 0
       point[s.id] = a - b
+    }
+  }
+
+  // hideFuture=true の系列は未来の日付の値を null に変換
+  const todayStr = formatDate(new Date())
+  const hideFutureSeries = series.filter(s => s.hideFuture)
+  if (hideFutureSeries.length > 0) {
+    for (const point of result) {
+      if (point.date > todayStr) {
+        for (const s of hideFutureSeries) {
+          point[s.id] = null
+        }
+      }
     }
   }
 

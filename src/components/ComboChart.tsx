@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
   Brush,
   LabelList,
+  ReferenceLine,
 } from 'recharts'
 import type { SeriesConfig, SeriesDataPoint } from '../types'
 
@@ -58,6 +59,13 @@ function formatDateTick(dateStr: string, fmt: 'yyyy-mm-dd' | 'M/D'): string {
   if (fmt === 'yyyy-mm-dd') return dateStr
   const [, m, d] = dateStr.split('-')
   return `${Number(m)}/${Number(d)}`
+}
+
+function formatDate(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 interface CustomTickProps {
@@ -109,6 +117,15 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
 
     const effectiveLeftMin = yAxisLeftMinAuto ? autoLeftMin : yAxisLeftMin
 
+    // 今日の日付文字列（YYYY-MM-DD）
+    const todayStr = formatDate(new Date())
+    // データに今日より後の日付があるか（= 未来表示が有効）
+    const hasFuture = data.some(d => d.date > todayStr)
+    // 今日以降の最初の日付（土日非表示時に今日が土日の場合は次の平日）
+    const todayRefDate = hasFuture
+      ? (data.find(d => d.date >= todayStr)?.date ?? todayStr)
+      : null
+
     const marginTop = (showLabelsLeft || showLabelsRight) ? 32 : 8
 
     return (
@@ -140,6 +157,17 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
                 </div>
               )}
             />
+
+            {todayRefDate && (
+              <ReferenceLine
+                x={todayRefDate}
+                yAxisId={hasLeft ? 'left' : 'right'}
+                stroke="#f97316"
+                strokeDasharray="4 4"
+                strokeWidth={1.5}
+                label={{ value: '今日', position: 'insideTopLeft', fontSize: 10, fill: '#f97316' }}
+              />
+            )}
 
             {brushEnabled && (
               <Brush

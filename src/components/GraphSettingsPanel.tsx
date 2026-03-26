@@ -428,9 +428,10 @@ interface SeriesRowProps {
   onDelete: () => void
   onMoveUp: () => void
   onMoveDown: () => void
+  showFuture?: boolean
 }
 
-function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, canMoveUp, canMoveDown, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SeriesRowProps) {
+function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, canMoveUp, canMoveDown, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown, showFuture }: SeriesRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
 
   function update<K extends keyof SeriesConfig>(key: K, value: SeriesConfig[K]) {
@@ -613,6 +614,18 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
           <option value="difference">差 (A − B)</option>
         </select>
       </div>
+
+      {/* 未来を非表示（showFuture が有効な場合のみ） */}
+      {showFuture && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer', alignSelf: 'flex-end', paddingBottom: 2 }}>
+          <input
+            type="checkbox"
+            checked={series.hideFuture ?? false}
+            onChange={(e) => update('hideFuture', e.target.checked)}
+          />
+          未来を非表示
+        </label>
+      )}
 
       {/* difference の場合: 参照系列選択 */}
       {series.aggregation === 'difference' && (
@@ -1479,24 +1492,58 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   {/* 開始日 */}
                   <div>
                     <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>開始日</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <input
-                        type="date"
-                        value={combo.startDate ?? ''}
-                        onChange={(e) => updateCombo(comboIdx, { startDate: e.target.value || undefined })}
-                        style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 140 }}
-                      />
-                      {combo.startDate && (
-                        <button
-                          type="button"
-                          onClick={() => updateCombo(comboIdx, { startDate: undefined })}
-                          style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, cursor: 'pointer', background: '#fff' }}
-                        >
-                          クリア
-                        </button>
+                    {/* 相対指定モード（N週前から） */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={combo.startWeeksAgo != null}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              updateCombo(comboIdx, { startWeeksAgo: 2, startDate: undefined })
+                            } else {
+                              updateCombo(comboIdx, { startWeeksAgo: undefined })
+                            }
+                          }}
+                        />
+                      </label>
+                      {combo.startWeeksAgo != null ? (
+                        <>
+                          <input
+                            type="number"
+                            min={1}
+                            max={52}
+                            value={combo.startWeeksAgo}
+                            onChange={(e) => updateCombo(comboIdx, { startWeeksAgo: Math.max(1, Number(e.target.value)) })}
+                            style={{ width: 48, fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
+                          />
+                          <span style={{ fontSize: 12 }}>週前から</span>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 11, color: '#999' }}>N週前から指定</span>
                       )}
-                      <span style={{ fontSize: 11, color: '#999' }}>（空=14日前）</span>
                     </div>
+                    {/* 固定日付指定（相対モードがオフの時のみ） */}
+                    {combo.startWeeksAgo == null && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <input
+                          type="date"
+                          value={combo.startDate ?? ''}
+                          onChange={(e) => updateCombo(comboIdx, { startDate: e.target.value || undefined })}
+                          style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 140 }}
+                        />
+                        {combo.startDate && (
+                          <button
+                            type="button"
+                            onClick={() => updateCombo(comboIdx, { startDate: undefined })}
+                            style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, cursor: 'pointer', background: '#fff' }}
+                          >
+                            クリア
+                          </button>
+                        )}
+                        <span style={{ fontSize: 11, color: '#999' }}>（空=14日前）</span>
+                      </div>
+                    )}
                   </div>
                   {/* 日付形式 */}
                   <div>
@@ -1519,6 +1566,29 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     />
                     土日非表示
                   </label>
+                  {/* 未来を表示 */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={combo.showFuture ?? false}
+                      onChange={(e) => updateCombo(comboIdx, { showFuture: e.target.checked })}
+                    />
+                    未来を表示
+                  </label>
+                  {(combo.showFuture ?? false) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                      <span>先</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={52}
+                        value={combo.futureWeeks ?? 1}
+                        onChange={(e) => updateCombo(comboIdx, { futureWeeks: Math.max(1, Number(e.target.value)) })}
+                        style={{ width: 48, fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3 }}
+                      />
+                      <span>週</span>
+                    </div>
+                  )}
                   {/* 週次集計 */}
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
                     <input
@@ -1637,6 +1707,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     onDelete={() => deleteComboSeries(comboIdx, i)}
                     onMoveUp={() => moveComboSeries(comboIdx, i, i - 1)}
                     onMoveDown={() => moveComboSeries(comboIdx, i, i + 1)}
+                    showFuture={combo.showFuture ?? false}
                   />
                 ))}
                 <button

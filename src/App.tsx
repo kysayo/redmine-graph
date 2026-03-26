@@ -364,11 +364,22 @@ export function App({ container }: Props) {
   // 複数2軸グラフ用データ（combos配列の長さ分を集計）
   const combosData = useMemo(() => {
     return (settings.combos ?? []).map(combo => {
+      // startWeeksAgo が設定されている場合は今日からN週前を動的に計算
+      let startDate = combo.startDate
+      if (combo.startWeeksAgo != null && combo.startWeeksAgo > 0) {
+        const d = new Date()
+        d.setDate(d.getDate() - combo.startWeeksAgo * 7)
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        startDate = `${y}-${m}-${day}`
+      }
       const options = {
-        startDate: combo.startDate,
+        startDate,
         hideWeekends: combo.hideWeekends ?? false,
         weeklyMode: combo.weeklyMode ?? false,
         anchorDay: combo.anchorDay ?? 1,
+        futureWeeks: (combo.showFuture ?? false) ? (combo.futureWeeks ?? 1) : 0,
       }
       if (issueState.issues !== null) {
         return aggregateIssues(issueState.issues, combo.series, options)
