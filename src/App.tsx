@@ -287,10 +287,22 @@ export function App({ container }: Props) {
     window.open(url, '_blank', 'noopener')
   }, [])
 
+  function crossTableFieldCond(
+    fieldKey: string,
+    key: string,
+    filterValues: string[],
+    groupRules?: import('./types').PieGroupRule[]
+  ): import('./types').SeriesCondition[] {
+    const rule = groupRules?.find(r => r.name === key)
+    const isNoData = rule?.values.includes('(No data)') && filterValues.length === 0
+    if (isNoData) return [{ field: fieldKey, operator: '!*', values: [] }]
+    return filterValues.length ? [{ field: fieldKey, operator: '=', values: filterValues }] : []
+  }
+
   const handleCrossTableCellClick = useCallback((
     table: CrossTableConfig,
-    _rowKey: string,
-    _colKey: string,
+    rowKey: string,
+    colKey: string,
     rowFilterValues: string[],
     colFilterValues: string[]
   ) => {
@@ -300,8 +312,8 @@ export function App({ container }: Props) {
       undefined,
       [
         ...(table.conditions ?? []),
-        ...(rowFilterValues.length ? [{ field: table.rowGroupBy, operator: '=' as const, values: rowFilterValues }] : []),
-        ...(colFilterValues.length ? [{ field: table.colGroupBy, operator: '=' as const, values: colFilterValues }] : []),
+        ...crossTableFieldCond(table.rowGroupBy, rowKey, rowFilterValues, table.rowGroupRules),
+        ...crossTableFieldCond(table.colGroupBy, colKey, colFilterValues, table.colGroupRules),
       ]
     )
     window.open(url, '_blank', 'noopener')
@@ -309,7 +321,7 @@ export function App({ container }: Props) {
 
   const handleCrossTableRowTotalClick = useCallback((
     table: CrossTableConfig,
-    _rowKey: string,
+    rowKey: string,
     rowFilterValues: string[]
   ) => {
     const url = buildRedmineFilterUrl(
@@ -318,7 +330,7 @@ export function App({ container }: Props) {
       undefined,
       [
         ...(table.conditions ?? []),
-        ...(rowFilterValues.length ? [{ field: table.rowGroupBy, operator: '=' as const, values: rowFilterValues }] : []),
+        ...crossTableFieldCond(table.rowGroupBy, rowKey, rowFilterValues, table.rowGroupRules),
       ]
     )
     window.open(url, '_blank', 'noopener')
@@ -326,7 +338,7 @@ export function App({ container }: Props) {
 
   const handleCrossTableColTotalClick = useCallback((
     table: CrossTableConfig,
-    _colKey: string,
+    colKey: string,
     colFilterValues: string[]
   ) => {
     const url = buildRedmineFilterUrl(
@@ -335,7 +347,7 @@ export function App({ container }: Props) {
       undefined,
       [
         ...(table.conditions ?? []),
-        ...(colFilterValues.length ? [{ field: table.colGroupBy, operator: '=' as const, values: colFilterValues }] : []),
+        ...crossTableFieldCond(table.colGroupBy, colKey, colFilterValues, table.colGroupRules),
       ]
     )
     window.open(url, '_blank', 'noopener')
@@ -433,6 +445,50 @@ export function App({ container }: Props) {
     })
   }, [issueState.issues, settings.pies])
 
+  function copyTile(ref: { type: string; id: string }) {
+    const newId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const order = [...(settings.tileOrder ?? [])]
+    const pos = order.findIndex(r => r.type === ref.type && r.id === ref.id)
+    const insertAt = pos === -1 ? order.length : pos + 1
+
+    if (ref.type === 'combo') {
+      const orig = (settings.combos ?? []).find(c => c.id === ref.id)
+      if (!orig) return
+      const clone = JSON.parse(JSON.stringify(orig))
+      clone.id = newId
+      order.splice(insertAt, 0, { type: 'combo', id: newId })
+      handleSettingsChange({ ...settings, combos: [...(settings.combos ?? []), clone], tileOrder: order })
+    } else if (ref.type === 'pie') {
+      const orig = (settings.pies ?? []).find(p => p.id === ref.id)
+      if (!orig) return
+      const clone = JSON.parse(JSON.stringify(orig))
+      clone.id = newId
+      order.splice(insertAt, 0, { type: 'pie', id: newId })
+      handleSettingsChange({ ...settings, pies: [...(settings.pies ?? []), clone], tileOrder: order })
+    } else if (ref.type === 'table') {
+      const orig = (settings.tables ?? []).find(t => t.id === ref.id)
+      if (!orig) return
+      const clone = JSON.parse(JSON.stringify(orig))
+      clone.id = newId
+      order.splice(insertAt, 0, { type: 'table', id: newId })
+      handleSettingsChange({ ...settings, tables: [...(settings.tables ?? []), clone], tileOrder: order })
+    } else if (ref.type === 'evm') {
+      const orig = (settings.evmTiles ?? []).find(e => e.id === ref.id)
+      if (!orig) return
+      const clone = JSON.parse(JSON.stringify(orig))
+      clone.id = newId
+      order.splice(insertAt, 0, { type: 'evm', id: newId })
+      handleSettingsChange({ ...settings, evmTiles: [...(settings.evmTiles ?? []), clone], tileOrder: order })
+    } else if (ref.type === 'assignment') {
+      const orig = (settings.assignmentMappings ?? []).find(a => a.id === ref.id)
+      if (!orig) return
+      const clone = JSON.parse(JSON.stringify(orig))
+      clone.id = newId
+      order.splice(insertAt, 0, { type: 'assignment', id: newId })
+      handleSettingsChange({ ...settings, assignmentMappings: [...(settings.assignmentMappings ?? []), clone], tileOrder: order })
+    }
+  }
+
   // tileOrder に基づいて各タイルを描画するヘルパー
   function renderTile(ref: { type: string; id: string }, key: string) {
     if (ref.type === 'combo') {
@@ -441,7 +497,7 @@ export function App({ container }: Props) {
       const combo = settings.combos![idx]
       const comboData = combosData[idx]
       return (
-        <TileCard key={key} style={{ gridColumn: '1 / -1', padding: '20px 24px' }} fileName={`combo-chart-${idx}`}>
+        <TileCard key={key} style={{ gridColumn: '1 / -1', padding: '20px 24px' }} fileName={`combo-chart-${idx}`} onCopyTile={() => copyTile(ref)}>
           <h2 style={{ fontSize: 15, margin: '0 0 16px', fontWeight: 600, color: '#111827' }}>{combo.name || 'チケット推移'}</h2>
           {shouldFetch && issueState.loading && (
             <div style={{ padding: '12px 0', color: '#666', fontSize: 13 }}>
@@ -503,6 +559,7 @@ export function App({ container }: Props) {
             padding: '20px 16px',
           }}
           fileName={`tile-${i}`}
+          onCopyTile={() => copyTile(ref)}
         >
           {issueState.loading ? (
             <div style={{ textAlign: 'center', padding: '40px 24px', color: '#666', fontSize: 13 }}>Now Loading...</div>
@@ -551,6 +608,7 @@ export function App({ container }: Props) {
             padding: '20px 24px',
           }}
           fileName={`cross-table-${i}`}
+          onCopyTile={() => copyTile(ref)}
         >
           {!data ? (
             <div>
@@ -584,6 +642,7 @@ export function App({ container }: Props) {
           key={key}
           style={{ gridColumn: '1 / -1', padding: '20px 24px' }}
           fileName={`evm-tile-${i}`}
+          onCopyTile={() => copyTile(ref)}
         >
           {!data ? (
             <div>
@@ -628,6 +687,7 @@ export function App({ container }: Props) {
             padding: '20px 24px',
           }}
           fileName={`assignment-mapping-${i}`}
+          onCopyTile={() => copyTile(ref)}
         >
           <AssignmentMappingPanel
             config={mapping}

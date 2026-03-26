@@ -151,8 +151,8 @@ export function buildRedmineFilterUrl(
         }
         continue
       }
-      // Redmine URLフィルタは '=' と '!' のみサポート
-      if (cond.operator !== '=' && cond.operator !== '!') continue
+      // Redmine URLフィルタは '=' と '!' と '!*' のみサポート
+      if (cond.operator !== '=' && cond.operator !== '!' && cond.operator !== '!*') continue
       filterMap.set(cond.field, {
         field: cond.field,
         operator: cond.operator,

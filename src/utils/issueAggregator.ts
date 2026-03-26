@@ -398,8 +398,8 @@ function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null
     const cfId = Number(groupBy.slice(3))
     const cf = issue.custom_fields?.find(c => c.id === cfId)
     const v = cf?.value
-    if (Array.isArray(v)) return (v[0] as string) ?? null
-    return (v as string) ?? null
+    if (Array.isArray(v)) return (v[0] as string) || null
+    return (v as string) || null
   }
   return null
 }
@@ -421,8 +421,8 @@ function getIssueGroupFilterValue(issue: RedmineIssue, groupBy: string): string 
     const cfId = Number(groupBy.slice(3))
     const cf = issue.custom_fields?.find(c => c.id === cfId)
     const v = cf?.value
-    if (Array.isArray(v)) return (v[0] as string) ?? null
-    return (v as string) ?? null
+    if (Array.isArray(v)) return (v[0] as string) || null
+    return (v as string) || null
   }
   return null
 }
@@ -480,8 +480,9 @@ export function aggregatePie(
   for (const issue of issues) {
     if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
     const raw = getIssueGroupValue(issue, groupBy)
-    if (raw === null || raw === '') continue
-    const key = groupRules?.length ? applyGroupRules(raw, groupRules) : raw
+    const effective = (raw === null || raw === '') ? '(No data)' : raw
+    if (effective === '(No data)' && !groupRules?.some(r => r.values.includes('(No data)'))) continue
+    const key = groupRules?.length ? applyGroupRules(effective, groupRules) : effective
     counts.set(key, (counts.get(key) ?? 0) + 1)
     const filterVal = getIssueGroupFilterValue(issue, groupBy)
     if (filterVal !== null) {
@@ -662,20 +663,25 @@ export function aggregateCrossTable(
 
     const rawRowLabel = getIssueGroupValue(issue, rowGroupBy)
     const rawColLabel = getIssueGroupValue(issue, colGroupBy)
-    if (rawRowLabel === null || rawRowLabel === '' || rawColLabel === null || rawColLabel === '') continue
-
-    const rowKey = rowGroupRules?.length ? applyGroupRules(rawRowLabel, rowGroupRules) : rawRowLabel
-    const colKey = colGroupRules?.length ? applyGroupRules(rawColLabel, colGroupRules) : rawColLabel
+    const effectiveRowLabel = (rawRowLabel === null || rawRowLabel === '') ? '(No data)' : rawRowLabel
+    const effectiveColLabel = (rawColLabel === null || rawColLabel === '') ? '(No data)' : rawColLabel
 
     // グルーピング定義がある場合: いずれのルールにもマッチしない値はスキップ
     if (rowGroupRules?.length) {
-      const inAnyRule = rowGroupRules.some(r => r.values.includes(rawRowLabel))
+      const inAnyRule = rowGroupRules.some(r => r.values.includes(effectiveRowLabel))
       if (!inAnyRule) continue
+    } else if (effectiveRowLabel === '(No data)') {
+      continue
     }
     if (colGroupRules?.length) {
-      const inAnyRule = colGroupRules.some(r => r.values.includes(rawColLabel))
+      const inAnyRule = colGroupRules.some(r => r.values.includes(effectiveColLabel))
       if (!inAnyRule) continue
+    } else if (effectiveColLabel === '(No data)') {
+      continue
     }
+
+    const rowKey = rowGroupRules?.length ? applyGroupRules(effectiveRowLabel, rowGroupRules) : effectiveRowLabel
+    const colKey = colGroupRules?.length ? applyGroupRules(effectiveColLabel, colGroupRules) : effectiveColLabel
 
     if (!rowLabels[rowKey]) rowLabels[rowKey] = rowKey
     if (!colLabels[colKey]) colLabels[colKey] = colKey

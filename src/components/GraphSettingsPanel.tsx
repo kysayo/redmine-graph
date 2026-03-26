@@ -207,6 +207,7 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
                 onChange={(e) => updateRuleValues(idx, Array.from(e.target.selectedOptions, o => o.value))}
                 style={{ ...selectStyle, height: 60, minWidth: 130 }}
               >
+                <option value="(No data)">(No data)</option>
                 {options.map((opt) => (
                   <option key={opt.value} value={opt.label}>{opt.label}</option>
                 ))}
