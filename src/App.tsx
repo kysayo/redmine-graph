@@ -258,20 +258,35 @@ export function App({ container }: Props) {
     pie: PieSeriesConfig,
     _name: string,
     mainFilterValues: string[] | undefined,
-    _segmentName: string,
+    segmentName: string,
     segmentFilterValues: string[] | undefined
   ) => {
+    // colorRulesでグループ化されたセグメントの場合、グループ内の全ステータスIDをURLフィルタに使用する
+    // （segmentFilterValuesは実際に観測されたIDのみのため、グループ定義の全IDを使用しないと漏れが生じる）
+    let effectiveSegmentFilterValues = segmentFilterValues
+    if (pie.colorBy === 'status_id' && pie.colorRules?.length) {
+      const rule = pie.colorRules.find(r => r.name === segmentName)
+      if (rule && statuses.length > 0) {
+        const allGroupIds = rule.values.flatMap(statusName => {
+          const s = statuses.find(st => st.name === statusName)
+          return s ? [String(s.id)] : []
+        })
+        if (allGroupIds.length > 0) {
+          effectiveSegmentFilterValues = allGroupIds
+        }
+      }
+    }
     const url = buildRedmineFilterUrl(
       window.location.pathname,
       window.location.search,
       mainFilterValues?.length ? { field: pie.groupBy, operator: '=', values: mainFilterValues } : undefined,
       [
         ...(pie.conditions ?? []),
-        ...(segmentFilterValues?.length && pie.colorBy ? [{ field: pie.colorBy, operator: '=' as const, values: segmentFilterValues }] : []),
+        ...(effectiveSegmentFilterValues?.length && pie.colorBy ? [{ field: pie.colorBy, operator: '=' as const, values: effectiveSegmentFilterValues }] : []),
       ]
     )
     window.open(url, '_blank', 'noopener')
-  }, [])
+  }, [statuses])
 
   const handleBarLabelClick = useCallback((
     pie: PieSeriesConfig,
