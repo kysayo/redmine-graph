@@ -314,12 +314,18 @@ export function App({ container }: Props) {
     return filterValues.length ? [{ field: fieldKey, operator: '=', values: filterValues }] : []
   }
 
+  function andCondFiltersFromMap(andCondFvs: Record<string, string[]>): SeriesCondition[] {
+    return Object.entries(andCondFvs).map(([field, values]) => ({ field, operator: '=' as const, values }))
+  }
+
   const handleCrossTableCellClick = useCallback((
     table: CrossTableConfig,
     rowKey: string,
     colKey: string,
     rowFilterValues: string[],
-    colFilterValues: string[]
+    colFilterValues: string[],
+    rowAndCondFvs: Record<string, string[]>,
+    colAndCondFvs: Record<string, string[]>
   ) => {
     const url = buildRedmineFilterUrl(
       window.location.pathname,
@@ -328,7 +334,9 @@ export function App({ container }: Props) {
       [
         ...(table.conditions ?? []),
         ...crossTableFieldCond(table.rowGroupBy, rowKey, rowFilterValues, table.rowGroupRules),
+        ...andCondFiltersFromMap(rowAndCondFvs),
         ...crossTableFieldCond(table.colGroupBy, colKey, colFilterValues, table.colGroupRules),
+        ...andCondFiltersFromMap(colAndCondFvs),
       ]
     )
     window.open(url, '_blank', 'noopener')
@@ -337,7 +345,8 @@ export function App({ container }: Props) {
   const handleCrossTableRowTotalClick = useCallback((
     table: CrossTableConfig,
     rowKey: string,
-    rowFilterValues: string[]
+    rowFilterValues: string[],
+    rowAndCondFvs: Record<string, string[]>
   ) => {
     const url = buildRedmineFilterUrl(
       window.location.pathname,
@@ -346,6 +355,7 @@ export function App({ container }: Props) {
       [
         ...(table.conditions ?? []),
         ...crossTableFieldCond(table.rowGroupBy, rowKey, rowFilterValues, table.rowGroupRules),
+        ...andCondFiltersFromMap(rowAndCondFvs),
       ]
     )
     window.open(url, '_blank', 'noopener')
@@ -354,7 +364,8 @@ export function App({ container }: Props) {
   const handleCrossTableColTotalClick = useCallback((
     table: CrossTableConfig,
     colKey: string,
-    colFilterValues: string[]
+    colFilterValues: string[],
+    colAndCondFvs: Record<string, string[]>
   ) => {
     const url = buildRedmineFilterUrl(
       window.location.pathname,
@@ -363,6 +374,7 @@ export function App({ container }: Props) {
       [
         ...(table.conditions ?? []),
         ...crossTableFieldCond(table.colGroupBy, colKey, colFilterValues, table.colGroupRules),
+        ...andCondFiltersFromMap(colAndCondFvs),
       ]
     )
     window.open(url, '_blank', 'noopener')
@@ -501,6 +513,13 @@ export function App({ container }: Props) {
       clone.id = newId
       order.splice(insertAt, 0, { type: 'assignment', id: newId })
       handleSettingsChange({ ...settings, assignmentMappings: [...(settings.assignmentMappings ?? []), clone], tileOrder: order })
+    } else if (ref.type === 'heading') {
+      const orig = (settings.headings ?? []).find(h => h.id === ref.id)
+      if (!orig) return
+      const clone = JSON.parse(JSON.stringify(orig))
+      clone.id = newId
+      order.splice(insertAt, 0, { type: 'heading', id: newId })
+      handleSettingsChange({ ...settings, headings: [...(settings.headings ?? []), clone], tileOrder: order })
     }
   }
 
@@ -636,9 +655,9 @@ export function App({ container }: Props) {
             <CrossTable
               data={data}
               title={title}
-              onCellClick={issueState.issues !== null ? (rk, ck, rfv, cfv) => handleCrossTableCellClick(table, rk, ck, rfv, cfv) : undefined}
-              onRowTotalClick={issueState.issues !== null ? (rk, rfv) => handleCrossTableRowTotalClick(table, rk, rfv) : undefined}
-              onColTotalClick={issueState.issues !== null ? (ck, cfv) => handleCrossTableColTotalClick(table, ck, cfv) : undefined}
+              onCellClick={issueState.issues !== null ? (rk, ck, rfv, cfv) => handleCrossTableCellClick(table, rk, ck, rfv, cfv, data.rowAndCondFilterValues?.[rk] ?? {}, data.colAndCondFilterValues?.[ck] ?? {}) : undefined}
+              onRowTotalClick={issueState.issues !== null ? (rk, rfv) => handleCrossTableRowTotalClick(table, rk, rfv, data.rowAndCondFilterValues?.[rk] ?? {}) : undefined}
+              onColTotalClick={issueState.issues !== null ? (ck, cfv) => handleCrossTableColTotalClick(table, ck, cfv, data.colAndCondFilterValues?.[ck] ?? {}) : undefined}
               onGrandTotalClick={issueState.issues !== null ? () => handleCrossTableGrandTotalClick(table) : undefined}
             />
           )}
@@ -709,6 +728,23 @@ export function App({ container }: Props) {
             issues={issueState.issues}
           />
         </TileCard>
+      )
+    }
+
+    if (ref.type === 'heading') {
+      const heading = (settings.headings ?? []).find(h => h.id === ref.id)
+      if (!heading) return null
+      return (
+        <div key={key} style={{ gridColumn: '1 / -1' }}>
+          <div style={{
+            borderLeft: `6px solid ${heading.color}`,
+            background: heading.color + '22',
+            padding: '10px 20px',
+            borderRadius: 8,
+          }}>
+            <span style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{heading.text}</span>
+          </div>
+        </div>
       )
     }
 

@@ -367,6 +367,7 @@ if (container) {
   - グルーピング設定時の表示順序 = ルール定義順（件数降順ではなく定義順が優先）
   - 0件でもルールに定義された行/列は常に表示される
   - **`(No data)` 対応**: 値選択リストの先頭に `(No data)` が常に表示される。ルールの values に `(No data)` を含めると、対象フィールドが未記入（空値）のチケットをそのグループとして集計する。クリック時のURLフィルタは Redmine の「値なし」演算子 `op[field]=!*` を使用
+  - **AND条件（`andConditions`）**: 各グルーピングルールにAND条件を追加可能（クロス集計専用）。設定UIの「＋ AND条件を追加」ボタンで追加。AND条件1件 = フィールド選択（react-select） + 値の複数選択。主フィールド値がマッチしても AND条件を満たさないチケットは当該グループに計上されない（別ルールへのマッチ判定に進む）。AND条件付きのグループをクリックした場合、URLフィルタに主フィールドの条件に加えAND条件フィールドのフィルタも付加される
 - **絞り込み条件**: 他のグラフと同様の `ConditionsEditor`（AND条件）
 - **合計行・合計列**: 右端に行合計、下端に列合計、右下に総計を表示
 - **セルクリック**: 行条件＋列条件＋テーブル条件でRedmineチケット一覧を新タブで開く（実データ取得済みの場合のみ有効）
@@ -404,8 +405,8 @@ if (container) {
 | `rowGroupBy` | `string` | 行のグループキー（例: `'tracker_id'`, `'cf_123'`） |
 | `colGroupBy` | `string` | 列のグループキー |
 | `conditions` | `SeriesCondition[]?` | 集計対象の絞り込み条件（省略時 = フィルタなし） |
-| `rowGroupRules` | `PieGroupRule[]?` | 行のグルーピングルール。設定時はルール定義の行のみ表示（未グループ値は除外） |
-| `colGroupRules` | `PieGroupRule[]?` | 列のグルーピングルール。設定時はルール定義の列のみ表示（未グループ値は除外） |
+| `rowGroupRules` | `PieGroupRule[]?` | 行のグルーピングルール。設定時はルール定義の行のみ表示（未グループ値は除外）。各ルールに `andConditions` を追加可能（クロス集計専用） |
+| `colGroupRules` | `PieGroupRule[]?` | 列のグルーピングルール。設定時はルール定義の列のみ表示（未グループ値は除外）。各ルールに `andConditions` を追加可能（クロス集計専用） |
 | `fullWidth` | `boolean?` | 全幅表示（省略/`true` = 全幅、`false` = 3列グリッドの1マスで表示） |
 
 ### EVMタイル（EvmTile）
@@ -496,9 +497,25 @@ EVM（Earned Value Management）の考え方をチケット数に適用して、
 | `name` | `string` | 表示名（担当者選択時点の名前） |
 | `id` | `string` | フィールド値ID（実際の集計に使う。名前が変わっても影響なし） |
 
+## 見出しタイル（HeadingConfig）
+
+タイル間の区切り・セクション見出しとして使用するシンプルな横一直線のカラーバー付きテキスト。
+
+- **表示**: 左辺6pxの色付きボーダー＋薄い背景色のブロック。テキストは太字（`fontWeight: 700`）で表示。常に全幅（`gridColumn: 1/-1`）
+- **設定**: `GraphSettingsPanel` の「見出し設定」セクションから追加・編集・削除。テキスト入力と12色パレットから色を選択
+- **TileCard を使わない**: PNG Copy / PNG DL ボタンなし（区切り要素のため）
+- **設定は `localStorage` の `UserSettings.headings` へ保存**
+
+### `HeadingConfig` 型
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `text` | `string` | 見出しテキスト |
+| `color` | `string` | アクセントカラー（HEX）。左ボーダーと薄い背景色に使用 |
+
 ## タイルカード共通機能（TileCard）
 
-全種類のタイル（2軸グラフ・円グラフ・横棒グラフ・クロス集計テーブル・EVMタイル・担当数マッピング）は `TileCard` コンポーネントでラップされており、右上に以下のボタンが表示される。
+2軸グラフ・円グラフ・横棒グラフ・クロス集計テーブル・EVMタイル・担当数マッピングは `TileCard` コンポーネントでラップされており、右上に以下のボタンが表示される。（見出しタイルは TileCard を使わない）
 
 | ボタン | 機能 |
 |---|---|
@@ -506,8 +523,8 @@ EVM（Earned Value Management）の考え方をチケット数に適用して、
 | **PNG Copy** | タイルをPNG画像としてクリップボードにコピー（ボタン自体は画像に含まれない） |
 | **PNG DL** | タイルをPNG画像としてダウンロード（2x 解像度） |
 
-- **タイル複製の仕組み**: `tileOrder` の元タイルの直後に新しい `TileRef`（新規ID）を挿入し、対応する設定配列（`combos` / `pies` / `tables` / `evmTiles` / `assignmentMappings`）に深いコピーを追加する。設定は `localStorage` に即時保存される
-- **タイル順序（`tileOrder`）**: `UserSettings.tileOrder` に `{ type, id }` 配列として保存。設定パネルの「タイル順序」セクションで ↑↓ ボタンによる並べ替えが可能
+- **タイル複製の仕組み**: `tileOrder` の元タイルの直後に新しい `TileRef`（新規ID）を挿入し、対応する設定配列（`combos` / `pies` / `tables` / `evmTiles` / `assignmentMappings` / `headings`）に深いコピーを追加する。設定は `localStorage` に即時保存される
+- **タイル順序（`tileOrder`）**: `UserSettings.tileOrder` に `{ type, id }` 配列として保存。`type` は `'combo' | 'pie' | 'table' | 'evm' | 'assignment' | 'heading'`。設定パネルの「タイル順序」セクションで ↑↓ ボタンによる並べ替えが可能
 
 ## 今後の課題
 

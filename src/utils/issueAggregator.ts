@@ -439,6 +439,26 @@ function applyGroupRules(value: string, groupRules: PieGroupRule[]): string {
 }
 
 /**
+ * クロス集計用グルーピングルールマッチング（AND条件を評価する）
+ * マッチしたグループ名を返す。どのルールにもマッチしない場合は null を返す
+ */
+function applyGroupRulesForCrossTable(value: string, groupRules: PieGroupRule[], issue: RedmineIssue): string | null {
+  for (const rule of groupRules) {
+    if (!rule.name || !rule.values.includes(value)) continue
+    if (rule.andConditions?.length) {
+      const allMatch = rule.andConditions.every(cond => {
+        const issueVal = getIssueGroupValue(issue, cond.field)
+        const effective = (issueVal === null || issueVal === '') ? '(No data)' : issueVal
+        return cond.values.includes(effective)
+      })
+      if (!allMatch) continue
+    }
+    return rule.name
+  }
+  return null
+}
+
+/**
  * Redmineチケット一覧を groupBy フィールドでグループ化し、円グラフ用データに集計する
  * conditions が指定された場合は一致するチケットのみを集計する
  * groupRules が指定された場合はスライスをグルーピングする
@@ -657,6 +677,9 @@ export function aggregateCrossTable(
   const rowTotals: Record<string, number> = {}
   const colTotals: Record<string, number> = {}
   let grandTotal = 0
+  // AND条件フィルタ値収集用（rowKey/colKey → { fieldKey → Set<filterValue> }）
+  const rowAndCondFvMap: Record<string, Record<string, Set<string>>> = {}
+  const colAndCondFvMap: Record<string, Record<string, Set<string>>> = {}
 
   for (const issue of issues) {
     if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
@@ -666,22 +689,25 @@ export function aggregateCrossTable(
     const effectiveRowLabel = (rawRowLabel === null || rawRowLabel === '') ? '(No data)' : rawRowLabel
     const effectiveColLabel = (rawColLabel === null || rawColLabel === '') ? '(No data)' : rawColLabel
 
-    // グルーピング定義がある場合: いずれのルールにもマッチしない値はスキップ
+    // グルーピング定義がある場合: AND条件を含めてマッチしたグループ名を取得（null = 除外）
+    let rowKey: string
     if (rowGroupRules?.length) {
-      const inAnyRule = rowGroupRules.some(r => r.values.includes(effectiveRowLabel))
-      if (!inAnyRule) continue
-    } else if (effectiveRowLabel === '(No data)') {
-      continue
+      const matched = applyGroupRulesForCrossTable(effectiveRowLabel, rowGroupRules, issue)
+      if (matched === null) continue
+      rowKey = matched
+    } else {
+      if (effectiveRowLabel === '(No data)') continue
+      rowKey = effectiveRowLabel
     }
+    let colKey: string
     if (colGroupRules?.length) {
-      const inAnyRule = colGroupRules.some(r => r.values.includes(effectiveColLabel))
-      if (!inAnyRule) continue
-    } else if (effectiveColLabel === '(No data)') {
-      continue
+      const matched = applyGroupRulesForCrossTable(effectiveColLabel, colGroupRules, issue)
+      if (matched === null) continue
+      colKey = matched
+    } else {
+      if (effectiveColLabel === '(No data)') continue
+      colKey = effectiveColLabel
     }
-
-    const rowKey = rowGroupRules?.length ? applyGroupRules(effectiveRowLabel, rowGroupRules) : effectiveRowLabel
-    const colKey = colGroupRules?.length ? applyGroupRules(effectiveColLabel, colGroupRules) : effectiveColLabel
 
     if (!rowLabels[rowKey]) rowLabels[rowKey] = rowKey
     if (!colLabels[colKey]) colLabels[colKey] = colKey
@@ -693,6 +719,24 @@ export function aggregateCrossTable(
     if (rowFv !== null) rowFvMap.get(rowKey)!.add(rowFv)
     const colFv = getIssueGroupFilterValue(issue, colGroupBy)
     if (colFv !== null) colFvMap.get(colKey)!.add(colFv)
+
+    // AND条件フィルタ値を収集
+    const matchedRowRule = rowGroupRules?.find(r => r.name === rowKey)
+    matchedRowRule?.andConditions?.forEach(cond => {
+      const fv = getIssueGroupFilterValue(issue, cond.field)
+      if (fv === null) return
+      if (!rowAndCondFvMap[rowKey]) rowAndCondFvMap[rowKey] = {}
+      if (!rowAndCondFvMap[rowKey][cond.field]) rowAndCondFvMap[rowKey][cond.field] = new Set()
+      rowAndCondFvMap[rowKey][cond.field].add(fv)
+    })
+    const matchedColRule = colGroupRules?.find(r => r.name === colKey)
+    matchedColRule?.andConditions?.forEach(cond => {
+      const fv = getIssueGroupFilterValue(issue, cond.field)
+      if (fv === null) return
+      if (!colAndCondFvMap[colKey]) colAndCondFvMap[colKey] = {}
+      if (!colAndCondFvMap[colKey][cond.field]) colAndCondFvMap[colKey][cond.field] = new Set()
+      colAndCondFvMap[colKey][cond.field].add(fv)
+    })
 
     if (!cells[rowKey]) cells[rowKey] = {}
     if (!cells[rowKey][colKey]) cells[rowKey][colKey] = { count: 0 }
@@ -727,7 +771,18 @@ export function aggregateCrossTable(
   const colFilterValues: Record<string, string[]> = {}
   for (const [k, s] of colFvMap.entries()) colFilterValues[k] = Array.from(s)
 
-  return { rowKeys, colKeys, rowLabels, colLabels, rowFilterValues, colFilterValues, cells, rowTotals, colTotals, grandTotal }
+  const rowAndCondFilterValues: Record<string, Record<string, string[]>> = {}
+  for (const [rk, fieldMap] of Object.entries(rowAndCondFvMap)) {
+    rowAndCondFilterValues[rk] = {}
+    for (const [field, s] of Object.entries(fieldMap)) rowAndCondFilterValues[rk][field] = Array.from(s)
+  }
+  const colAndCondFilterValues: Record<string, Record<string, string[]>> = {}
+  for (const [ck, fieldMap] of Object.entries(colAndCondFvMap)) {
+    colAndCondFilterValues[ck] = {}
+    for (const [field, s] of Object.entries(fieldMap)) colAndCondFilterValues[ck][field] = Array.from(s)
+  }
+
+  return { rowKeys, colKeys, rowLabels, colLabels, rowFilterValues, colFilterValues, rowAndCondFilterValues, colAndCondFilterValues, cells, rowTotals, colTotals, grandTotal }
 }
 
 // --- EVM集計 ---

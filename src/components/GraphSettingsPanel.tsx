@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, PieGroupRule, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, PieGroupRule, PieGroupRuleAndCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -123,11 +123,15 @@ interface PieGroupRulesEditorProps {
   groupRules: PieGroupRule[]
   getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
   onChange: (rules: PieGroupRule[] | undefined) => void
+  filterFields?: FilterField[]
+  enableAndConditions?: boolean
 }
 
-function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions, onChange }: PieGroupRulesEditorProps) {
+function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions, onChange, filterFields, enableAndConditions }: PieGroupRulesEditorProps) {
   const [options, setOptions] = useState<FilterFieldOption[]>([])
   const [loading, setLoading] = useState(false)
+  // AND条件の選択肢キャッシュ（fieldKey → options）
+  const [andCondOptionsCache, setAndCondOptionsCache] = useState<Record<string, FilterFieldOption[]>>({})
 
   const enabled = groupRules.length > 0
 
@@ -167,6 +171,60 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
     onChange(groupRules.map((r, i) => i === idx ? { ...r, values } : r))
   }
 
+  function addAndCondition(ruleIdx: number) {
+    onChange(groupRules.map((r, i) => i === ruleIdx
+      ? { ...r, andConditions: [...(r.andConditions ?? []), { field: '', values: [] }] }
+      : r
+    ))
+  }
+
+  function removeAndCondition(ruleIdx: number, condIdx: number) {
+    onChange(groupRules.map((r, i) => {
+      if (i !== ruleIdx) return r
+      const next = (r.andConditions ?? []).filter((_, ci) => ci !== condIdx)
+      return { ...r, andConditions: next.length ? next : undefined }
+    }))
+  }
+
+  function updateAndCondField(ruleIdx: number, condIdx: number, field: string) {
+    // フィールドが変わったら選択肢を取得してキャッシュ
+    if (field && !andCondOptionsCache[field]) {
+      getFieldOptions(field).then(opts => {
+        setAndCondOptionsCache(prev => ({ ...prev, [field]: opts }))
+      })
+    }
+    onChange(groupRules.map((r, i) => {
+      if (i !== ruleIdx) return r
+      const conds = (r.andConditions ?? []).map((c, ci): PieGroupRuleAndCondition =>
+        ci === condIdx ? { field, values: [] } : c
+      )
+      return { ...r, andConditions: conds }
+    }))
+  }
+
+  function updateAndCondValues(ruleIdx: number, condIdx: number, values: string[]) {
+    onChange(groupRules.map((r, i) => {
+      if (i !== ruleIdx) return r
+      const conds = (r.andConditions ?? []).map((c, ci) =>
+        ci === condIdx ? { ...c, values } : c
+      )
+      return { ...r, andConditions: conds }
+    }))
+  }
+
+  // AND条件フィールドの選択肢を非同期フェッチ（まだキャッシュにない場合）
+  useEffect(() => {
+    if (!enableAndConditions) return
+    const fields = groupRules.flatMap(r => (r.andConditions ?? []).map(c => c.field)).filter(f => f && !andCondOptionsCache[f])
+    const unique = [...new Set(fields)]
+    unique.forEach(field => {
+      getFieldOptions(field).then(opts => {
+        setAndCondOptionsCache(prev => ({ ...prev, [field]: opts }))
+      })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const selectStyle: React.CSSProperties = {
     fontSize: 12,
     padding: '2px 4px',
@@ -174,6 +232,8 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
     borderRadius: 3,
     background: '#fff',
   }
+
+  const fieldSelectOptions = (filterFields ?? []).map(f => ({ value: f.key, label: f.name }))
 
   return (
     <div style={{ marginTop: 6 }}>
@@ -193,32 +253,81 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
         <div>
           {loading && <span style={{ fontSize: 11, color: '#999' }}>選択肢を読み込み中...</span>}
           {groupRules.map((rule, idx) => (
-            <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                value={rule.name}
-                onChange={(e) => updateRuleName(idx, e.target.value)}
-                placeholder="グループ名"
-                style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 110 }}
-              />
-              <select
-                multiple
-                value={rule.values}
-                onChange={(e) => updateRuleValues(idx, Array.from(e.target.selectedOptions, o => o.value))}
-                style={{ ...selectStyle, height: 60, minWidth: 130 }}
-              >
-                <option value="(No data)">(No data)</option>
-                {options.map((opt) => (
-                  <option key={opt.value} value={opt.label}>{opt.label}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => removeRule(idx)}
-                style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
-              >
-                ×
-              </button>
+            <div key={idx} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #f0f0f0' }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={rule.name}
+                  onChange={(e) => updateRuleName(idx, e.target.value)}
+                  placeholder="グループ名"
+                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 110 }}
+                />
+                <select
+                  multiple
+                  value={rule.values}
+                  onChange={(e) => updateRuleValues(idx, Array.from(e.target.selectedOptions, o => o.value))}
+                  style={{ ...selectStyle, height: 60, minWidth: 130 }}
+                >
+                  <option value="(No data)">(No data)</option>
+                  {options.map((opt) => (
+                    <option key={opt.value} value={opt.label}>{opt.label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => removeRule(idx)}
+                  style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                >
+                  ×
+                </button>
+              </div>
+              {/* AND条件 */}
+              {enableAndConditions && (
+                <div style={{ marginTop: 4, paddingLeft: 8 }}>
+                  {(rule.andConditions ?? []).map((cond, ci) => {
+                    const condOpts = cond.field ? (andCondOptionsCache[cond.field] ?? []) : []
+                    return (
+                      <div key={ci} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 3, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, color: '#888' }}>AND</span>
+                        <Select
+                          options={fieldSelectOptions}
+                          value={fieldSelectOptions.find(o => o.value === cond.field) ?? null}
+                          onChange={opt => updateAndCondField(idx, ci, opt?.value ?? '')}
+                          placeholder="フィールド"
+                          styles={{
+                            ...fieldSelectStyles,
+                            container: (base: object) => ({ ...base, width: 160 }),
+                          }}
+                          isClearable={false}
+                        />
+                        <select
+                          multiple
+                          value={cond.values}
+                          onChange={e => updateAndCondValues(idx, ci, Array.from(e.target.selectedOptions, o => o.value))}
+                          style={{ ...selectStyle, height: 52, minWidth: 120 }}
+                        >
+                          <option value="(No data)">(No data)</option>
+                          {condOpts.map(opt => (
+                            <option key={opt.value} value={opt.label}>{opt.label}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => removeAndCondition(idx, ci)}
+                          style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                        >×</button>
+                      </div>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => addAndCondition(idx)}
+                    style={{ fontSize: 11, padding: '1px 8px', border: '1px solid #93c5fd', borderRadius: 3, background: '#eff6ff', cursor: 'pointer', color: '#1d4ed8' }}
+                  >
+                    + AND条件を追加
+                  </button>
+                </div>
+              )}
             </div>
           ))}
           <button
@@ -1031,6 +1140,55 @@ interface Props {
   getFieldOptions?: (key: string) => Promise<FilterFieldOption[]>
 }
 
+interface HeadingEditorRowProps {
+  heading: HeadingConfig
+  onChange: (updated: HeadingConfig) => void
+  onDelete: () => void
+}
+
+function HeadingEditorRow({ heading, onChange, onDelete }: HeadingEditorRowProps) {
+  const [colorPickerOpen, setColorPickerOpen] = useState(false)
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+      {/* 色インジケーター＋カラーピッカー */}
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div
+          onClick={() => setColorPickerOpen(!colorPickerOpen)}
+          style={{ width: 14, height: 14, borderRadius: 2, background: heading.color, cursor: 'pointer', border: '1px solid #aaa' }}
+        />
+        {colorPickerOpen && (
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setColorPickerOpen(false)} />
+            <div style={{ position: 'absolute', top: 18, left: 0, zIndex: 100, background: '#fff', border: '1px solid #ccc', borderRadius: 4, padding: 6, display: 'flex', flexWrap: 'wrap', gap: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', width: 156 }}>
+              {COLOR_PALETTE.map((c) => (
+                <div
+                  key={c}
+                  onClick={() => { onChange({ ...heading, color: c }); setColorPickerOpen(false) }}
+                  style={{ width: 16, height: 16, borderRadius: 2, background: c, cursor: 'pointer', border: c === heading.color ? '2px solid #333' : '1px solid #aaa' }}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      {/* テキスト入力 */}
+      <input
+        type="text"
+        value={heading.text}
+        onChange={e => onChange({ ...heading, text: e.target.value })}
+        style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, flex: 1 }}
+        placeholder="見出しテキスト"
+      />
+      {/* 削除ボタン */}
+      <button
+        type="button"
+        onClick={onDelete}
+        style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #fca5a5', borderRadius: 3, background: '#fff', color: '#dc2626', cursor: 'pointer' }}
+      >×</button>
+    </div>
+  )
+}
+
 export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, onReset, teamPresets, filterFields = [], dateFilterFields = [], getFieldOptions = async () => [] }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [presets, setPresets] = useState<Preset[]>(() => loadPresets())
@@ -1338,6 +1496,9 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               } else if (ref.type === 'assignment') {
                 const a = (settings.assignmentMappings ?? []).find(x => x.id === ref.id)
                 label = `担当数マッピング: ${a?.title || ''}`
+              } else if (ref.type === 'heading') {
+                const h = (settings.headings ?? []).find(x => x.id === ref.id)
+                label = `見出し: ${h?.text || ''}`
               }
               return (
                 <div key={ref.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, padding: '3px 6px', background: '#f9f9f9', borderRadius: 3, border: '1px solid #e5e7eb' }}>
@@ -2110,6 +2271,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           groupBy={table.rowGroupBy}
                           groupRules={table.rowGroupRules ?? []}
                           getFieldOptions={getFieldOptions}
+                          filterFields={filterFields}
+                          enableAndConditions={true}
                           onChange={(rules) => {
                             const next = tables.map((t, j) => j === i ? { ...t, rowGroupRules: rules ?? undefined } : t)
                             onChangeManual({ ...settings, tables: next })
@@ -2127,6 +2290,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           groupBy={table.colGroupBy}
                           groupRules={table.colGroupRules ?? []}
                           getFieldOptions={getFieldOptions}
+                          filterFields={filterFields}
+                          enableAndConditions={true}
                           onChange={(rules) => {
                             const next = tables.map((t, j) => j === i ? { ...t, colGroupRules: rules ?? undefined } : t)
                             onChangeManual({ ...settings, tables: next })
@@ -2770,6 +2935,54 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 }}
               >
                 ＋ 担当数マッピングを追加
+              </button>
+            </div>
+          </div>
+
+          {/* 見出し設定 */}
+          <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>見出し設定</div>
+            <div>
+              {(settings.headings ?? []).map((heading, i) => {
+                const headings = settings.headings ?? []
+                function updateHeading(updated: HeadingConfig) {
+                  const next = headings.map((h, idx) => idx === i ? updated : h)
+                  onChangeManual({ ...settings, headings: next })
+                }
+                function deleteHeading() {
+                  const next = headings.filter((_, idx) => idx !== i)
+                  const nextOrder = (settings.tileOrder ?? []).filter(r => !(r.type === 'heading' && r.id === heading.id))
+                  onChangeManual({ ...settings, headings: next, tileOrder: nextOrder })
+                }
+                return (
+                  <HeadingEditorRow
+                    key={heading.id ?? i}
+                    heading={heading}
+                    onChange={updateHeading}
+                    onDelete={deleteHeading}
+                  />
+                )
+              })}
+              <button
+                type="button"
+                onClick={() => {
+                  const headingId = generateId()
+                  onChangeManual({
+                    ...settings,
+                    headings: [...(settings.headings ?? []), { id: headingId, text: '見出し', color: COLOR_PALETTE[0] }],
+                    tileOrder: [...(settings.tileOrder ?? []), { type: 'heading', id: headingId }],
+                  })
+                }}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  border: '1px solid #ccc',
+                  borderRadius: 3,
+                  background: '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                ＋ 見出しを追加
               </button>
             </div>
           </div>

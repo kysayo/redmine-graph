@@ -22,10 +22,17 @@ export interface PieDataPoint {
   filterValues?: string[]  // URLフィルタ構築用（IDまたはCF値）
 }
 
+// クロス集計グルーピングのAND条件
+export interface PieGroupRuleAndCondition {
+  field: string    // フィールドキー（例: 'cf_628'）
+  values: string[] // 表示名/生値のリスト（getIssueGroupValue が返す値と一致させる）
+}
+
 // 円グラフ スライスグルーピングルール
 export interface PieGroupRule {
   name: string      // グループ名（例: "対応中"）
   values: string[]  // グループ対象の値リスト（例: ["In Progress", "In Progress(Permanent)"]）
+  andConditions?: PieGroupRuleAndCondition[]  // 追加AND条件（クロス集計のみで評価）
 }
 
 // 円グラフ 経過日数バケット（groupBy === 'elapsed_days' のときのスライス定義）
@@ -147,6 +154,13 @@ export interface AssignmentMappingConfig {
   fullWidth?: boolean
 }
 
+// 見出し区切りタイル設定
+export interface HeadingConfig {
+  id?: string   // タイル識別子（tileOrder参照用）
+  text: string  // 見出しテキスト
+  color: string // アクセントカラー（HEX）
+}
+
 // クロス集計テーブル設定
 export interface CrossTableConfig {
   id?: string                     // タイル識別子（tileOrder参照用）
@@ -167,6 +181,8 @@ export interface CrossTableData {
   colLabels: Record<string, string>
   rowFilterValues: Record<string, string[]>  // rowKey -> URLフィルタ用ID/値
   colFilterValues: Record<string, string[]>  // colKey -> URLフィルタ用ID/値
+  rowAndCondFilterValues?: Record<string, Record<string, string[]>>  // rowKey -> { fieldKey -> [filterValues] }
+  colAndCondFilterValues?: Record<string, Record<string, string[]>>  // colKey -> { fieldKey -> [filterValues] }
   cells: Record<string, Record<string, { count: number }>>
   rowTotals: Record<string, number>
   colTotals: Record<string, number>
@@ -196,7 +212,7 @@ export interface ComboChartConfig {
 
 // タイル表示順序のエントリ
 export interface TileRef {
-  type: 'combo' | 'pie' | 'table' | 'evm' | 'assignment'
+  type: 'combo' | 'pie' | 'table' | 'evm' | 'assignment' | 'heading'
   id: string
 }
 
@@ -228,6 +244,7 @@ export interface UserSettings {
   tables?: CrossTableConfig[]
   evmTiles?: EVMTileConfig[]
   assignmentMappings?: AssignmentMappingConfig[]
+  headings?: HeadingConfig[]
   appliedTeamPreset?: string
 }
 
