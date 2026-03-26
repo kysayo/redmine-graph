@@ -73,11 +73,6 @@ export function TileCard({ children, style, fileName = 'redmine-graph', onCopyTi
         className="png-tile-buttons"
         style={{ position: 'absolute', top: 10, right: 12, display: 'flex', gap: 4, zIndex: 1 }}
       >
-        {onCopyTile && (
-          <button type="button" onClick={onCopyTile} style={btnBase}>
-            Copy graph
-          </button>
-        )}
         <button
           type="button"
           onClick={handleCopy}
@@ -100,6 +95,16 @@ export function TileCard({ children, style, fileName = 'redmine-graph', onCopyTi
         </button>
       </div>
       {children}
+      {onCopyTile && (
+        <div
+          className="png-tile-buttons"
+          style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 12px 10px' }}
+        >
+          <button type="button" onClick={onCopyTile} style={btnBase}>
+            Copy graph
+          </button>
+        </div>
+      )}
     </div>
   )
 }
