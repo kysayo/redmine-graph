@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, PieGroupRule, PieGroupRuleAndCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, PieGroupRule, PieGroupRuleAndCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -359,7 +359,7 @@ const BUILTIN_DATE_FIELDS: FilterField[] = [
   { key: 'closed_on', name: '完了日' },
 ]
 
-function ConditionsEditor({ conditions, filterFields, dateFilterFields, getFieldOptions, onChange }: ConditionsEditorProps) {
+export function ConditionsEditor({ conditions, filterFields, dateFilterFields, getFieldOptions, onChange }: ConditionsEditorProps) {
   const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
   const [loadingField, setLoadingField] = useState<string | null>(null)
 
@@ -2985,6 +2985,42 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 ＋ 見出しを追加
               </button>
             </div>
+          </div>
+
+          {/* ジャーナル収集タイル設定 */}
+          <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 4, fontWeight: 'bold' }}>ジャーナル収集タイル</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 8 }}>
+              各タイルの設定・削除はタイル上の「設定」ボタンから行えます
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const newId = generateId()
+                const newCollector: JournalCollectorConfig = {
+                  id: newId,
+                  name: 'ジャーナル収集',
+                  targetIssueId: 0,
+                  conditions: [],
+                  lastCollectedAt: null,
+                }
+                onChangeManual({
+                  ...settings,
+                  journalCollectors: [...(settings.journalCollectors ?? []), newCollector],
+                  tileOrder: [...(settings.tileOrder ?? []), { type: 'journal-collector', id: newId }],
+                })
+              }}
+              style={{
+                fontSize: 12,
+                padding: '3px 10px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                background: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              ＋ ジャーナル収集タイルを追加
+            </button>
           </div>
 
           </div>

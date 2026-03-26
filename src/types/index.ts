@@ -212,8 +212,26 @@ export interface ComboChartConfig {
 
 // タイル表示順序のエントリ
 export interface TileRef {
-  type: 'combo' | 'pie' | 'table' | 'evm' | 'assignment' | 'heading'
+  type: 'combo' | 'pie' | 'table' | 'evm' | 'assignment' | 'heading' | 'journal-collector'
   id: string
+}
+
+// ジャーナル収集タイル: 1レコード（起票 or ジャーナル更新 1件分）
+export interface JournalRecord {
+  issueId: number
+  date: string     // UTC→JST変換後の日付のみ "YYYY-MM-DD"
+  user: number     // journal.user.id（起票レコードは issue.author.id）
+  project: string  // issue.project.name
+  tracker: string  // issue.tracker.name
+}
+
+// ジャーナル収集タイル設定
+export interface JournalCollectorConfig {
+  id: string
+  name: string
+  targetIssueId: number           // 保存先チケット番号
+  conditions: SeriesCondition[]   // フィルタ条件（既存型を再利用）
+  lastCollectedAt: string | null  // null=次回全件フェッチ、文字列=差分フェッチ基準日時
 }
 
 // ユーザー設定全体（localStorageに保存する形）
@@ -245,6 +263,7 @@ export interface UserSettings {
   evmTiles?: EVMTileConfig[]
   assignmentMappings?: AssignmentMappingConfig[]
   headings?: HeadingConfig[]
+  journalCollectors?: JournalCollectorConfig[]
   appliedTeamPreset?: string
 }
 

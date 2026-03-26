@@ -98,6 +98,72 @@ export async function fetchIssueDescription(issueId: number, apiKey: string): Pr
   return data.issue?.description ?? ''
 }
 
+// fetchIssueWithJournals のレスポンス型
+export interface IssueWithJournalsData {
+  id: number
+  project: { name: string }
+  tracker: { name: string }
+  author: { id: number; name: string }
+  created_on: string
+  updated_on: string
+  description: string
+  journals: Array<{
+    id: number
+    user: { id: number; name: string }
+    created_on: string
+  }>
+}
+
+/**
+ * 指定チケットのメタデータ（updated_on と description）を取得する。
+ * ジャーナル収集タイルで前回更新日の確認に使用する。
+ */
+export async function fetchIssueMetadata(
+  issueId: number,
+  apiKey: string,
+): Promise<{ updatedOn: string; description: string }> {
+  const response = await fetch(`/issues/${issueId}.json`, { headers: buildHeaders(apiKey) })
+  if (!response.ok) throw new Error(`Failed to fetch issue metadata: ${response.status}`)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await response.json()
+  return {
+    updatedOn: data.issue?.updated_on ?? '',
+    description: data.issue?.description ?? '',
+  }
+}
+
+/**
+ * 指定チケットをjournals込みで取得する。
+ * ジャーナル収集タイルで各チケットの更新履歴を収集するために使用する。
+ */
+export async function fetchIssueWithJournals(
+  issueId: number,
+  apiKey: string,
+): Promise<IssueWithJournalsData> {
+  const response = await fetch(`/issues/${issueId}.json?include=journals`, { headers: buildHeaders(apiKey) })
+  if (!response.ok) throw new Error(`Failed to fetch issue journals: ${response.status}`)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await response.json()
+  return data.issue as IssueWithJournalsData
+}
+
+/**
+ * 指定チケットの description を更新する（PUT /issues/{id}.json）。
+ * ジャーナル収集タイルで収集データをチケットに保存するために使用する。
+ */
+export async function updateIssueDescription(
+  issueId: number,
+  description: string,
+  apiKey: string,
+): Promise<void> {
+  const response = await fetch(`/issues/${issueId}.json`, {
+    method: 'PUT',
+    headers: buildHeaders(apiKey),
+    body: JSON.stringify({ issue: { description } }),
+  })
+  if (!response.ok) throw new Error(`Failed to update issue description: ${response.status}`)
+}
+
 /**
  * Redmineチケット一覧ページのDOMに埋め込まれた availableFilters から
  * プロジェクト固有のステータス一覧を取得する。

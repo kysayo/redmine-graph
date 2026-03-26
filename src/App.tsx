@@ -4,11 +4,12 @@ import { ComboChart } from './components/ComboChart'
 import { CrossTable } from './components/CrossTable'
 import { EvmTile } from './components/EvmTile'
 import { GraphSettingsPanel, mergePresetSettings } from './components/GraphSettingsPanel'
+import { JournalCollectorTile } from './components/JournalCollectorTile'
 import { TileCard } from './components/TileCard'
 import { HBarChart } from './components/HBarChart'
 import { PieChart } from './components/PieChart'
 import { SummaryCards } from './components/SummaryCards'
-import type { CrossTableConfig, FilterField, FilterFieldOption, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, StackedBarDataPoint, UserSettings } from './types'
+import type { CrossTableConfig, FilterField, FilterFieldOption, JournalCollectorConfig, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, StackedBarDataPoint, UserSettings } from './types'
 import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
@@ -745,6 +746,37 @@ export function App({ container }: Props) {
             <span style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{heading.text}</span>
           </div>
         </div>
+      )
+    }
+
+    if (ref.type === 'journal-collector') {
+      const collectors = settings.journalCollectors ?? []
+      const collector = collectors.find(c => c.id === ref.id)
+      if (!collector) return null
+      return (
+        <TileCard key={key} style={{ gridColumn: '1 / -1' }}>
+          <JournalCollectorTile
+            config={collector}
+            projectId={projectId}
+            apiKey={apiKey}
+            filterFields={filterFields}
+            dateFilterFields={dateFilterFields}
+            getFieldOptions={getFieldOptions}
+            onUpdateConfig={(updated: JournalCollectorConfig) => {
+              handleSettingsChange({
+                ...settings,
+                journalCollectors: collectors.map(c => c.id === updated.id ? updated : c),
+              })
+            }}
+            onDelete={() => {
+              handleSettingsChange({
+                ...settings,
+                journalCollectors: collectors.filter(c => c.id !== ref.id),
+                tileOrder: (settings.tileOrder ?? []).filter(r => !(r.type === 'journal-collector' && r.id === ref.id)),
+              })
+            }}
+          />
+        </TileCard>
       )
     }
 

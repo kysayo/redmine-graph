@@ -513,6 +513,97 @@ EVM（Earned Value Management）の考え方をチケット数に適用して、
 | `text` | `string` | 見出しテキスト |
 | `color` | `string` | アクセントカラー（HEX）。左ボーダーと薄い背景色に使用 |
 
+## ジャーナル収集タイル（JournalCollectorTile）
+
+Redmineチケットの更新履歴（journals）を一括収集し、指定チケットの `description` にJSONとして保存するタイル。担当者ごとの更新回数集計などのデータ蓄積が目的。
+
+### 動作概要
+
+- タイルに設定した条件（トラッカー等）に合致するチケットを対象に、各チケットの `include=journals` APIを1件ずつ呼び出して更新履歴を収集する
+- 収集したデータは指定チケット（`targetIssueId`）の `description` にJSON配列として保存する
+- **起票も1件として記録**: ジャーナルには起票が残らないため、チケットの `author.id` + `created_on` を起票レコードとして別途追加する
+- **担当者はID保存**: 名前変更に強くするため `journal.user.id`（起票レコードは `issue.author.id`）をIDで記録する
+- **更新日は JST 日付のみ**: `journal.created_on`（`journal.updated_on` は履歴修正のため使わない）をUTC→JST変換後に `YYYY-MM-DD` 形式で保存する
+- **差分更新**: 前回収集完了後に保存先チケットが更新された日時を基準に `updated_on >= 前回日付` でチケットを絞り込み、全件再取得を防ぐ（Redmine APIの制約で日付部分のみ指定）
+- **チケット単位マージ**: 差分フェッチで取得したチケットIDに対応する既存レコードを全削除し、最新のジャーナル全件で置き換える（`include=journals` はジャーナルの日付絞り込み不可のため全件取り直しが前提であり整合する）
+- **スコープ**: 現在表示中のプロジェクト内のみ（`/projects/{id}/issues.json`）
+
+### 保存するJSONの構造
+
+```json
+[
+  { "issueId": 123, "date": "2026-03-10", "user": 101, "project": "ProjectA", "tracker": "バグ" },
+  { "issueId": 123, "date": "2026-03-15", "user": 205, "project": "ProjectA", "tracker": "バグ" },
+  { "issueId": 124, "date": "2026-03-11", "user": 101, "project": "ProjectB", "tracker": "機能" }
+]
+```
+
+1チケットにつき「起票レコード × 1」＋「ジャーナルレコード × N」が生成される。
+
+### 前回更新日の管理
+
+- タイルロード時に保存先チケットの `updated_on` を API から取得して表示する
+- 収集実行後: 保存先チケットを再取得し、その `updated_on` を `lastCollectedAt`（localStorage）に保存する
+- **クリア**: `lastCollectedAt` を `null` にリセットする。次回収集実行時は全件フェッチになる
+- タイル上に「（次回は全件取得）」バッジを表示して全件フェッチ予定であることを通知する
+
+### 収集フロー
+
+```
+[収集実行]ボタン
+  │
+  ├─ lastCollectedAt == null → 全件フェッチ（updated_on フィルタなし）
+  └─ lastCollectedAt != null → 差分フェッチ（updated_on >= 前回日付の日付部分）
+            ↓
+  fetchAllIssues(projectId, conditions + updated_on フィルタ, apiKey)
+            ↓
+  各 issue に対して GET /issues/{id}.json?include=journals（1件ずつ）
+            ↓
+  起票レコード + ジャーナルレコードを生成
+            ↓
+  既存JSON から差分取得 issueId を全削除 → 新レコードを追加（チケット単位マージ）
+            ↓
+  PUT /issues/{targetIssueId}.json  ← description に上書き保存
+            ↓
+  GET /issues/{targetIssueId}.json  ← 新 updated_on を lastCollectedAt に保存
+```
+
+### タイルUI
+
+- タイル名、保存先チケット番号、前回更新日（API取得）、収集条件を表示
+- 収集中は進捗バー（「収集中... X / N 件」）を表示
+- エラー発生時はエラーメッセージを表示
+- 「設定」ボタンで設定パネル（タイル名・保存先チケット番号・収集条件）を開閉
+- 「削除」ボタンでタイルを削除
+- **常に全幅表示**（`gridColumn: 1/-1`）
+
+### 設定
+
+- `GraphSettingsPanel` の「ジャーナル収集タイル」セクションの「＋ ジャーナル収集タイルを追加」で追加
+- 個別設定（タイル名・保存先チケット・条件）はタイル上の「設定」ボタンから編集
+- 条件の編集UIは既存の `ConditionsEditor`（`GraphSettingsPanel.tsx`）を再利用
+- **設定は `localStorage` の `UserSettings.journalCollectors` へ保存**
+
+### `JournalCollectorConfig` 型
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `id` | `string` | タイル識別子 |
+| `name` | `string` | タイル表示名 |
+| `targetIssueId` | `number` | 収集データの保存先チケット番号 |
+| `conditions` | `SeriesCondition[]` | 収集対象チケットの絞り込み条件 |
+| `lastCollectedAt` | `string \| null` | 前回収集完了時の保存先チケット `updated_on`（UTC ISO文字列）。`null` = 次回は全件フェッチ |
+
+### `JournalRecord` 型
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `issueId` | `number` | チケットID |
+| `date` | `string` | 更新日（`YYYY-MM-DD`、UTC→JST変換済み）。起票レコードは `issue.created_on`、ジャーナルレコードは `journal.created_on` から生成 |
+| `user` | `number` | 更新者ID。起票レコードは `issue.author.id`、ジャーナルレコードは `journal.user.id` |
+| `project` | `string` | プロジェクト名（`issue.project.name`） |
+| `tracker` | `string` | トラッカー名（`issue.tracker.name`） |
+
 ## タイルカード共通機能（TileCard）
 
 2軸グラフ・円グラフ・横棒グラフ・クロス集計テーブル・EVMタイル・担当数マッピングは `TileCard` コンポーネントでラップされており、右上に以下のボタンが表示される。（見出しタイルは TileCard を使わない）
@@ -524,7 +615,7 @@ EVM（Earned Value Management）の考え方をチケット数に適用して、
 | **PNG DL** | タイルをPNG画像としてダウンロード（2x 解像度） |
 
 - **タイル複製の仕組み**: `tileOrder` の元タイルの直後に新しい `TileRef`（新規ID）を挿入し、対応する設定配列（`combos` / `pies` / `tables` / `evmTiles` / `assignmentMappings` / `headings`）に深いコピーを追加する。設定は `localStorage` に即時保存される
-- **タイル順序（`tileOrder`）**: `UserSettings.tileOrder` に `{ type, id }` 配列として保存。`type` は `'combo' | 'pie' | 'table' | 'evm' | 'assignment' | 'heading'`。設定パネルの「タイル順序」セクションで ↑↓ ボタンによる並べ替えが可能
+- **タイル順序（`tileOrder`）**: `UserSettings.tileOrder` に `{ type, id }` 配列として保存。`type` は `'combo' | 'pie' | 'table' | 'evm' | 'assignment' | 'heading' | 'journal-collector'`。設定パネルの「タイル順序」セクションで ↑↓ ボタンによる並べ替えが可能
 
 ## 今後の課題
 
