@@ -229,9 +229,10 @@ export interface JournalRecord {
 export interface JournalCollectorConfig {
   id: string
   name: string
-  targetIssueId: number           // 保存先チケット番号
-  conditions: SeriesCondition[]   // フィルタ条件（既存型を再利用）
-  lastCollectedAt: string | null  // null=次回全件フェッチ、文字列=差分フェッチ基準日時
+  targetIssueId: number               // 保存先チケット番号
+  conditions: SeriesCondition[]       // フィルタ条件（既存型を再利用）
+  lastCollectedAt: string | null      // null=次回全件フェッチ、文字列=差分フェッチ基準日時
+  collectionStartYearMonth?: string   // 収集開始年月 "YYYY-MM"（この月の1日以降のレコードのみ保存）
 }
 
 // ユーザー設定全体（localStorageに保存する形）

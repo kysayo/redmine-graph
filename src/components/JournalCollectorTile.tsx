@@ -96,6 +96,11 @@ export function JournalCollectorTile({
       const updatedIssueIds = new Set(issues.map(i => i.id))
 
       // 4. 各チケットのジャーナルを1件ずつ取得してレコードを生成
+      // 開始年月が設定されている場合、その月の1日以降のレコードのみ対象
+      const startDateFilter = config.collectionStartYearMonth
+        ? `${config.collectionStartYearMonth}-01`
+        : null
+
       const newRecords: JournalRecord[] = []
       setProgress({ current: 0, total: issues.length })
 
@@ -103,20 +108,25 @@ export function JournalCollectorTile({
         const issueData = await fetchIssueWithJournals(issues[i].id, apiKey)
 
         // 起票レコード（ジャーナルには残らないため別途追加）
-        newRecords.push({
-          issueId: issueData.id,
-          date: utcToJstDate(issueData.created_on),
-          user: issueData.author.id,
-          project: issueData.project.name,
-          tracker: issueData.tracker.name,
-        })
+        const creationDate = utcToJstDate(issueData.created_on)
+        if (!startDateFilter || creationDate >= startDateFilter) {
+          newRecords.push({
+            issueId: issueData.id,
+            date: creationDate,
+            user: issueData.author.id,
+            project: issueData.project.name,
+            tracker: issueData.tracker.name,
+          })
+        }
 
         // ジャーナルレコード（updated_onではなくcreated_onを使用）
         for (const journal of issueData.journals) {
           if (!journal.user?.id) continue  // システム更新など user がない場合はスキップ
+          const journalDate = utcToJstDate(journal.created_on)
+          if (startDateFilter && journalDate < startDateFilter) continue  // 開始年月より前はスキップ
           newRecords.push({
             issueId: issueData.id,
-            date: utcToJstDate(journal.created_on),
+            date: journalDate,
             user: journal.user.id,
             project: issueData.project.name,
             tracker: issueData.tracker.name,
@@ -229,7 +239,7 @@ export function JournalCollectorTile({
               }}
             />
           </div>
-          <div style={{ ...rowStyle, marginBottom: 12 }}>
+          <div style={{ ...rowStyle, marginBottom: 8 }}>
             <span style={labelStyle}>保存先チケット#</span>
             <input
               type="number"
@@ -246,6 +256,24 @@ export function JournalCollectorTile({
                 border: '1px solid #d1d5db',
               }}
             />
+          </div>
+          <div style={{ ...rowStyle, marginBottom: 12 }}>
+            <span style={labelStyle}>収集開始年月</span>
+            <input
+              type="month"
+              value={config.collectionStartYearMonth ?? ''}
+              onChange={e => onUpdateConfig({
+                ...config,
+                collectionStartYearMonth: e.target.value || undefined,
+              })}
+              style={{
+                fontSize: 13,
+                padding: '3px 8px',
+                borderRadius: 4,
+                border: '1px solid #d1d5db',
+              }}
+            />
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>以降のジャーナルのみ収集（空欄=全期間）</span>
           </div>
           <div>
             <span style={{ ...labelStyle, display: 'block', marginBottom: 6 }}>収集条件</span>
@@ -289,6 +317,12 @@ export function JournalCollectorTile({
                 : <span style={{ color: '#9ca3af' }}>未収集</span>}
           </span>
         </div>
+        {config.collectionStartYearMonth && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>収集開始年月</span>
+            <span>{config.collectionStartYearMonth} 以降</span>
+          </div>
+        )}
         {config.conditions.length > 0 && (
           <div style={{ ...rowStyle, flexWrap: 'wrap' }}>
             <span style={labelStyle}>条件</span>
