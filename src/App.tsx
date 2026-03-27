@@ -754,7 +754,7 @@ export function App({ container }: Props) {
       const collector = collectors.find(c => c.id === ref.id)
       if (!collector) return null
       return (
-        <TileCard key={key} style={{ gridColumn: '1 / -1' }}>
+        <div key={key} style={{ gridColumn: '1 / -1', background: '#fff', borderRadius: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
           <JournalCollectorTile
             config={collector}
             projectId={projectId}
@@ -776,7 +776,7 @@ export function App({ container }: Props) {
               })
             }}
           />
-        </TileCard>
+        </div>
       )
     }
 
