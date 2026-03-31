@@ -5,11 +5,12 @@ import { CrossTable } from './components/CrossTable'
 import { EvmTile } from './components/EvmTile'
 import { GraphSettingsPanel, mergePresetSettings } from './components/GraphSettingsPanel'
 import { JournalCollectorTile } from './components/JournalCollectorTile'
+import { JournalCountTile } from './components/JournalCountTile'
 import { TileCard } from './components/TileCard'
 import { HBarChart } from './components/HBarChart'
 import { PieChart } from './components/PieChart'
 import { SummaryCards } from './components/SummaryCards'
-import type { CrossTableConfig, FilterField, FilterFieldOption, JournalCollectorConfig, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, StackedBarDataPoint, UserSettings } from './types'
+import type { CrossTableConfig, FilterField, FilterFieldOption, JournalCollectorConfig, JournalCountConfig, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, StackedBarDataPoint, UserSettings } from './types'
 import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
@@ -773,6 +774,34 @@ export function App({ container }: Props) {
                 ...settings,
                 journalCollectors: collectors.filter(c => c.id !== ref.id),
                 tileOrder: (settings.tileOrder ?? []).filter(r => !(r.type === 'journal-collector' && r.id === ref.id)),
+              })
+            }}
+          />
+        </div>
+      )
+    }
+
+    if (ref.type === 'journal-count') {
+      const counts = settings.journalCounts ?? []
+      const count = counts.find(c => c.id === ref.id)
+      if (!count) return null
+      return (
+        <div key={key} style={{ gridColumn: '1 / -1', background: '#fff', borderRadius: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+          <JournalCountTile
+            config={count}
+            apiKey={apiKey}
+            getFieldOptions={getFieldOptions}
+            onUpdateConfig={(updated: JournalCountConfig) => {
+              handleSettingsChange({
+                ...settings,
+                journalCounts: counts.map(c => c.id === updated.id ? updated : c),
+              })
+            }}
+            onDelete={() => {
+              handleSettingsChange({
+                ...settings,
+                journalCounts: counts.filter(c => c.id !== ref.id),
+                tileOrder: (settings.tileOrder ?? []).filter(r => !(r.type === 'journal-count' && r.id === ref.id)),
               })
             }}
           />

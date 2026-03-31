@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import Select from 'react-select'
-import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, PieGroupRule, PieGroupRuleAndCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, PieGroupRule, PieGroupRuleAndCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -3020,6 +3020,46 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               }}
             >
               ＋ ジャーナル収集タイルを追加
+            </button>
+          </div>
+
+          {/* ジャーナル更新回数タイル設定 */}
+          <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 4, fontWeight: 'bold' }}>ジャーナル更新回数タイル</div>
+            <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 8 }}>
+              各タイルの設定・削除はタイル上の「設定」ボタンから行えます
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const newId = generateId()
+                const today = new Date().toISOString().slice(0, 10)
+                const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+                const newCount: JournalCountConfig = {
+                  id: newId,
+                  name: 'ジャーナル更新回数',
+                  sourceIssueId: 0,
+                  persons: [],
+                  filterTrackerIds: [],
+                  startDate: oneMonthAgo,
+                  endDate: today,
+                }
+                onChangeManual({
+                  ...settings,
+                  journalCounts: [...(settings.journalCounts ?? []), newCount],
+                  tileOrder: [...(settings.tileOrder ?? []), { type: 'journal-count', id: newId }],
+                })
+              }}
+              style={{
+                fontSize: 12,
+                padding: '3px 10px',
+                border: '1px solid #ccc',
+                borderRadius: 3,
+                background: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              ＋ ジャーナル更新回数タイルを追加
             </button>
           </div>
 

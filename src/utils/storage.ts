@@ -82,6 +82,7 @@ export function loadSettings(): UserSettings | null {
         ...(parsed.tables ?? []).map(t => ({ type: 'table' as const, id: t.id! })),
         ...(parsed.evmTiles ?? []).map(e => ({ type: 'evm' as const, id: e.id! })),
         ...(parsed.assignmentMappings ?? []).map(a => ({ type: 'assignment' as const, id: a.id! })),
+        ...(parsed.journalCounts ?? []).map(j => ({ type: 'journal-count' as const, id: j.id })),
       ]
       return { ...parsed, tileOrder }
     }

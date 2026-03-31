@@ -101,8 +101,8 @@ export async function fetchIssueDescription(issueId: number, apiKey: string): Pr
 // fetchIssueWithJournals のレスポンス型
 export interface IssueWithJournalsData {
   id: number
-  project: { name: string }
-  tracker: { name: string }
+  project: { id: number; name: string }
+  tracker: { id: number; name: string }
   author: { id: number; name: string }
   created_on: string
   updated_on: string

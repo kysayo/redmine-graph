@@ -212,17 +212,19 @@ export interface ComboChartConfig {
 
 // タイル表示順序のエントリ
 export interface TileRef {
-  type: 'combo' | 'pie' | 'table' | 'evm' | 'assignment' | 'heading' | 'journal-collector'
+  type: 'combo' | 'pie' | 'table' | 'evm' | 'assignment' | 'heading' | 'journal-collector' | 'journal-count'
   id: string
 }
 
 // ジャーナル収集タイル: 1レコード（起票 or ジャーナル更新 1件分）
 export interface JournalRecord {
   issueId: number
-  date: string     // UTC→JST変換後の日付のみ "YYYY-MM-DD"
-  user: number     // journal.user.id（起票レコードは issue.author.id）
-  project: string  // issue.project.name
-  tracker: string  // issue.tracker.name
+  date: string      // UTC→JST変換後の日付のみ "YYYY-MM-DD"
+  user: number      // journal.user.id（起票レコードは issue.author.id）
+  project: string   // issue.project.name
+  tracker: string   // issue.tracker.name
+  projectId?: number  // issue.project.id（後方互換のためoptional）
+  trackerId?: number  // issue.tracker.id（後方互換のためoptional）
 }
 
 // ジャーナル収集タイル設定
@@ -233,6 +235,28 @@ export interface JournalCollectorConfig {
   conditions: SeriesCondition[]       // フィルタ条件（既存型を再利用）
   lastCollectedAt: string | null      // null=次回全件フェッチ、文字列=差分フェッチ基準日時
   collectionStartYearMonth?: string   // 収集開始年月 "YYYY-MM"（この月の1日以降のレコードのみ保存）
+}
+
+// ジャーナル更新回数タイル: 追加列定義
+export interface JournalCountExtraColumn {
+  key: string    // 一意識別子
+  label: string  // 列ヘッダー（編集可能）
+  type: 'number' | 'text'
+}
+
+// ジャーナル更新回数タイル設定
+export interface JournalCountConfig {
+  id: string
+  name?: string
+  sourceIssueId: number               // JournalRecord JSON が保存されているチケット番号
+  persons: AssignmentMappingPerson[]  // 表示担当者リスト（名前+ID）
+  filterTrackerIds?: number[]         // トラッカーIDで絞り込み（空=全件）
+  startDate: string                   // 集計開始日 YYYY-MM-DD
+  endDate: string                     // 集計終了日 YYYY-MM-DD
+  extraColumns?: JournalCountExtraColumn[]              // 追加列定義（省略時はResourceのみ）
+  extraValues?: Record<string, Record<string, string>>  // personId -> columnKey -> 入力値
+  weeklyDetailMonth?: string                            // 週単位展開する月 "YYYY-MM"（省略時は今月を自動使用）
+  fullWidth?: boolean
 }
 
 // ユーザー設定全体（localStorageに保存する形）
@@ -265,6 +289,7 @@ export interface UserSettings {
   assignmentMappings?: AssignmentMappingConfig[]
   headings?: HeadingConfig[]
   journalCollectors?: JournalCollectorConfig[]
+  journalCounts?: JournalCountConfig[]
   appliedTeamPreset?: string
 }
 

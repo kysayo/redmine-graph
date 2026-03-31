@@ -116,6 +116,8 @@ export function JournalCollectorTile({
             user: issueData.author.id,
             project: issueData.project.name,
             tracker: issueData.tracker.name,
+            projectId: issueData.project.id,
+            trackerId: issueData.tracker.id,
           })
         }
 
@@ -130,6 +132,8 @@ export function JournalCollectorTile({
             user: journal.user.id,
             project: issueData.project.name,
             tracker: issueData.tracker.name,
+            projectId: issueData.project.id,
+            trackerId: issueData.tracker.id,
           })
         }
 
