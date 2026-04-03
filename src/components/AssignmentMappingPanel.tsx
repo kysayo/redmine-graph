@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import type { AssignmentMappingConfig, RedmineIssue, SeriesCondition } from '../types'
+import { useMemo, useState } from 'react'
+import type { AssignmentMappingConfig, JournalCountExtraColumn, RedmineIssue, SeriesCondition } from '../types'
 import { addBusinessDaysToDate, getIssueDateByField } from '../utils/dateUtils'
 import { issueMatchesConditions } from '../utils/issueAggregator'
 import { buildRedmineFilterUrl } from '../utils/redmineFilterUrl'
@@ -7,7 +7,12 @@ import { buildRedmineFilterUrl } from '../utils/redmineFilterUrl'
 interface Props {
   config: AssignmentMappingConfig
   issues: RedmineIssue[] | null
+  onExtraValuesChange?: (extraValues: Record<string, Record<string, string>>) => void
 }
+
+const DEFAULT_EXTRA_COLUMNS: JournalCountExtraColumn[] = [
+  { key: 'resource', label: 'Resource', type: 'number' },
+]
 
 /** YYYY-MM-DD の日付が土曜(6)または日曜(0)かどうかを返す */
 function isWeekend(dateStr: string): boolean {
@@ -46,7 +51,7 @@ function getIssueAssigneeId(issue: RedmineIssue, assigneeField: string): string 
   return null
 }
 
-export function AssignmentMappingPanel({ config, issues }: Props) {
+export function AssignmentMappingPanel({ config, issues, onExtraValuesChange }: Props) {
   const {
     title,
     assigneeField,
@@ -59,6 +64,23 @@ export function AssignmentMappingPanel({ config, issues }: Props) {
     hideWeekends = false,
     fullWidth,
   } = config
+
+  const extraColumns = config.extraColumns ?? DEFAULT_EXTRA_COLUMNS
+  const extraValues = config.extraValues ?? {}
+
+  // インライン編集用ステート: 編集中のセル (personId, colKey) -> 値
+  const [editingCell, setEditingCell] = useState<{ personId: string; colKey: string } | null>(null)
+  const [editingValue, setEditingValue] = useState('')
+
+  function commitEdit() {
+    if (!editingCell) return
+    const { personId, colKey } = editingCell
+    const next: Record<string, Record<string, string>> = { ...extraValues }
+    if (!next[personId]) next[personId] = {}
+    next[personId] = { ...next[personId], [colKey]: editingValue }
+    onExtraValuesChange?.(next)
+    setEditingCell(null)
+  }
 
   // 表示する日付列の一覧
   const dates = useMemo(
@@ -119,19 +141,32 @@ export function AssignmentMappingPanel({ config, issues }: Props) {
     return map
   }, [issues, conditions, assigneeField, endDateField, fallbackDays, displayStartDate, displayEndDate, dates, personIdSet])
 
-  // 日付ヘッダーの表示文字列（月が変わるときにM/D表示、それ以外はD表示）
-  const dateLabels = useMemo(() => {
-    let prevMonth = ''
+  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+  // 各日付に対応する月ラベル（その月の最初の出現日のみ表示、それ以外は空）
+  const monthLabels = useMemo(() => {
+    const seen = new Set<string>()
     return dates.map(date => {
-      const [, m, d] = date.split('-')
-      const month = m
-      if (month !== prevMonth) {
-        prevMonth = month
-        return `${Number(m)}/${Number(d)}`
+      const [year, month] = date.split('-')
+      const ym = `${year}-${month}`
+      if (!seen.has(ym)) {
+        seen.add(ym)
+        return MONTH_NAMES[parseInt(month) - 1]
       }
-      return String(Number(d))
+      return ''
     })
   }, [dates])
+
+  // 日番号・曜日・週境界フラグ
+  const dateMeta = useMemo(() => dates.map(date => {
+    const d = new Date(date + 'T00:00:00Z')
+    return {
+      day: String(d.getUTCDate()),
+      weekday: WEEKDAY_NAMES[d.getUTCDay()],
+      isWeekStart: d.getUTCDay() === 1, // Monday
+    }
+  }), [dates])
 
   const handleCellClick = (personId: string, date: string) => {
     const personCondition: SeriesCondition = {
@@ -186,14 +221,35 @@ export function AssignmentMappingPanel({ config, issues }: Props) {
   }
 
   const thStyle: React.CSSProperties = {
-    padding: '4px 8px',
-    fontSize: 12,
+    padding: '3px 6px',
+    fontSize: 11,
     fontWeight: 600,
     color: '#374151',
     background: '#f9fafb',
     border: '1px solid #e5e7eb',
     whiteSpace: 'nowrap',
     textAlign: 'center',
+  }
+
+  const thMonthStyle: React.CSSProperties = {
+    ...thStyle,
+    fontSize: 11,
+    fontWeight: 700,
+    background: '#f3f4f6',
+    padding: '2px 4px',
+  }
+
+  const thWeekdayStyle: React.CSSProperties = {
+    ...thStyle,
+    fontSize: 10,
+    color: '#6b7280',
+    padding: '2px 4px',
+  }
+
+  const thExtraStyle: React.CSSProperties = {
+    ...thStyle,
+    background: '#fefce8',
+    minWidth: 64,
   }
 
   const tdNameStyle: React.CSSProperties = {
@@ -210,12 +266,31 @@ export function AssignmentMappingPanel({ config, issues }: Props) {
   }
 
   const tdCellStyle: React.CSSProperties = {
-    padding: '4px 8px',
+    padding: '4px 3px',
     fontSize: 12,
     color: '#111827',
     border: '1px solid #e5e7eb',
     textAlign: 'center',
-    minWidth: 32,
+    minWidth: 22,
+  }
+
+  const tdExtraStyle: React.CSSProperties = {
+    ...tdCellStyle,
+    background: '#fefce8',
+    cursor: onExtraValuesChange ? 'pointer' : 'default',
+    minWidth: 64,
+  }
+
+  // 月境界線（月行のみ）: その月の最初のセルの左に縦線
+  function monthBorderStyle(monthLabel: string, isFirst: boolean): React.CSSProperties {
+    if (!monthLabel || isFirst) return {}
+    return { borderLeft: '2px solid #9ca3af' }
+  }
+
+  // 週境界線（日行・曜日行・データ行）: 月曜の左に縦線
+  function weekBorderStyle(isWeekStart: boolean, isFirst: boolean): React.CSSProperties {
+    if (!isWeekStart || isFirst) return {}
+    return { borderLeft: '2px solid #9ca3af' }
   }
 
   const gridColumnStyle = fullWidth !== false ? { gridColumn: '1 / -1' } : {}
@@ -231,11 +306,31 @@ export function AssignmentMappingPanel({ config, issues }: Props) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ borderCollapse: 'collapse', tableLayout: 'auto' }}>
             <thead>
+              {/* 月行 */}
               <tr>
-                <th style={{ ...thStyle, position: 'sticky', left: 0, zIndex: 2 }}></th>
+                <th rowSpan={3} style={{ ...thStyle, position: 'sticky', left: 0, zIndex: 2 }}></th>
+                {extraColumns.map(col => (
+                  <th key={col.key} rowSpan={3} style={thExtraStyle}>{col.label}</th>
+                ))}
                 {dates.map((date, i) => (
-                  <th key={date} style={{ ...thStyle, padding: '4px 6px', minWidth: 32 }}>
-                    {dateLabels[i]}
+                  <th key={date} style={{ ...thMonthStyle, ...monthBorderStyle(monthLabels[i], i === 0) }}>
+                    {monthLabels[i]}
+                  </th>
+                ))}
+              </tr>
+              {/* 日行 */}
+              <tr>
+                {dates.map((date, i) => (
+                  <th key={date} style={{ ...thStyle, minWidth: 22, ...weekBorderStyle(dateMeta[i].isWeekStart, i === 0) }}>
+                    {dateMeta[i].day}
+                  </th>
+                ))}
+              </tr>
+              {/* 曜日行 */}
+              <tr>
+                {dates.map((date, i) => (
+                  <th key={date} style={{ ...thWeekdayStyle, ...weekBorderStyle(dateMeta[i].isWeekStart, i === 0) }}>
+                    {dateMeta[i].weekday}
                   </th>
                 ))}
               </tr>
@@ -243,19 +338,51 @@ export function AssignmentMappingPanel({ config, issues }: Props) {
             <tbody>
               {persons.map(person => {
                 const personCounts = countMap[person.id] ?? {}
+                const personExtra = extraValues[person.id] ?? {}
                 return (
                   <tr key={person.id} style={{ background: '#fff' }}
                     onMouseEnter={e => (e.currentTarget.style.background = '#eff6ff')}
                     onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
                   >
                     <td style={tdNameStyle}>{person.name}</td>
-                    {dates.map(date => {
+                    {extraColumns.map(col => {
+                      const isEditing = editingCell?.personId === person.id && editingCell?.colKey === col.key
+                      const val = personExtra[col.key] ?? ''
+                      return (
+                        <td key={col.key} style={tdExtraStyle}
+                          onClick={() => {
+                            if (!onExtraValuesChange) return
+                            setEditingCell({ personId: person.id, colKey: col.key })
+                            setEditingValue(val)
+                          }}
+                        >
+                          {isEditing ? (
+                            <input
+                              type={col.type === 'number' ? 'number' : 'text'}
+                              value={editingValue}
+                              autoFocus
+                              onChange={e => setEditingValue(e.target.value)}
+                              onBlur={commitEdit}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') commitEdit()
+                                if (e.key === 'Escape') setEditingCell(null)
+                              }}
+                              style={{ width: 60, fontSize: 12, padding: '1px 4px', border: '1px solid #93c5fd', borderRadius: 2 }}
+                            />
+                          ) : (
+                            val || ''
+                          )}
+                        </td>
+                      )
+                    })}
+                    {dates.map((date, i) => {
                       const count = personCounts[date]
                       return (
                         <td
                           key={date}
                           style={{
                             ...tdCellStyle,
+                            ...weekBorderStyle(dateMeta[i].isWeekStart, i === 0),
                             cursor: count ? 'pointer' : 'default',
                             color: count ? '#2563eb' : '#d1d5db',
                             fontWeight: count ? 700 : 400,

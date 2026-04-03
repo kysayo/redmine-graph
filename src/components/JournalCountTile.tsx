@@ -84,7 +84,8 @@ function generateColumns(startDate: string, endDate: string, weeklyDetailMonth: 
       const [y, mo] = ym.split('-').map(Number)
       const monthFirstDay = `${ym}-01`
       const monthLastDay  = new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10)
-      const today = new Date().toISOString().slice(0, 10)
+      const _now = new Date()
+      const today = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}-${String(_now.getDate()).padStart(2, '0')}`
       // 今日がこの月内なら endDate を today まで延ばし、未完了の週も表示する
       const extendedEnd   = today > endDate && today <= monthLastDay ? today : endDate
       const effectiveStart = startDate > monthFirstDay ? startDate : monthFirstDay
@@ -251,6 +252,7 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
   const [allOptions, setAllOptions] = useState<FilterFieldOption[]>([])
   const [localExtraValues, setLocalExtraValues] = useState<Record<string, Record<string, string>>>(config.extraValues ?? {})
   const csvInputRef = useRef<HTMLInputElement>(null)
+  const [copiedPersons, setCopiedPersons] = useState(false)
 
   useEffect(() => {
     setLocalExtraValues(config.extraValues ?? {})
@@ -283,6 +285,27 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
   }
 
   useEffect(() => { loadRecords() }, [sourceIssueId, apiKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- 担当者コピー ---
+
+  function escapeCsvCell(v: string): string {
+    if (v.includes(',') || v.includes('"') || v.includes('\n')) {
+      return `"${v.replace(/"/g, '""')}"`
+    }
+    return v
+  }
+
+  async function handleCopyPersons() {
+    const headers = ['担当者名', ...extraColumns.map(c => c.label)]
+    const rows = persons.map(p => {
+      const vals = extraColumns.map(c => (config.extraValues ?? {})[p.id]?.[c.key] ?? '')
+      return [p.name, ...vals]
+    })
+    const csvText = [headers, ...rows].map(row => row.map(escapeCsvCell).join(',')).join('\n')
+    await navigator.clipboard.writeText(csvText)
+    setCopiedPersons(true)
+    setTimeout(() => setCopiedPersons(false), 2000)
+  }
 
   // --- CSV インポート ---
 
@@ -343,9 +366,14 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
   }, [startDate])
 
   // 集計終了日が空の場合は当日を自動計算（config は変更しない）
+  // ※ UTCではなくローカル日付を使用（JST等のタイムゾーン対応）
   const effectiveEndDate = useMemo(() => {
     if (endDate) return endDate
-    return new Date().toISOString().slice(0, 10)
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
   }, [endDate])
 
   // 週単位展開する月（未設定なら今月）
@@ -388,6 +416,46 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
       }
       if (!columnKeySet.has(colKey)) continue
       map[userId][colKey] = (map[userId][colKey] ?? 0) + 1
+    }
+    return map
+  }, [records, persons, columns, filterTrackerIds, trackerOptions, effectiveStartDate, effectiveEndDate, effectiveWeeklyMonth])
+
+  // 週列「表示用」クロスマンスオーバーレイ
+  // 前月レコードのうち週列の開始日以降（weekStart ≤ date < weeklyMonthStart）のものを集計。
+  // 合計・平均計算には使わず、週列セルの表示にのみ加算してダブルカウントを防ぐ。
+  const weekCrossMonthMap = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {}
+    for (const p of persons) map[p.id] = {}
+    if (!records || !effectiveStartDate || !effectiveEndDate) return map
+
+    const weeklyMonthStart = `${effectiveWeeklyMonth}-01`
+    const crossWeekCols = columns.filter(
+      c => c.type === 'week' && (c as Extract<ColumnDef, { type: 'week' }>).weekStart < weeklyMonthStart
+    ) as Extract<ColumnDef, { type: 'week' }>[]
+    if (crossWeekCols.length === 0) return map
+
+    const personIdSet = new Set(persons.map(p => p.id))
+    const selectedTrackerIdSet = new Set(filterTrackerIds)
+    const selectedTrackerNames = new Set(
+      trackerOptions.filter(o => selectedTrackerIdSet.has(Number(o.value))).map(o => o.label)
+    )
+
+    for (const record of records) {
+      if (record.date < effectiveStartDate || record.date > effectiveEndDate) continue
+      const recordYearMonth = record.date.slice(0, 7)
+      if (recordYearMonth >= effectiveWeeklyMonth) continue  // 前月レコードのみ
+      if (selectedTrackerIdSet.size > 0) {
+        const passes = record.trackerId != null
+          ? selectedTrackerIdSet.has(record.trackerId)
+          : selectedTrackerNames.has(record.tracker)
+        if (!passes) continue
+      }
+      const userId = String(record.user)
+      if (!personIdSet.has(userId)) continue
+      const weekKey = `w:${getWeekStart(record.date)}`
+      if (crossWeekCols.some(c => c.key === weekKey)) {
+        map[userId][weekKey] = (map[userId][weekKey] ?? 0) + 1
+      }
     }
     return map
   }, [records, persons, columns, filterTrackerIds, trackerOptions, effectiveStartDate, effectiveEndDate, effectiveWeeklyMonth])
@@ -521,7 +589,8 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
     padding: '4px 8px', fontSize: 13, border: '1px solid #e5e7eb', textAlign: 'right', color: '#374151',
   }
   const totalTdStyle: CSSProperties = { ...tdStyle, fontWeight: 600, background: '#f9fafb' }
-  const extraTdStyle: CSSProperties = { ...tdStyle, textAlign: 'left', minWidth: 40 }
+  const thExtraStyle: CSSProperties = { ...thStyle, background: '#fefce8', color: '#713f12', minWidth: 30, maxWidth: 60 }
+  const extraTdStyle: CSSProperties = { ...tdStyle, background: '#fefce8', padding: '2px 4px', minWidth: 30, maxWidth: 60 }
   const avgThStyle: CSSProperties = { ...thStyle, background: '#fef9c3', color: '#713f12' }
   const avgTdStyle: CSSProperties = { ...tdStyle, background: '#fefce8', color: '#713f12' }
   const avgTotalTdStyle: CSSProperties = { ...avgTdStyle, fontWeight: 600 }
@@ -602,6 +671,9 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
               CSVから取り込む
             </button>
             <span style={{ fontSize: 11, color: '#9ca3af' }}>列順: 名前, Resource, 追加列...</span>
+            <button type="button" style={btnBase} onClick={handleCopyPersons}>
+              {copiedPersons ? 'コピー済み!' : '担当者をクリップボードにコピー'}
+            </button>
           </div>
 
           {/* トラッカーフィルタ */}
@@ -680,7 +752,7 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
                 <tr>
                   <th style={{ ...thStyle, textAlign: 'left', minWidth: 120 }}>担当者</th>
                   {extraColumns.map(col => (
-                    <th key={col.key} style={{ ...thStyle, minWidth: 40 }}>{col.label}</th>
+                    <th key={col.key} style={thExtraStyle}>{col.label}</th>
                   ))}
                   {columns.map(col => (
                     <th key={col.key} style={thStyle}>{col.label}</th>
@@ -704,15 +776,17 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
                           onChange={e => handleExtraValueChange(p.id, col.key, e.target.value)}
                           onBlur={e => handleExtraValueBlur(p.id, col.key, e.target.value)}
                           style={{
-                            fontSize: 12, padding: '2px 4px', border: '1px solid #e5e7eb',
-                            borderRadius: 3, width: '100%', boxSizing: 'border-box',
-                            background: '#fff', textAlign: col.type === 'number' ? 'right' : 'left',
+                            fontSize: 12, padding: '1px 3px', border: '1px solid #fde68a',
+                            borderRadius: 2, width: '100%', boxSizing: 'border-box',
+                            background: '#fffbeb', textAlign: col.type === 'number' ? 'right' : 'left',
                           }}
                         />
                       </td>
                     ))}
                     {columns.map(col => {
-                      const count = countMap[p.id]?.[col.key] ?? 0
+                      const base = countMap[p.id]?.[col.key] ?? 0
+                      const overlay = col.type === 'week' ? (weekCrossMonthMap[p.id]?.[col.key] ?? 0) : 0
+                      const count = base + overlay
                       return <td key={col.key} style={tdStyle}>{count > 0 ? count : ''}</td>
                     })}
                     <td style={totalTdStyle}>{personTotals[p.id] > 0 ? personTotals[p.id] : ''}</td>
@@ -722,10 +796,15 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
                 ))}
                 <tr>
                   <td style={{ ...totalTdStyle, textAlign: 'left' }}>合計</td>
-                  {extraColumns.map(col => <td key={col.key} style={totalTdStyle} />)}
-                  {columns.map(col => (
-                    <td key={col.key} style={totalTdStyle}>{colTotals[col.key] > 0 ? colTotals[col.key] : ''}</td>
-                  ))}
+                  {extraColumns.map(col => <td key={col.key} style={{ ...totalTdStyle, background: '#fefce8' }} />)}
+                  {columns.map(col => {
+                    const base = colTotals[col.key] ?? 0
+                    const overlay = col.type === 'week'
+                      ? persons.reduce((s, p) => s + (weekCrossMonthMap[p.id]?.[col.key] ?? 0), 0)
+                      : 0
+                    const display = base + overlay
+                    return <td key={col.key} style={totalTdStyle}>{display > 0 ? display : ''}</td>
+                  })}
                   <td style={{ ...totalTdStyle, background: '#eff6ff' }}>{grandTotal > 0 ? grandTotal : ''}</td>
                   {monthAvgLabel && <td style={avgTotalTdStyle}>{fmtAvg(totalMonthAvg)}</td>}
                   {weekAvgLabel  && <td style={avgTotalTdStyle}>{fmtAvg(totalWeekAvg)}</td>}

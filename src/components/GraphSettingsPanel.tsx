@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Select from 'react-select'
-import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, PieGroupRule, PieGroupRuleAndCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -991,17 +991,47 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
   )
 }
 
+// CSV パーサー（担当数マッピング用）
+function parseAssignmentCsvLine(line: string): string[] {
+  const cells: string[] = []
+  let current = ''
+  let inQuote = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuote && line[i + 1] === '"') { current += '"'; i++ }
+      else { inQuote = !inQuote }
+    } else if (ch === ',' && !inQuote) {
+      cells.push(current.trim())
+      current = ''
+    } else {
+      current += ch
+    }
+  }
+  cells.push(current.trim())
+  return cells
+}
+
+function parseAssignmentCsv(text: string): string[][] {
+  return text.split('\n')
+    .map(line => line.trimEnd())
+    .filter(line => line.length > 0)
+    .map(parseAssignmentCsvLine)
+}
+
 // 担当者追加エディタ
 interface AssignmentPersonEditorProps {
   mapping: AssignmentMappingConfig
   getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
   onChange: (persons: AssignmentMappingPerson[]) => void
+  onConfigPatch?: (patch: Partial<AssignmentMappingConfig>) => void
 }
 
-function AssignmentPersonEditor({ mapping, getFieldOptions, onChange }: AssignmentPersonEditorProps) {
+function AssignmentPersonEditor({ mapping, getFieldOptions, onChange, onConfigPatch }: AssignmentPersonEditorProps) {
   const [inputText, setInputText] = useState('')
   const [candidates, setCandidates] = useState<FilterFieldOption[]>([])
   const [allOptions, setAllOptions] = useState<FilterFieldOption[]>([])
+  const csvFileRef = useRef<HTMLInputElement>(null)
 
   // assigneeField が変わったら選択肢を取得
   useEffect(() => {
@@ -1021,6 +1051,10 @@ function AssignmentPersonEditor({ mapping, getFieldOptions, onChange }: Assignme
     setCandidates(allOptions.filter(opt => opt.label.toLowerCase().includes(lower)).slice(0, 8))
   }, [inputText, allOptions])
 
+  function isTempId(id: string) {
+    return id.startsWith('_csv_')
+  }
+
   function addPerson(opt: FilterFieldOption) {
     // 同じIDがすでに追加されていれば無視
     if (mapping.persons.some(p => p.id === opt.value)) return
@@ -1031,6 +1065,70 @@ function AssignmentPersonEditor({ mapping, getFieldOptions, onChange }: Assignme
 
   function removePerson(id: string) {
     onChange(mapping.persons.filter(p => p.id !== id))
+  }
+
+  async function handlePastePersons() {
+    const text = await navigator.clipboard.readText()
+    applyAssignmentCsvText(text)
+  }
+
+  function applyAssignmentCsvText(text: string) {
+    const rows = parseAssignmentCsv(text)
+    if (rows.length === 0) return
+
+    // ヘッダー行かどうかを判定: 1列目が既知のオプションに一致しない場合はヘッダー
+    const firstCell = rows[0][0]
+    const hasHeader = !allOptions.some(o => o.label.toLowerCase() === firstCell.toLowerCase())
+    const headers = hasHeader ? rows[0] : null
+    const dataRows = hasHeader ? rows.slice(1) : rows
+
+    // 追加列定義を生成（ヘッダーがある場合: 2列目以降）
+    let newExtraColumns: JournalCountExtraColumn[] | undefined
+    if (headers && headers.length > 1) {
+      newExtraColumns = [
+        { key: 'resource', label: headers[1] ?? 'Resource', type: 'number' as const },
+        ...headers.slice(2).map(h => ({
+          key: h.toLowerCase().replace(/[\s/]/g, '_'),
+          label: h,
+          type: 'text' as const,
+        })),
+      ]
+    }
+
+    const colKeys = newExtraColumns?.map(c => c.key) ?? (mapping.extraColumns ?? [{ key: 'resource', label: 'Resource', type: 'number' as const }]).map(c => c.key)
+
+    let tempCounter = 0
+    const newPersons: AssignmentMappingPerson[] = []
+    const newExtraValues: Record<string, Record<string, string>> = {}
+
+    for (const row of dataRows) {
+      if (row.length === 0 || !row[0]) continue
+      const name = row[0]
+      const match = allOptions.find(o => o.label.toLowerCase() === name.toLowerCase())
+      const person: AssignmentMappingPerson = match
+        ? { name: match.label, id: match.value }
+        : { name, id: `_csv_${tempCounter++}` }
+      newPersons.push(person)
+
+      if (row.length > 1) {
+        const vals: Record<string, string> = {}
+        colKeys.forEach((key, idx) => {
+          const v = row[idx + 1] ?? ''
+          if (v) vals[key] = v
+        })
+        if (Object.keys(vals).length > 0) {
+          newExtraValues[person.id] = vals
+        }
+      }
+    }
+
+    if (onConfigPatch && newExtraColumns) {
+      onConfigPatch({ persons: newPersons, extraColumns: newExtraColumns, extraValues: newExtraValues })
+    } else if (onConfigPatch) {
+      onConfigPatch({ persons: newPersons, extraValues: newExtraValues })
+    } else {
+      onChange(newPersons)
+    }
   }
 
   const inputStyle: React.CSSProperties = {
@@ -1050,13 +1148,13 @@ function AssignmentPersonEditor({ mapping, getFieldOptions, onChange }: Assignme
           {mapping.persons.map(p => (
             <span
               key={p.id}
-              style={{ fontSize: 11, padding: '2px 6px', background: '#e0e7ff', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+              style={{ fontSize: 11, padding: '2px 6px', background: isTempId(p.id) ? '#fee2e2' : '#e0e7ff', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 4, color: isTempId(p.id) ? '#dc2626' : undefined }}
             >
-              {p.name}
+              {isTempId(p.id) ? `⚠ ${p.name}` : p.name}
               <button
                 type="button"
                 onClick={() => removePerson(p.id)}
-                style={{ fontSize: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', padding: 0, lineHeight: 1 }}
+                style={{ fontSize: 10, background: 'none', border: 'none', cursor: 'pointer', color: isTempId(p.id) ? '#dc2626' : '#6366f1', padding: 0, lineHeight: 1 }}
               >×</button>
             </span>
           ))}
@@ -1096,6 +1194,37 @@ function AssignmentPersonEditor({ mapping, getFieldOptions, onChange }: Assignme
             ))}
           </div>
         )}
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+        <button
+          type="button"
+          onClick={handlePastePersons}
+          style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+        >
+          担当者をクリップボードからペースト
+        </button>
+        <input
+          type="file"
+          accept=".csv"
+          ref={csvFileRef}
+          style={{ display: 'none' }}
+          onChange={async e => {
+            const file = e.target.files?.[0]
+            if (file) {
+              const text = await file.text()
+              applyAssignmentCsvText(text)
+            }
+            e.target.value = ''
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => csvFileRef.current?.click()}
+          style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+        >
+          CSVから取り込む
+        </button>
+        <span style={{ fontSize: 10, color: '#9ca3af', alignSelf: 'center' }}>列順: 名前, Resource, 追加列...</span>
       </div>
     </div>
   )
@@ -1499,6 +1628,12 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               } else if (ref.type === 'heading') {
                 const h = (settings.headings ?? []).find(x => x.id === ref.id)
                 label = `見出し: ${h?.text || ''}`
+              } else if (ref.type === 'journal-collector') {
+                const jc = (settings.journalCollectors ?? []).find(x => x.id === ref.id)
+                label = `ジャーナル取得: ${jc?.name || ''}`
+              } else if (ref.type === 'journal-count') {
+                const jn = (settings.journalCounts ?? []).find(x => x.id === ref.id)
+                label = `ジャーナル更新回数: ${jn?.name || ''}`
               }
               return (
                 <div key={ref.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, padding: '3px 6px', background: '#f9f9f9', borderRadius: 3, border: '1px solid #e5e7eb' }}>
@@ -2888,12 +3023,65 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       />
                     </div>
 
+                    {/* 追加列管理 */}
+                    {(() => {
+                      const extraCols = mapping.extraColumns ?? [{ key: 'resource', label: 'Resource', type: 'number' as const }]
+                      const moveCol = (idx: number, dir: number) => {
+                        const cols = [...extraCols]
+                        const target = idx + dir
+                        ;[cols[idx], cols[target]] = [cols[target], cols[idx]]
+                        const next = mappings.map((t, j) => j === i ? { ...t, extraColumns: cols } : t)
+                        onChangeManual({ ...settings, assignmentMappings: next })
+                      }
+                      const deleteCol = (key: string) => {
+                        const cols = extraCols.filter(c => c.key !== key)
+                        const next = mappings.map((t, j) => j === i ? { ...t, extraColumns: cols } : t)
+                        onChangeManual({ ...settings, assignmentMappings: next })
+                      }
+                      const updateLabel = (key: string, label: string) => {
+                        const cols = extraCols.map(c => c.key === key ? { ...c, label } : c)
+                        const next = mappings.map((t, j) => j === i ? { ...t, extraColumns: cols } : t)
+                        onChangeManual({ ...settings, assignmentMappings: next })
+                      }
+                      const addCol = () => {
+                        const key = `col_${Date.now()}`
+                        const cols = [...extraCols, { key, label: '列名', type: 'text' as const }]
+                        const next = mappings.map((t, j) => j === i ? { ...t, extraColumns: cols } : t)
+                        onChangeManual({ ...settings, assignmentMappings: next })
+                      }
+                      return (
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ fontSize: 11, color: '#555', marginBottom: 4 }}>追加列</div>
+                          {extraCols.map((col, idx) => (
+                            <div key={col.key} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                              <button type="button" disabled={idx === 0} onClick={() => moveCol(idx, -1)}
+                                style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.3 : 1 }}>↑</button>
+                              <button type="button" disabled={idx === extraCols.length - 1} onClick={() => moveCol(idx, 1)}
+                                style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: idx === extraCols.length - 1 ? 'default' : 'pointer', opacity: idx === extraCols.length - 1 ? 0.3 : 1 }}>↓</button>
+                              <input type="text" value={col.label} onChange={e => updateLabel(col.key, e.target.value)}
+                                style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 120 }} />
+                              <button type="button" onClick={() => deleteCol(col.key)}
+                                style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #fca5a5', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#dc2626' }}>×</button>
+                            </div>
+                          ))}
+                          <button type="button" onClick={addCol}
+                            style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', marginTop: 2 }}>
+                            ＋ 列を追加
+                          </button>
+                        </div>
+                      )
+                    })()}
+
                     {/* 担当者リスト */}
                     <AssignmentPersonEditor
                       mapping={mapping}
                       getFieldOptions={getFieldOptions}
                       onChange={(persons) => {
                         const next = mappings.map((t, j) => j === i ? { ...t, persons } : t)
+                        onChangeManual({ ...settings, assignmentMappings: next })
+                      }}
+                      onConfigPatch={(patch) => {
+                        const next = mappings.map((t, j) => j === i ? { ...t, ...patch } : t)
                         onChangeManual({ ...settings, assignmentMappings: next })
                       }}
                     />

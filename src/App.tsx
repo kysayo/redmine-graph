@@ -728,6 +728,12 @@ export function App({ container }: Props) {
           <AssignmentMappingPanel
             config={mapping}
             issues={issueState.issues}
+            onExtraValuesChange={(extraValues) => {
+              const next = (settings.assignmentMappings ?? []).map((t, ti) =>
+                ti === i ? { ...t, extraValues } : t
+              )
+              handleSettingsChange({ ...settings, assignmentMappings: next })
+            }}
           />
         </TileCard>
       )

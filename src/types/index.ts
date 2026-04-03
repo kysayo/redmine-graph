@@ -152,6 +152,8 @@ export interface AssignmentMappingConfig {
   persons: AssignmentMappingPerson[]
   hideWeekends?: boolean
   fullWidth?: boolean
+  extraColumns?: JournalCountExtraColumn[]     // 追加列定義（Resource 等）
+  extraValues?: Record<string, Record<string, string>>  // personId -> columnKey -> 値
 }
 
 // 見出し区切りタイル設定
