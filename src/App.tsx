@@ -13,7 +13,7 @@ import { SummaryCards } from './components/SummaryCards'
 import type { CrossTableConfig, FilterField, FilterFieldOption, JournalCollectorConfig, JournalCountConfig, PieDataPoint, PieSeriesConfig, RedmineIssue, RedmineStatus, SeriesCondition, StackedBarDataPoint, UserSettings } from './types'
 import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
-import { fetchFilterFieldOptions, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
+import { fetchFilterFieldOptions, getAvailableColumnFilterFields, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
 import { aggregateCrossTable, aggregateEVM, aggregateIssues, aggregatePie, aggregateStackedBar } from './utils/issueAggregator'
 import type { EVMAggregateResult } from './utils/issueAggregator'
 import { computeEvmRegression } from './utils/evmRegression'
@@ -84,6 +84,9 @@ export function App({ container }: Props) {
   const [filterFields, setFilterFields] = useState<FilterField[]>([])
   // 日付型フィールド一覧（「特殊な日付」集計軸の選択肢）
   const [dateFilterFields, setDateFilterFields] = useState<FilterField[]>([])
+
+  // クロス集計テーブルの列フィールド用（list + date）
+  const [columnFilterFields, setColumnFilterFields] = useState<FilterField[]>([])
 
   // 取得済みチケット一覧（系列設定変更時に再集計するためstateで保持）
   const [issueState, setIssueState] = useState<IssueState>({
@@ -162,6 +165,7 @@ export function App({ container }: Props) {
     // フィルタフィールド一覧を取得（window.availableFilters から）
     setFilterFields(getAvailableFilterFields())
     setDateFilterFields(getAvailableDateFilterFields())
+    setColumnFilterFields(getAvailableColumnFilterFields())
     const pageStatuses = getStatusesFromPage()
     if (pageStatuses !== null) {
       setStatuses(pageStatuses)
@@ -182,6 +186,9 @@ export function App({ container }: Props) {
     for (const t of tables) {
       if (t.rowGroupBy) fields.add(t.rowGroupBy)
       if (t.colGroupBy) fields.add(t.colGroupBy)
+      for (const sec of t.colSections ?? []) {
+        if (sec.colGroupBy) fields.add(sec.colGroupBy)
+      }
     }
     Promise.all(
       Array.from(fields).map(field =>
@@ -310,7 +317,39 @@ export function App({ container }: Props) {
     filterValues: string[],
     groupRules?: import('./types').PieGroupRule[]
   ): import('./types').SeriesCondition[] {
-    const rule = groupRules?.find(r => r.name === key)
+    // colKeyはインデックス文字列（multi-section）またはルール名（single-section）の両方に対応
+    const ruleIdx = parseInt(key)
+    const rule = (!isNaN(ruleIdx) && groupRules) ? groupRules[ruleIdx] : groupRules?.find(r => r.name === key)
+
+    // 日付フィールド用条件（dateCondition が設定されている場合）
+    if (rule?.dateCondition) {
+      const { op, value } = rule.dateCondition
+      if (op === 'empty') return [{ field: fieldKey, operator: '!*', values: [] }]
+      if (op === 'not_empty') return [{ field: fieldKey, operator: '*', values: [] }]
+      // 今日の JST 日付を取得
+      const now = new Date()
+      const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+      const today = jst.toISOString().slice(0, 10)
+      let refDate = value === 'today' ? today : (value ?? today)
+      let urlOp: import('./types').SeriesCondition['operator']
+      if (op === '<') {
+        // Redmine に strict < がないため、<= (yesterday) に変換
+        const d = new Date(refDate)
+        d.setDate(d.getDate() - 1)
+        refDate = d.toISOString().slice(0, 10)
+        urlOp = '<='
+      } else if (op === '>') {
+        // > を >= (tomorrow) に変換
+        const d = new Date(refDate)
+        d.setDate(d.getDate() + 1)
+        refDate = d.toISOString().slice(0, 10)
+        urlOp = '>='
+      } else {
+        urlOp = op
+      }
+      return [{ field: fieldKey, operator: urlOp, values: [refDate] }]
+    }
+
     const isNoData = rule?.values.includes('(No data)') && filterValues.length === 0
     if (isNoData) return [{ field: fieldKey, operator: '!*', values: [] }]
     return filterValues.length ? [{ field: fieldKey, operator: '=', values: filterValues }] : []
@@ -320,6 +359,36 @@ export function App({ container }: Props) {
     return Object.entries(andCondFvs).map(([field, values]) => ({ field, operator: '=' as const, values }))
   }
 
+  function andDateCondFiltersFromRules(
+    groupRules: import('./types').PieGroupRule[] | undefined,
+    key: string
+  ): SeriesCondition[] {
+    const ruleIdx = parseInt(key)
+    const rule = (!isNaN(ruleIdx) && groupRules) ? groupRules[ruleIdx] : groupRules?.find(r => r.name === key)
+    if (!rule?.andConditions) return []
+    const result: SeriesCondition[] = []
+    for (const cond of rule.andConditions) {
+      if (!cond.dateCondition) continue
+      const { op, value } = cond.dateCondition
+      if (op === 'empty') { result.push({ field: cond.field, operator: '!*', values: [] }); continue }
+      if (op === 'not_empty') { result.push({ field: cond.field, operator: '*', values: [] }); continue }
+      const now = new Date()
+      const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+      const today = jst.toISOString().slice(0, 10)
+      let refDate = value === 'today' ? today : (value ?? today)
+      let urlOp: SeriesCondition['operator']
+      if (op === '<') {
+        const d = new Date(refDate); d.setDate(d.getDate() - 1); refDate = d.toISOString().slice(0, 10); urlOp = '<='
+      } else if (op === '>') {
+        const d = new Date(refDate); d.setDate(d.getDate() + 1); refDate = d.toISOString().slice(0, 10); urlOp = '>='
+      } else {
+        urlOp = op as SeriesCondition['operator']
+      }
+      result.push({ field: cond.field, operator: urlOp, values: [refDate] })
+    }
+    return result
+  }
+
   const handleCrossTableCellClick = useCallback((
     table: CrossTableConfig,
     rowKey: string,
@@ -327,18 +396,27 @@ export function App({ container }: Props) {
     rowFilterValues: string[],
     colFilterValues: string[],
     rowAndCondFvs: Record<string, string[]>,
-    colAndCondFvs: Record<string, string[]>
+    colAndCondFvs: Record<string, string[]>,
+    sectionIndex?: number,
+    sectionColGroupByPerKey?: Record<string, string>,
   ) => {
+    const section = sectionIndex != null ? table.colSections?.[sectionIndex] : undefined
+    const colGroupBy = (sectionColGroupByPerKey?.[colKey] ?? section?.colGroupBy) ?? table.colGroupBy
+    const colGroupRules = section?.colGroupRules ?? table.colGroupRules
+    const sectionConds = section?.conditions ?? []
     const url = buildRedmineFilterUrl(
       window.location.pathname,
       window.location.search,
       undefined,
       [
         ...(table.conditions ?? []),
+        ...sectionConds,
         ...crossTableFieldCond(table.rowGroupBy, rowKey, rowFilterValues, table.rowGroupRules),
         ...andCondFiltersFromMap(rowAndCondFvs),
-        ...crossTableFieldCond(table.colGroupBy, colKey, colFilterValues, table.colGroupRules),
+        ...andDateCondFiltersFromRules(table.rowGroupRules, rowKey),
+        ...crossTableFieldCond(colGroupBy, colKey, colFilterValues, colGroupRules),
         ...andCondFiltersFromMap(colAndCondFvs),
+        ...andDateCondFiltersFromRules(colGroupRules, colKey),
       ]
     )
     window.open(url, '_blank', 'noopener')
@@ -367,16 +445,24 @@ export function App({ container }: Props) {
     table: CrossTableConfig,
     colKey: string,
     colFilterValues: string[],
-    colAndCondFvs: Record<string, string[]>
+    colAndCondFvs: Record<string, string[]>,
+    sectionIndex?: number,
+    sectionColGroupByPerKey?: Record<string, string>,
   ) => {
+    const section = sectionIndex != null ? table.colSections?.[sectionIndex] : undefined
+    const colGroupBy = (sectionColGroupByPerKey?.[colKey] ?? section?.colGroupBy) ?? table.colGroupBy
+    const colGroupRules = section?.colGroupRules ?? table.colGroupRules
+    const sectionConds = section?.conditions ?? []
     const url = buildRedmineFilterUrl(
       window.location.pathname,
       window.location.search,
       undefined,
       [
         ...(table.conditions ?? []),
-        ...crossTableFieldCond(table.colGroupBy, colKey, colFilterValues, table.colGroupRules),
+        ...sectionConds,
+        ...crossTableFieldCond(colGroupBy, colKey, colFilterValues, colGroupRules),
         ...andCondFiltersFromMap(colAndCondFvs),
+        ...andDateCondFiltersFromRules(colGroupRules, colKey),
       ]
     )
     window.open(url, '_blank', 'noopener')
@@ -440,10 +526,14 @@ export function App({ container }: Props) {
   const crossTablesData = useMemo(() => {
     return (settings.tables ?? []).map(table => {
       if (issueState.issues === null) return null
-      if (!table.rowGroupBy || !table.colGroupBy) return null
+      const hasSections = (table.colSections?.length ?? 0) > 0
+      if (!table.rowGroupBy || (!hasSections && !table.colGroupBy)) return null
       const rowOptions = crossTableFieldOptions[table.rowGroupBy]
-      const colOptions = crossTableFieldOptions[table.colGroupBy]
-      return aggregateCrossTable(issueState.issues, table, rowOptions, colOptions)
+      const colOptions = hasSections ? undefined : crossTableFieldOptions[table.colGroupBy]
+      const colSectionOptions = hasSections
+        ? table.colSections!.map(sec => crossTableFieldOptions[sec.colGroupBy] ?? [])
+        : undefined
+      return aggregateCrossTable(issueState.issues, table, rowOptions, colOptions, colSectionOptions)
     })
   }, [issueState.issues, settings.tables, crossTableFieldOptions])
 
@@ -633,9 +723,10 @@ export function App({ container }: Props) {
       if (i === -1) return null
       const table = tables[i]
       const data = crossTablesData[i]
+      const hasSections = (table.colSections?.length ?? 0) > 0
       const rowName = filterFields.find(f => f.key === table.rowGroupBy)?.name ?? table.rowGroupBy
-      const colName = filterFields.find(f => f.key === table.colGroupBy)?.name ?? table.colGroupBy
-      const title = table.label || `${rowName} × ${colName}`
+      const colName = hasSections ? '' : (filterFields.find(f => f.key === table.colGroupBy)?.name ?? table.colGroupBy)
+      const title = table.label || (hasSections ? rowName : `${rowName} × ${colName}`)
       return (
         <TileCard
           key={key}
@@ -650,17 +741,40 @@ export function App({ container }: Props) {
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>{title}</div>
               <div style={{ color: '#9ca3af', fontSize: 13, padding: '24px 0', textAlign: 'center' }}>
-                {issueState.loading ? 'Now Loading...' : (!table.rowGroupBy || !table.colGroupBy) ? '行・列のフィールドを設定パネルで選択してください' : '該当チケットがありません'}
+                {issueState.loading ? 'Now Loading...' : (!table.rowGroupBy || (!hasSections && !table.colGroupBy)) ? '行・列のフィールドを設定パネルで選択してください' : '該当チケットがありません'}
               </div>
             </div>
           ) : (
             <CrossTable
               data={data}
               title={title}
-              onCellClick={issueState.issues !== null ? (rk, ck, rfv, cfv) => handleCrossTableCellClick(table, rk, ck, rfv, cfv, data.rowAndCondFilterValues?.[rk] ?? {}, data.colAndCondFilterValues?.[ck] ?? {}) : undefined}
+              onCellClick={issueState.issues !== null
+                ? (rk, ck, rfv, cfv, si) => handleCrossTableCellClick(
+                    table, rk, ck, rfv, cfv,
+                    data.rowAndCondFilterValues?.[rk] ?? {},
+                    si != null
+                      ? (data.sections?.[si]?.colAndCondFilterValues?.[ck] ?? {})
+                      : (data.colAndCondFilterValues?.[ck] ?? {}),
+                    si,
+                    si != null ? data.sections?.[si]?.colGroupByPerKey : undefined
+                  )
+                : undefined}
               onRowTotalClick={issueState.issues !== null ? (rk, rfv) => handleCrossTableRowTotalClick(table, rk, rfv, data.rowAndCondFilterValues?.[rk] ?? {}) : undefined}
-              onColTotalClick={issueState.issues !== null ? (ck, cfv) => handleCrossTableColTotalClick(table, ck, cfv, data.colAndCondFilterValues?.[ck] ?? {}) : undefined}
-              onGrandTotalClick={issueState.issues !== null ? () => handleCrossTableGrandTotalClick(table) : undefined}
+              onColTotalClick={issueState.issues !== null
+                ? (ck, cfv, si) => handleCrossTableColTotalClick(
+                    table, ck, cfv,
+                    si != null
+                      ? (data.sections?.[si]?.colAndCondFilterValues?.[ck] ?? {})
+                      : (data.colAndCondFilterValues?.[ck] ?? {}),
+                    si,
+                    si != null ? data.sections?.[si]?.colGroupByPerKey : undefined
+                  )
+                : undefined}
+              onGrandTotalClick={
+                data.sections
+                  ? undefined
+                  : (issueState.issues !== null ? () => handleCrossTableGrandTotalClick(table) : undefined)
+              }
             />
           )}
         </TileCard>
@@ -829,6 +943,7 @@ export function App({ container }: Props) {
         teamPresets={teamPresets}
         filterFields={filterFields}
         dateFilterFields={dateFilterFields}
+        columnFilterFields={columnFilterFields}
         getFieldOptions={getFieldOptions}
       />
 

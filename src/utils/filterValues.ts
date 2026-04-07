@@ -26,6 +26,26 @@ export function getAvailableFilterFields(): FilterField[] {
 }
 
 /**
+ * クロス集計テーブルの列フィールド用: リスト系 + 日付型フィールドの一覧を返す
+ * type フィールドで 'list' / 'date' を区別できる
+ */
+export function getAvailableColumnFilterFields(): FilterField[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const af = (window as any).availableFilters
+  if (!af) return []
+  const result: FilterField[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const [key, f] of Object.entries(af) as [string, any][]) {
+    if (LIST_TYPES.has(f.type)) {
+      result.push({ key, name: f.name as string, type: 'list' })
+    } else if (f?.type === 'date' && !key.includes('.')) {
+      result.push({ key, name: f.name as string, type: 'date' })
+    }
+  }
+  return result
+}
+
+/**
  * window.availableFilters から日付型フィールドの一覧を返す
  * - type === 'date' のフィールドのみ対象（'date_past' の created_on/closed_on は除外）
  * - キーに '.' が含まれるフィールド（fixed_version.due_date 等）はチケットAPIから
@@ -40,7 +60,7 @@ export function getAvailableDateFilterFields(): FilterField[] {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter(([key, f]: any) => f?.type === 'date' && !key.includes('.'))
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map(([key, f]: any) => ({ key, name: f.name as string }))
+    .map(([key, f]: any) => ({ key, name: f.name as string, type: 'date' as const }))
 }
 
 // フィールドごとの値キャッシュ（ページライフサイクル内で共有）

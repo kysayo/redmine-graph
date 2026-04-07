@@ -194,7 +194,8 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 絞り込み条件UIで使用するフィールド一覧と選択肢を取得するユーティリティ。
 
 - **`getAvailableFilterFields()`**: `window.availableFilters`（Redmineページ埋め込みJS変数）からリスト系フィールドを抽出。対象タイプ: `list`, `list_optional`, `list_with_history`, `list_optional_with_history`, `list_status`（`status_id` フィールド用）
-- **`getAvailableDateFilterFields()`**: `window.availableFilters` から日付型フィールドを抽出。対象タイプ: `date`のみ（`date_past` の `created_on`/`closed_on` は除外）。キーに `.` を含むフィールド（バージョン関連）も除外。「特殊な日付」集計軸の選択肢として使用
+- **`getAvailableDateFilterFields()`**: `window.availableFilters` から日付型フィールドを抽出。対象タイプ: `date`のみ（`date_past` の `created_on`/`closed_on` は除外）。キーに `.` を含むフィールド（バージョン関連）も除外。「特殊な日付」集計軸の選択肢として使用。返す `FilterField` の `type` は `'date'`
+- **`getAvailableColumnFilterFields()`**: クロス集計テーブルの列フィールド選択用。リスト系フィールド（`type: 'list'`）と日付型フィールド（`type: 'date'`）の両方を返す。`FilterField.type` で種別を区別できる
 - **`fetchFilterFieldOptions(fieldKey, apiKey)`**: 指定フィールドの選択肢を取得。
   - `remote: false` の場合: `availableFilters[key].values` からそのまま返す
   - `remote: true` の場合: `/queries/filter?project_id={id}&type=IssueQuery&name={field}` API を呼び出し（これはRedmine内部エンドポイント、REST APIとは別）
@@ -310,13 +311,22 @@ if (container) {
 
 ## 型定義（types/index.ts）の主要インターフェース
 
+### `FilterField`
+フィルタフィールドの1件。`filterValues.ts` の各関数が返す型。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `key` | `string` | `availableFilters` のキー（例: `cf_123`, `tracker_id`） |
+| `name` | `string` | 表示名（例: `'Type'`, `'トラッカー'`） |
+| `type` | `'list' \| 'date'?` | フィールド種別。`getAvailableColumnFilterFields()` が返す場合のみ付与。`getAvailableFilterFields()` / `getAvailableDateFilterFields()` では省略または `'date'` |
+
 ### `SeriesCondition`
 絞り込み条件の1件。`operator` は `'=' | '!' | '>='`。
 
 | フィールド | 型 | 説明 |
 |---|---|---|
 | `field` | `string` | `availableFilters` のキー（例: `cf_628`, `tracker_id`, `elapsed_days`） |
-| `operator` | `'=' \| '!' \| '>=' \| '<=' \| '!*'` | 一致 / 不一致 / 以上 / 以内（`<=` は `elapsed_days` フィールドでのみ使用可能）/ 値なし（`!*` はクロス集計テーブルの `(No data)` グループクリック時に内部生成。URLでは `op[field]=!*` に変換） |
+| `operator` | `'=' \| '!' \| '>=' \| '<=' \| '!*' \| '*'` | 一致 / 不一致 / 以上 / 以内（`<=` は `elapsed_days` フィールドでのみ使用可能）/ 値なし（`!*` はクロス集計テーブルの `(No data)` グループクリック時に内部生成。URLでは `op[field]=!*` に変換）/ 値あり（`*` は日付条件の `not_empty` 判定時に内部生成） |
 | `values` | `string[]` | 選択値の配列（数値は文字列として格納） |
 | `elapsedDaysBaseField` | `string?` | `field === 'elapsed_days'` のとき: 経過日数計算のベース日付フィールドキー（例: `updated_on`, `cf_123`）。省略時は `updated_on || created_on` の旧来動作 |
 | `elapsedDaysMode` | `'past' \| 'future'?` | `field === 'elapsed_days'` のとき: `past`=経過日数（省略時デフォルト）/ `future`=到来日数 |
@@ -356,24 +366,46 @@ if (container) {
 | `topN` | `number?` | `chartType === 'bar'` のとき: 上位表示件数（省略時 = 全件） |
 | `fullWidth` | `boolean?` | `chartType === 'bar'` のとき: 全幅表示（省略時 = `true`）。`false` にすると3列グリッドの1マスで表示 |
 
+### `PieGroupRule`
+スライスグルーピング / クロス集計テーブルのグルーピングルール定義。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `name` | `string` | グループ名（スライス名または行/列ヘッダに表示） |
+| `values` | `string[]` | グループ対象の値リスト（`getIssueGroupValue` が返す表示名と一致させる）。`dateCondition` 設定時は無視される |
+| `dateCondition` | `PieGroupRuleDateCondition?` | 日付フィールド用条件（`values` の代わりに使用。クロス集計テーブルのみ有効） |
+| `andConditions` | `PieGroupRuleAndCondition[]?` | 追加AND条件（クロス集計テーブルのみ評価） |
+| `subHeaders` | `string[]?` | クロス集計テーブル用サブヘッダラベル `[level0, level1, ...]`（`subHeaderLevels` が1以上のセクションで使用） |
+| `colGroupBy` | `string?` | `colSections` 内でこのルールに適用する列フィールドキー（セクションの `colGroupBy` を上書き） |
+
+### `PieGroupRuleDateCondition`
+`PieGroupRule.dateCondition` / `PieGroupRuleAndCondition.dateCondition` で使用する日付比較条件。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `op` | `'empty' \| 'not_empty' \| '<' \| '<=' \| '>' \| '>='` | 比較演算子。`empty`=未設定、`not_empty`=設定あり、その他=日付文字列の辞書順比較 |
+| `value` | `'today' \| string?` | 比較基準値。`'today'` は実行時の今日（JST）に解決。比較演算子のときのみ使用（`empty`/`not_empty` では不要） |
+
 ### クロス集計テーブル（CrossTable）
 
 行フィールドと列フィールドを指定し、チケット件数をマトリクス形式で表示するテーブル。
 
-- **行・列フィールド**: `window.availableFilters` のリスト系フィールドから選択（react-select）。値は自動で全件取得する
+- **行・列フィールド**: `window.availableFilters` のリスト系フィールドに加え、日付型フィールド（`due_date`, `start_date`, カスタム日付フィールド等）も列フィールドとして選択可能（`getAvailableColumnFilterFields()` を使用）。値は自動で全件取得する
 - **グルーピング（`rowGroupRules` / `colGroupRules`）**: 複数の値を1行/列にまとめるルールを定義可能（`PieGroupRulesEditor` を再利用）
   - グルーピング未設定時: 全値を件数降順で表示
   - **グルーピング設定時: ルールで定義した行/列のみ表示。どのルールにも属さない値（未グループ値）は除外される**
   - グルーピング設定時の表示順序 = ルール定義順（件数降順ではなく定義順が優先）
   - 0件でもルールに定義された行/列は常に表示される
   - **`(No data)` 対応**: 値選択リストの先頭に `(No data)` が常に表示される。ルールの values に `(No data)` を含めると、対象フィールドが未記入（空値）のチケットをそのグループとして集計する。クリック時のURLフィルタは Redmine の「値なし」演算子 `op[field]=!*` を使用
-  - **AND条件（`andConditions`）**: 各グルーピングルールにAND条件を追加可能（クロス集計専用）。設定UIの「＋ AND条件を追加」ボタンで追加。AND条件1件 = フィールド選択（react-select） + 値の複数選択。主フィールド値がマッチしても AND条件を満たさないチケットは当該グループに計上されない（別ルールへのマッチ判定に進む）。AND条件付きのグループをクリックした場合、URLフィルタに主フィールドの条件に加えAND条件フィールドのフィルタも付加される
+  - **日付条件グルーピング（`dateCondition`）**: ルールに `dateCondition` を設定すると `values` の代わりに日付比較で集計する。演算子: `empty`（未設定）/ `not_empty`（設定あり）/ `<`（より前）/ `<=`（以前）/ `>`（より後）/ `>=`（以降）。`value: 'today'` で実行時の今日JST日付と比較。クリック時のURLフィルタは日付フィールドの比較演算子（`<=`, `>=`）に変換される
+  - **ルール別列フィールド上書き（`PieGroupRule.colGroupBy`）**: `colSections` 内の各ルールに `colGroupBy` を設定すると、そのルールの集計と URL フィルタ構築に使うフィールドをセクションの `colGroupBy` から上書きできる。異なるフィールドを1セクションにまとめる場合に使用
+  - **AND条件（`andConditions`）**: 各グルーピングルールにAND条件を追加可能（クロス集計専用）。設定UIの「＋ AND条件を追加」ボタンで追加。AND条件1件 = フィールド選択（react-select） + 値の複数選択または日付条件（`dateCondition`）。主フィールド値がマッチしても AND条件を満たさないチケットは当該グループに計上されない（別ルールへのマッチ判定に進む）。AND条件付きのグループをクリックした場合、URLフィルタに主フィールドの条件に加えAND条件フィールドのフィルタも付加される（日付条件の場合はルール定義から直接変換）
 - **絞り込み条件**: 他のグラフと同様の `ConditionsEditor`（AND条件）
-- **合計行・合計列**: 右端に行合計、下端に列合計、右下に総計を表示
-- **セルクリック**: 行条件＋列条件＋テーブル条件でRedmineチケット一覧を新タブで開く（実データ取得済みの場合のみ有効）
-- **行合計クリック**: 行条件＋テーブル条件で開く
-- **列合計クリック**: 列条件＋テーブル条件で開く
-- **総計クリック**: テーブル条件のみで開く
+- **合計行・合計列（単一列セクションモード）**: 右端に行合計、下端に列合計、右下に総計を表示
+  - **セルクリック**: 行条件＋列条件＋テーブル条件でRedmineチケット一覧を新タブで開く（実データ取得済みの場合のみ有効）
+  - **行合計クリック**: 行条件＋テーブル条件で開く
+  - **列合計クリック**: 列条件＋テーブル条件で開く
+  - **総計クリック**: テーブル条件のみで開く
 - **0件セル**: 空欄でクリック無効
 - **sticky ヘッダ**: 横スクロール時に行ラベル列・列ヘッダ行が固定
 - **行ホバー**: ホバー中の行全体を薄い青でハイライト
@@ -397,17 +429,39 @@ if (container) {
   - **警告バナー**: 月数不足 / ゼロデータグループ / クランプ発生を条件付きで表示
   - 実績チケット数の集計には既存の `aggregateEVM()` を月単位で再利用（`startDate`/`endDate` を当月範囲に変えて呼び出す）
 
+#### 複数列セクション（`colSections`）
+
+同じ行グループに対して、**異なる列集計を複数並べる**機能。例: 行=開発プロセス、列セクション1=ステータス別（New/In Progress/Completed）、列セクション2=遅延フラグ別（Delay/On Track）。
+
+- **表示形式**: 1行目がセクションラベルを横断する結合ヘッダ、2行目が各セクションの列ヘッダ。セクション境界に太い縦線を表示
+- **行合計列・総計セルなし**（複数セクションモード時）。各セクションの列合計行は表示される
+- **セクション絞り込み条件**: 各セクションにテーブルレベルの `conditions` と AND される独自の絞り込み条件を設定可能
+- **クリック動作**: セル/列合計クリック時のURLフィルタに「テーブル条件 + セクション条件 + 行条件 + 列条件」が含まれる
+- **行キーの確定**: テーブル条件 + 行グループのみで行を確定し、列セクションは独立して集計（同一チケットが複数セクションの異なる列にカウントされる）
+- **設定UI**: 「列を複数セクション化」ボタンで既存の colGroupBy を最初のセクションに変換。セクションごとにラベル・フィールド・グルーピングルール・絞り込み条件を設定可能。↑↓ボタンで並び替え・削除も可能。「セクション化を解除」で単一セクションモードに戻る（先頭セクションの設定が復元される）
+
 #### `CrossTableConfig` 型
 
 | フィールド | 型 | 説明 |
 |---|---|---|
 | `label` | `string?` | 表のタイトル（省略時 = 行フィールド名 × 列フィールド名） |
 | `rowGroupBy` | `string` | 行のグループキー（例: `'tracker_id'`, `'cf_123'`） |
-| `colGroupBy` | `string` | 列のグループキー |
+| `colGroupBy` | `string` | 列のグループキー（`colSections` が存在する場合は無視） |
 | `conditions` | `SeriesCondition[]?` | 集計対象の絞り込み条件（省略時 = フィルタなし） |
 | `rowGroupRules` | `PieGroupRule[]?` | 行のグルーピングルール。設定時はルール定義の行のみ表示（未グループ値は除外）。各ルールに `andConditions` を追加可能（クロス集計専用） |
-| `colGroupRules` | `PieGroupRule[]?` | 列のグルーピングルール。設定時はルール定義の列のみ表示（未グループ値は除外）。各ルールに `andConditions` を追加可能（クロス集計専用） |
+| `colGroupRules` | `PieGroupRule[]?` | 列のグルーピングルール（`colSections` がない場合のみ有効） |
+| `colSections` | `CrossTableColSection[]?` | 複数列セクション定義。存在する場合 `colGroupBy`/`colGroupRules` より優先 |
 | `fullWidth` | `boolean?` | 全幅表示（省略/`true` = 全幅、`false` = 3列グリッドの1マスで表示） |
+
+#### `CrossTableColSection` 型
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `label` | `string?` | セクションヘッダ表示名（省略時 = `colGroupBy` のフィールドキー） |
+| `colGroupBy` | `string` | このセクションの列グループキー（ルールに `colGroupBy` が設定されている場合はルール単位で上書き可能） |
+| `colGroupRules` | `PieGroupRule[]?` | このセクションの列グルーピングルール |
+| `conditions` | `SeriesCondition[]?` | セクション固有の絞り込み条件（テーブルレベルの `conditions` と AND） |
+| `subHeaderLevels` | `number?` | サブヘッダ行数 0〜2（省略時 = 0）。`colGroupRules` の各ルールに `subHeaders` を設定し、ヘッダを複数行に分けて表示する場合に使用 |
 
 ### EVMタイル（EvmTile）
 

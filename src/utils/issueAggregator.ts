@@ -1,4 +1,4 @@
-import type { CrossTableConfig, CrossTableData, ElapsedDaysBucket, EVMTileConfig, FilterFieldOption, PieDataPoint, PieGroupRule, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
+import type { CrossTableConfig, CrossTableData, CrossTableSectionData, ElapsedDaysBucket, EVMTileConfig, FilterFieldOption, PieDataPoint, PieGroupRule, PieGroupRuleDateCondition, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
 import { calcBusinessDaysUntilStr, calcBusinessElapsedDaysFromStr, countBusinessDaysBetween, getIssueDateByField, utcToJstDate } from './dateUtils'
 
 /**
@@ -394,6 +394,8 @@ function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null
   if (groupBy === 'tracker_id') return issue.tracker.name
   if (groupBy === 'priority_id') return issue.priority?.name ?? null
   if (groupBy === 'assigned_to_id') return issue.assigned_to?.name ?? null
+  if (groupBy === 'due_date') return issue.due_date || null
+  if (groupBy === 'start_date') return issue.start_date || null
   if (groupBy.startsWith('cf_')) {
     const cfId = Number(groupBy.slice(3))
     const cf = issue.custom_fields?.find(c => c.id === cfId)
@@ -417,6 +419,8 @@ function getIssueGroupFilterValue(issue: RedmineIssue, groupBy: string): string 
   if (groupBy === 'tracker_id') return String(issue.tracker.id)
   if (groupBy === 'priority_id') return issue.priority ? String(issue.priority.id) : null
   if (groupBy === 'assigned_to_id') return issue.assigned_to ? String(issue.assigned_to.id) : null
+  if (groupBy === 'due_date') return issue.due_date || null
+  if (groupBy === 'start_date') return issue.start_date || null
   if (groupBy.startsWith('cf_')) {
     const cfId = Number(groupBy.slice(3))
     const cf = issue.custom_fields?.find(c => c.id === cfId)
@@ -425,6 +429,30 @@ function getIssueGroupFilterValue(issue: RedmineIssue, groupBy: string): string 
     return (v as string) || null
   }
   return null
+}
+
+/** 今日の JST 日付を YYYY-MM-DD で返す */
+function getJstTodayStr(): string {
+  const now = new Date()
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  return jst.toISOString().slice(0, 10)
+}
+
+/**
+ * 日付フィールド用グルーピング条件を評価する
+ * dateValue: getIssueGroupValue が返す値（空/未設定の場合は '(No data)'）
+ */
+function matchesDateCondition(dateValue: string, cond: PieGroupRuleDateCondition): boolean {
+  const isEmpty = dateValue === '(No data)'
+  if (cond.op === 'empty') return isEmpty
+  if (cond.op === 'not_empty') return !isEmpty
+  if (isEmpty) return false
+  const ref = cond.value === 'today' ? getJstTodayStr() : (cond.value ?? getJstTodayStr())
+  if (cond.op === '<') return dateValue < ref
+  if (cond.op === '<=') return dateValue <= ref
+  if (cond.op === '>') return dateValue > ref
+  if (cond.op === '>=') return dateValue >= ref
+  return false
 }
 
 /**
@@ -444,11 +472,16 @@ function applyGroupRules(value: string, groupRules: PieGroupRule[]): string {
  */
 function applyGroupRulesForCrossTable(value: string, groupRules: PieGroupRule[], issue: RedmineIssue): string | null {
   for (const rule of groupRules) {
-    if (!rule.name || !rule.values.includes(value)) continue
+    if (!rule.name) continue
+    const matches = rule.dateCondition
+      ? matchesDateCondition(value, rule.dateCondition)
+      : rule.values.includes(value)
+    if (!matches) continue
     if (rule.andConditions?.length) {
       const allMatch = rule.andConditions.every(cond => {
         const issueVal = getIssueGroupValue(issue, cond.field)
         const effective = (issueVal === null || issueVal === '') ? '(No data)' : issueVal
+        if (cond.dateCondition) return matchesDateCondition(effective, cond.dateCondition)
         return cond.values.includes(effective)
       })
       if (!allMatch) continue
@@ -602,12 +635,270 @@ export function aggregateStackedBar(
  * - rowGroupRules/colGroupRules が指定された場合は複数値を1行/列にグルーピングする
  * - 行/列キーの順序: options指定時はoptions順（末尾に未知値を件数降順で追加）、未指定時は件数降順
  */
+/**
+ * 複数列セクションモード用の集計。colSections が存在する場合に呼び出される。
+ */
+function aggregateCrossTableMultiSection(
+  issues: RedmineIssue[],
+  config: CrossTableConfig,
+  rowOptions?: FilterFieldOption[],
+  colSectionOptions?: FilterFieldOption[][],
+): CrossTableData {
+  const { rowGroupBy, conditions, rowGroupRules, colSections } = config
+
+  // --- Step 1: 行キー確定（テーブル conditions + 行グループのみ、列条件なし） ---
+  const rowLabels: Record<string, string> = {}
+  const rowFvMap = new Map<string, Set<string>>()
+  const rowOptionsOrder: string[] = []
+  const rowAndCondFvMap: Record<string, Record<string, Set<string>>> = {}
+  const rowTotals: Record<string, number> = {}
+
+  if (rowGroupRules?.length) {
+    for (const rule of rowGroupRules) {
+      if (!rule.name) continue
+      if (!rowFvMap.has(rule.name)) {
+        rowFvMap.set(rule.name, new Set())
+        rowLabels[rule.name] = rule.name
+        rowOptionsOrder.push(rule.name)
+      }
+      if (rowOptions) {
+        for (const val of rule.values) {
+          const opt = rowOptions.find(o => o.label === val)
+          if (opt) rowFvMap.get(rule.name)!.add(opt.value)
+        }
+      }
+    }
+  } else if (rowOptions) {
+    for (const opt of rowOptions) {
+      const key = opt.label
+      if (!rowFvMap.has(key)) {
+        rowFvMap.set(key, new Set())
+        rowLabels[key] = key
+        rowOptionsOrder.push(key)
+      }
+      rowFvMap.get(key)!.add(opt.value)
+    }
+  }
+
+  for (const issue of issues) {
+    if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
+    const rawRowLabel = getIssueGroupValue(issue, rowGroupBy)
+    const effectiveRowLabel = (rawRowLabel === null || rawRowLabel === '') ? '(No data)' : rawRowLabel
+    let rowKey: string
+    if (rowGroupRules?.length) {
+      const matched = applyGroupRulesForCrossTable(effectiveRowLabel, rowGroupRules, issue)
+      if (matched === null) continue
+      rowKey = matched
+    } else {
+      if (effectiveRowLabel === '(No data)') continue
+      rowKey = effectiveRowLabel
+    }
+    if (!rowLabels[rowKey]) rowLabels[rowKey] = rowKey
+    if (!rowFvMap.has(rowKey)) rowFvMap.set(rowKey, new Set())
+    const rowFv = getIssueGroupFilterValue(issue, rowGroupBy)
+    if (rowFv !== null) rowFvMap.get(rowKey)!.add(rowFv)
+    const matchedRowRule = rowGroupRules?.find(r => r.name === rowKey)
+    matchedRowRule?.andConditions?.forEach(cond => {
+      if (cond.dateCondition) return  // 日付条件はURLフィルタを条件定義から直接構築するため収集不要
+      const fv = getIssueGroupFilterValue(issue, cond.field)
+      if (fv === null) return
+      if (!rowAndCondFvMap[rowKey]) rowAndCondFvMap[rowKey] = {}
+      if (!rowAndCondFvMap[rowKey][cond.field]) rowAndCondFvMap[rowKey][cond.field] = new Set()
+      rowAndCondFvMap[rowKey][cond.field].add(fv)
+    })
+    rowTotals[rowKey] = (rowTotals[rowKey] ?? 0) + 1
+  }
+
+  const rowOptionsSet = new Set(rowOptionsOrder)
+  const rowKeys = rowOptions
+    ? [
+        ...rowOptionsOrder,
+        ...Object.keys(rowLabels).filter(k => !rowOptionsSet.has(k))
+          .sort((a, b) => (rowTotals[b] ?? 0) - (rowTotals[a] ?? 0)),
+      ]
+    : Object.keys(rowLabels).sort((a, b) => (rowTotals[b] ?? 0) - (rowTotals[a] ?? 0))
+
+  const rowKeySet = new Set(rowKeys)
+  const grandTotal = Object.values(rowTotals).reduce((s, v) => s + v, 0)
+
+  const rowFilterValues: Record<string, string[]> = {}
+  for (const [k, s] of rowFvMap.entries()) rowFilterValues[k] = Array.from(s)
+  const rowAndCondFilterValues: Record<string, Record<string, string[]>> = {}
+  for (const [rk, fieldMap] of Object.entries(rowAndCondFvMap)) {
+    rowAndCondFilterValues[rk] = {}
+    for (const [field, s] of Object.entries(fieldMap)) rowAndCondFilterValues[rk][field] = Array.from(s)
+  }
+
+  // --- Step 2: 各セクションの集計 ---
+  const sections: CrossTableSectionData[] = []
+
+  for (let si = 0; si < (colSections?.length ?? 0); si++) {
+    const section = colSections![si]
+    const sectionColOptions = colSectionOptions?.[si]
+    const mergedConditions = [...(conditions ?? []), ...(section.conditions ?? [])]
+    const { colGroupBy: secColGroupBy, colGroupRules: secColGroupRules } = section
+
+    const colLabels: Record<string, string> = {}
+    const colFvMap = new Map<string, Set<string>>()
+    const colOptionsOrder: string[] = []
+    const colAndCondFvMap: Record<string, Record<string, Set<string>>> = {}
+    const cells: Record<string, Record<string, { count: number }>> = {}
+    const colTotals: Record<string, number> = {}
+    const colGroupByPerKey: Record<string, string> = {}
+
+    if (secColGroupRules?.length) {
+      // colKey = ルールのインデックス文字列（同名グループの重複を防ぐため名前ではなくインデックスを使用）
+      for (let ri = 0; ri < secColGroupRules.length; ri++) {
+        const rule = secColGroupRules[ri]
+        if (!rule.name) continue
+        const colKey = String(ri)
+        colFvMap.set(colKey, new Set())
+        colLabels[colKey] = rule.name  // 表示名はルール名を使用
+        colOptionsOrder.push(colKey)
+        colGroupByPerKey[colKey] = rule.colGroupBy ?? secColGroupBy
+        // dateCondition ルールは values が空のため、list 系のみ options からフィルタ値を事前登録する
+        if (!rule.dateCondition && !rule.colGroupBy && sectionColOptions) {
+          for (const val of rule.values) {
+            const opt = sectionColOptions.find(o => o.label === val)
+            if (opt) colFvMap.get(colKey)!.add(opt.value)
+          }
+        }
+      }
+    }
+    // グループルール未設定の場合は列を生成しない
+
+    for (const issue of issues) {
+      if (mergedConditions.length && !issueMatchesConditions(issue, mergedConditions)) continue
+      const rawRowLabel = getIssueGroupValue(issue, rowGroupBy)
+      const effectiveRowLabel = (rawRowLabel === null || rawRowLabel === '') ? '(No data)' : rawRowLabel
+      let rowKey: string
+      if (rowGroupRules?.length) {
+        const matched = applyGroupRulesForCrossTable(effectiveRowLabel, rowGroupRules, issue)
+        if (matched === null) continue
+        rowKey = matched
+      } else {
+        if (effectiveRowLabel === '(No data)') continue
+        rowKey = effectiveRowLabel
+      }
+      if (!rowKeySet.has(rowKey)) continue
+
+      let colKey: string
+      let matchedRuleField: string = secColGroupBy
+      if (secColGroupRules?.length) {
+        // ルールごとに個別フィールドで評価（colKey = ルールインデックス文字列）
+        let matchedIdx: number | null = null
+        for (let ri = 0; ri < secColGroupRules.length; ri++) {
+          const rule = secColGroupRules[ri]
+          if (!rule.name) continue
+          const ruleField = rule.colGroupBy ?? secColGroupBy
+          const rawVal = getIssueGroupValue(issue, ruleField)
+          const effectiveVal = (rawVal === null || rawVal === '') ? '(No data)' : rawVal
+          const matches = rule.dateCondition
+            ? matchesDateCondition(effectiveVal, rule.dateCondition)
+            : rule.values.includes(effectiveVal)
+          if (!matches) continue
+          if (rule.andConditions?.length) {
+            const allMatch = rule.andConditions.every(cond => {
+              const issueVal = getIssueGroupValue(issue, cond.field)
+              const effective = (issueVal === null || issueVal === '') ? '(No data)' : issueVal
+              if (cond.dateCondition) return matchesDateCondition(effective, cond.dateCondition)
+              return cond.values.includes(effective)
+            })
+            if (!allMatch) continue
+          }
+          matchedIdx = ri
+          matchedRuleField = ruleField
+          break
+        }
+        if (matchedIdx === null) continue
+        colKey = String(matchedIdx)
+      } else {
+        continue  // グループルール未設定の場合は列を生成しない
+      }
+
+      const colFv = getIssueGroupFilterValue(issue, matchedRuleField)
+      if (colFv !== null) colFvMap.get(colKey)!.add(colFv)
+
+      const matchedColRuleIdx = parseInt(colKey)
+      const matchedColRule = secColGroupRules[matchedColRuleIdx]
+      matchedColRule?.andConditions?.forEach(cond => {
+        if (cond.dateCondition) return  // 日付条件はURLフィルタを条件定義から直接構築するため収集不要
+        const fv = getIssueGroupFilterValue(issue, cond.field)
+        if (fv === null) return
+        if (!colAndCondFvMap[colKey]) colAndCondFvMap[colKey] = {}
+        if (!colAndCondFvMap[colKey][cond.field]) colAndCondFvMap[colKey][cond.field] = new Set()
+        colAndCondFvMap[colKey][cond.field].add(fv)
+      })
+
+      if (!cells[rowKey]) cells[rowKey] = {}
+      if (!cells[rowKey][colKey]) cells[rowKey][colKey] = { count: 0 }
+      cells[rowKey][colKey].count++
+      colTotals[colKey] = (colTotals[colKey] ?? 0) + 1
+    }
+
+    const colOptionsSet = new Set(colOptionsOrder)
+    // colGroupRules が設定されている場合はルール定義順を維持（重複名対応・サブヘッダ整合）
+    const colKeys = secColGroupRules?.length
+      ? colOptionsOrder
+      : sectionColOptions
+        ? [
+            ...colOptionsOrder,
+            ...Object.keys(colLabels).filter(k => !colOptionsSet.has(k))
+              .sort((a, b) => (colTotals[b] ?? 0) - (colTotals[a] ?? 0)),
+          ]
+        : Object.keys(colLabels).sort((a, b) => (colTotals[b] ?? 0) - (colTotals[a] ?? 0))
+
+    const colFilterValues: Record<string, string[]> = {}
+    for (const [k, s] of colFvMap.entries()) colFilterValues[k] = Array.from(s)
+    const colAndCondFilterValues: Record<string, Record<string, string[]>> = {}
+    for (const [ck, fieldMap] of Object.entries(colAndCondFvMap)) {
+      colAndCondFilterValues[ck] = {}
+      for (const [field, s] of Object.entries(fieldMap)) colAndCondFilterValues[ck][field] = Array.from(s)
+    }
+
+    sections.push({
+      label: section.label,
+      colGroupBy: secColGroupBy,
+      colGroupRules: secColGroupRules,
+      sectionConditions: section.conditions,
+      subHeaderLevels: section.subHeaderLevels,
+      colGroupByPerKey: Object.keys(colGroupByPerKey).length > 0 ? colGroupByPerKey : undefined,
+      colKeys,
+      colLabels,
+      colFilterValues,
+      colAndCondFilterValues,
+      cells,
+      colTotals,
+    })
+  }
+
+  return {
+    rowKeys,
+    rowLabels,
+    rowFilterValues,
+    rowAndCondFilterValues,
+    rowTotals,
+    grandTotal,
+    colKeys: [],
+    colLabels: {},
+    colFilterValues: {},
+    cells: {},
+    colTotals: {},
+    sections,
+  }
+}
+
 export function aggregateCrossTable(
   issues: RedmineIssue[],
   config: CrossTableConfig,
   rowOptions?: FilterFieldOption[],
   colOptions?: FilterFieldOption[],
+  colSectionOptions?: FilterFieldOption[][],
 ): CrossTableData {
+  if (config.colSections?.length) {
+    return aggregateCrossTableMultiSection(issues, config, rowOptions, colSectionOptions)
+  }
+
   const { rowGroupBy, colGroupBy, conditions, rowGroupRules, colGroupRules } = config
 
   const rowLabels: Record<string, string> = {}
@@ -653,24 +944,16 @@ export function aggregateCrossTable(
         colLabels[rule.name] = rule.name
         colOptionsOrder.push(rule.name)
       }
-      if (colOptions) {
+      // dateCondition ルールは values が空のため、list 系のみ options からフィルタ値を事前登録する
+      if (!rule.dateCondition && colOptions) {
         for (const val of rule.values) {
           const opt = colOptions.find(o => o.label === val)
           if (opt) colFvMap.get(rule.name)!.add(opt.value)
         }
       }
     }
-  } else if (colOptions) {
-    for (const opt of colOptions) {
-      const key = opt.label
-      if (!colFvMap.has(key)) {
-        colFvMap.set(key, new Set())
-        colLabels[key] = key
-        colOptionsOrder.push(key)
-      }
-      colFvMap.get(key)!.add(opt.value)
-    }
   }
+  // グループルール未設定の場合は列を生成しない（colOptions からの自動生成も行わない）
 
   // Step 2: チケットを集計
   const cells: CrossTableData['cells'] = {}
@@ -705,8 +988,7 @@ export function aggregateCrossTable(
       if (matched === null) continue
       colKey = matched
     } else {
-      if (effectiveColLabel === '(No data)') continue
-      colKey = effectiveColLabel
+      continue  // グループルール未設定の場合は列を生成しない
     }
 
     if (!rowLabels[rowKey]) rowLabels[rowKey] = rowKey
@@ -723,6 +1005,7 @@ export function aggregateCrossTable(
     // AND条件フィルタ値を収集
     const matchedRowRule = rowGroupRules?.find(r => r.name === rowKey)
     matchedRowRule?.andConditions?.forEach(cond => {
+      if (cond.dateCondition) return  // 日付条件はURLフィルタを条件定義から直接構築するため収集不要
       const fv = getIssueGroupFilterValue(issue, cond.field)
       if (fv === null) return
       if (!rowAndCondFvMap[rowKey]) rowAndCondFvMap[rowKey] = {}
@@ -731,6 +1014,7 @@ export function aggregateCrossTable(
     })
     const matchedColRule = colGroupRules?.find(r => r.name === colKey)
     matchedColRule?.andConditions?.forEach(cond => {
+      if (cond.dateCondition) return  // 日付条件はURLフィルタを条件定義から直接構築するため収集不要
       const fv = getIssueGroupFilterValue(issue, cond.field)
       if (fv === null) return
       if (!colAndCondFvMap[colKey]) colAndCondFvMap[colKey] = {}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Select from 'react-select'
-import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -125,9 +125,10 @@ interface PieGroupRulesEditorProps {
   onChange: (rules: PieGroupRule[] | undefined) => void
   filterFields?: FilterField[]
   enableAndConditions?: boolean
+  isDateField?: boolean  // true のとき日付フィールド用 UI（operator + value）を表示
 }
 
-function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions, onChange, filterFields, enableAndConditions }: PieGroupRulesEditorProps) {
+function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions, onChange, filterFields, enableAndConditions, isDateField }: PieGroupRulesEditorProps) {
   const [options, setOptions] = useState<FilterFieldOption[]>([])
   const [loading, setLoading] = useState(false)
   // AND条件の選択肢キャッシュ（fieldKey → options）
@@ -155,7 +156,26 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
   }
 
   function addRule() {
-    onChange([...groupRules, { name: '', values: [] }])
+    if (isDateField) {
+      onChange([...groupRules, { name: '', values: [], dateCondition: { op: 'not_empty' } }])
+    } else {
+      onChange([...groupRules, { name: '', values: [] }])
+    }
+  }
+
+  function updateRuleDateOp(idx: number, op: PieGroupRuleDateCondition['op']) {
+    const needsValue = ['<', '<=', '>', '>='].includes(op)
+    onChange(groupRules.map((r, i) => i === idx
+      ? { ...r, values: [], dateCondition: { op, value: needsValue ? 'today' : undefined } }
+      : r
+    ))
+  }
+
+  function updateRuleDateValue(idx: number, value: string) {
+    onChange(groupRules.map((r, i) => i === idx
+      ? { ...r, dateCondition: { ...(r.dateCondition ?? { op: 'not_empty' }), value: value || undefined } }
+      : r
+    ))
   }
 
   function removeRule(idx: number) {
@@ -187,8 +207,9 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
   }
 
   function updateAndCondField(ruleIdx: number, condIdx: number, field: string) {
-    // フィールドが変わったら選択肢を取得してキャッシュ
-    if (field && !andCondOptionsCache[field]) {
+    const isDate = filterFields?.find(f => f.key === field)?.type === 'date'
+    // 非日付フィールドのみ選択肢をフェッチ
+    if (field && !isDate && !andCondOptionsCache[field]) {
       getFieldOptions(field).then(opts => {
         setAndCondOptionsCache(prev => ({ ...prev, [field]: opts }))
       })
@@ -196,7 +217,30 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
     onChange(groupRules.map((r, i) => {
       if (i !== ruleIdx) return r
       const conds = (r.andConditions ?? []).map((c, ci): PieGroupRuleAndCondition =>
-        ci === condIdx ? { field, values: [] } : c
+        ci === condIdx
+          ? { field, values: [], dateCondition: isDate ? { op: 'not_empty' } : undefined }
+          : c
+      )
+      return { ...r, andConditions: conds }
+    }))
+  }
+
+  function updateAndCondDateOp(ruleIdx: number, condIdx: number, op: PieGroupRuleDateCondition['op']) {
+    const needsValue = ['<', '<=', '>', '>='].includes(op)
+    onChange(groupRules.map((r, i) => {
+      if (i !== ruleIdx) return r
+      const conds = (r.andConditions ?? []).map((c, ci): PieGroupRuleAndCondition =>
+        ci === condIdx ? { ...c, values: [], dateCondition: { op, value: needsValue ? 'today' : undefined } } : c
+      )
+      return { ...r, andConditions: conds }
+    }))
+  }
+
+  function updateAndCondDateValue(ruleIdx: number, condIdx: number, value: string) {
+    onChange(groupRules.map((r, i) => {
+      if (i !== ruleIdx) return r
+      const conds = (r.andConditions ?? []).map((c, ci): PieGroupRuleAndCondition =>
+        ci === condIdx ? { ...c, dateCondition: { ...(c.dateCondition ?? { op: 'not_empty' }), value: value || undefined } } : c
       )
       return { ...r, andConditions: conds }
     }))
@@ -262,17 +306,53 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
                   placeholder="グループ名"
                   style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 110 }}
                 />
-                <select
-                  multiple
-                  value={rule.values}
-                  onChange={(e) => updateRuleValues(idx, Array.from(e.target.selectedOptions, o => o.value))}
-                  style={{ ...selectStyle, height: 60, minWidth: 130 }}
-                >
-                  <option value="(No data)">(No data)</option>
-                  {options.map((opt) => (
-                    <option key={opt.value} value={opt.label}>{opt.label}</option>
-                  ))}
-                </select>
+                {isDateField ? (
+                  <>
+                    <select
+                      value={rule.dateCondition?.op ?? 'not_empty'}
+                      onChange={(e) => updateRuleDateOp(idx, e.target.value as PieGroupRuleDateCondition['op'])}
+                      style={{ ...selectStyle }}
+                    >
+                      <option value="not_empty">記入済み</option>
+                      <option value="empty">空（未設定）</option>
+                      <option value="<">より前（&lt;）</option>
+                      <option value="<=">以前（&lt;=）</option>
+                      <option value=">">より後（&gt;）</option>
+                      <option value=">=">以降（&gt;=）</option>
+                    </select>
+                    {['<', '<=', '>', '>='].includes(rule.dateCondition?.op ?? '') && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={rule.dateCondition?.value === 'today'}
+                          onChange={(e) => updateRuleDateValue(idx, e.target.checked ? 'today' : '')}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        今日
+                      </label>
+                    )}
+                    {['<', '<=', '>', '>='].includes(rule.dateCondition?.op ?? '') && rule.dateCondition?.value !== 'today' && (
+                      <input
+                        type="date"
+                        value={rule.dateCondition?.value ?? ''}
+                        onChange={(e) => updateRuleDateValue(idx, e.target.value)}
+                        style={{ ...selectStyle }}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <select
+                    multiple
+                    value={rule.values}
+                    onChange={(e) => updateRuleValues(idx, Array.from(e.target.selectedOptions, o => o.value))}
+                    style={{ ...selectStyle, height: 60, minWidth: 130 }}
+                  >
+                    <option value="(No data)">(No data)</option>
+                    {options.map((opt) => (
+                      <option key={opt.value} value={opt.label}>{opt.label}</option>
+                    ))}
+                  </select>
+                )}
                 <button
                   type="button"
                   onClick={() => removeRule(idx)}
@@ -285,7 +365,8 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
               {enableAndConditions && (
                 <div style={{ marginTop: 4, paddingLeft: 8 }}>
                   {(rule.andConditions ?? []).map((cond, ci) => {
-                    const condOpts = cond.field ? (andCondOptionsCache[cond.field] ?? []) : []
+                    const isAndCondDateField = filterFields?.find(f => f.key === cond.field)?.type === 'date'
+                    const condOpts = (!isAndCondDateField && cond.field) ? (andCondOptionsCache[cond.field] ?? []) : []
                     return (
                       <div key={ci} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 3, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 11, color: '#888' }}>AND</span>
@@ -300,17 +381,53 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
                           }}
                           isClearable={false}
                         />
-                        <select
-                          multiple
-                          value={cond.values}
-                          onChange={e => updateAndCondValues(idx, ci, Array.from(e.target.selectedOptions, o => o.value))}
-                          style={{ ...selectStyle, height: 52, minWidth: 120 }}
-                        >
-                          <option value="(No data)">(No data)</option>
-                          {condOpts.map(opt => (
-                            <option key={opt.value} value={opt.label}>{opt.label}</option>
-                          ))}
-                        </select>
+                        {isAndCondDateField ? (
+                          <>
+                            <select
+                              value={cond.dateCondition?.op ?? 'not_empty'}
+                              onChange={(e) => updateAndCondDateOp(idx, ci, e.target.value as PieGroupRuleDateCondition['op'])}
+                              style={{ ...selectStyle }}
+                            >
+                              <option value="not_empty">記入済み</option>
+                              <option value="empty">空（未設定）</option>
+                              <option value="<">より前（&lt;）</option>
+                              <option value="<=">以前（&lt;=）</option>
+                              <option value=">">より後（&gt;）</option>
+                              <option value=">=">以降（&gt;=）</option>
+                            </select>
+                            {['<', '<=', '>', '>='].includes(cond.dateCondition?.op ?? '') && (
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, cursor: 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={cond.dateCondition?.value === 'today'}
+                                  onChange={(e) => updateAndCondDateValue(idx, ci, e.target.checked ? 'today' : '')}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                                今日
+                              </label>
+                            )}
+                            {['<', '<=', '>', '>='].includes(cond.dateCondition?.op ?? '') && cond.dateCondition?.value !== 'today' && (
+                              <input
+                                type="date"
+                                value={cond.dateCondition?.value ?? ''}
+                                onChange={(e) => updateAndCondDateValue(idx, ci, e.target.value)}
+                                style={{ ...selectStyle }}
+                              />
+                            )}
+                          </>
+                        ) : (
+                          <select
+                            multiple
+                            value={cond.values}
+                            onChange={e => updateAndCondValues(idx, ci, Array.from(e.target.selectedOptions, o => o.value))}
+                            style={{ ...selectStyle, height: 52, minWidth: 120 }}
+                          >
+                            <option value="(No data)">(No data)</option>
+                            {condOpts.map(opt => (
+                              <option key={opt.value} value={opt.label}>{opt.label}</option>
+                            ))}
+                          </select>
+                        )}
                         <button
                           type="button"
                           onClick={() => removeAndCondition(idx, ci)}
@@ -1266,6 +1383,7 @@ interface Props {
   teamPresets?: TeamPreset[]
   filterFields?: FilterField[]
   dateFilterFields?: FilterField[]
+  columnFilterFields?: FilterField[]  // クロス集計列フィールド用（list + date）
   getFieldOptions?: (key: string) => Promise<FilterFieldOption[]>
 }
 
@@ -1318,7 +1436,7 @@ function HeadingEditorRow({ heading, onChange, onDelete }: HeadingEditorRowProps
   )
 }
 
-export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, onReset, teamPresets, filterFields = [], dateFilterFields = [], getFieldOptions = async () => [] }: Props) {
+export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, onReset, teamPresets, filterFields = [], dateFilterFields = [], columnFilterFields, getFieldOptions = async () => [] }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [presets, setPresets] = useState<Preset[]>(() => loadPresets())
   const [presetNameInput, setPresetNameInput] = useState('')
@@ -2378,23 +2496,29 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           />
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 200px' }}>
-                        <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>列のフィールド</span>
-                        <div style={{ flex: 1 }}>
-                          <Select
-                            instanceId={`table-col-${i}`}
-                            styles={fieldSelectStyles}
-                            options={filterFields.map(f => ({ label: f.name, value: f.key }))}
-                            value={table.colGroupBy ? (filterFields.find(f => f.key === table.colGroupBy) ? { label: filterFields.find(f => f.key === table.colGroupBy)!.name, value: table.colGroupBy } : { label: table.colGroupBy, value: table.colGroupBy }) : null}
-                            onChange={(selected) => {
-                              const next = tables.map((t, j) => j === i ? { ...t, colGroupBy: selected?.value ?? '' } : t)
-                              onChangeManual({ ...settings, tables: next })
-                            }}
-                            placeholder="フィールドを選択..."
-                            isClearable={false}
-                          />
-                        </div>
-                      </div>
+                      {/* 複数セクションモードでない場合のみ「列のフィールド」を表示 */}
+                      {!table.colSections && (() => {
+                        const colFields = columnFilterFields ?? filterFields
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 200px' }}>
+                            <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>列のフィールド</span>
+                            <div style={{ flex: 1 }}>
+                              <Select
+                                instanceId={`table-col-${i}`}
+                                styles={fieldSelectStyles}
+                                options={colFields.map(f => ({ label: f.name, value: f.key }))}
+                                value={table.colGroupBy ? (colFields.find(f => f.key === table.colGroupBy) ? { label: colFields.find(f => f.key === table.colGroupBy)!.name, value: table.colGroupBy } : { label: table.colGroupBy, value: table.colGroupBy }) : null}
+                                onChange={(selected) => {
+                                  const next = tables.map((t, j) => j === i ? { ...t, colGroupBy: selected?.value ?? '', colGroupRules: undefined } : t)
+                                  onChangeManual({ ...settings, tables: next })
+                                }}
+                                placeholder="フィールドを選択..."
+                                isClearable={false}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
 
                     {/* 行のグルーピング */}
@@ -2406,7 +2530,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           groupBy={table.rowGroupBy}
                           groupRules={table.rowGroupRules ?? []}
                           getFieldOptions={getFieldOptions}
-                          filterFields={filterFields}
+                          filterFields={[...filterFields, ...dateFilterFields]}
                           enableAndConditions={true}
                           onChange={(rules) => {
                             const next = tables.map((t, j) => j === i ? { ...t, rowGroupRules: rules ?? undefined } : t)
@@ -2416,8 +2540,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       </div>
                     )}
 
-                    {/* 列のグルーピング */}
-                    {table.colGroupBy && (
+                    {/* 列のグルーピング（単一セクションモードのみ） */}
+                    {!table.colSections && table.colGroupBy && (
                       <div style={{ marginTop: 6 }}>
                         <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>列のグルーピング</div>
                         <PieGroupRulesEditor
@@ -2425,13 +2549,264 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           groupBy={table.colGroupBy}
                           groupRules={table.colGroupRules ?? []}
                           getFieldOptions={getFieldOptions}
-                          filterFields={filterFields}
+                          filterFields={[...filterFields, ...dateFilterFields]}
                           enableAndConditions={true}
+                          isDateField={(columnFilterFields ?? filterFields).find(f => f.key === table.colGroupBy)?.type === 'date'}
                           onChange={(rules) => {
                             const next = tables.map((t, j) => j === i ? { ...t, colGroupRules: rules ?? undefined } : t)
                             onChangeManual({ ...settings, tables: next })
                           }}
                         />
+                      </div>
+                    )}
+
+                    {/* 列セクション（複数セクションモード） */}
+                    {table.colSections && (
+                      <div style={{ marginTop: 8, borderTop: '1px dashed #d1d5db', paddingTop: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 6 }}>列セクション</div>
+                        {table.colSections.map((section, si) => (
+                          <div key={si} style={{ border: '1px solid #d1d5db', borderRadius: 4, padding: 8, marginBottom: 8, background: '#fafafa' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                              <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>セクションラベル</span>
+                              <input
+                                type="text"
+                                placeholder="省略可（例: ステータス）"
+                                value={section.label ?? ''}
+                                onChange={(e) => {
+                                  const newSections = table.colSections!.map((s, j) => j === si ? { ...s, label: e.target.value || undefined } : s)
+                                  const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                  onChangeManual({ ...settings, tables: next })
+                                }}
+                                style={{ flex: 1, fontSize: 12, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 3 }}
+                              />
+                              <div style={{ display: 'flex', gap: 2 }}>
+                                <button
+                                  type="button"
+                                  disabled={si === 0}
+                                  onClick={() => {
+                                    const newSections = [...table.colSections!]
+                                    ;[newSections[si - 1], newSections[si]] = [newSections[si], newSections[si - 1]]
+                                    const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                    onChangeManual({ ...settings, tables: next })
+                                  }}
+                                  style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: si === 0 ? 'default' : 'pointer', color: si === 0 ? '#ccc' : '#374151' }}
+                                >↑</button>
+                                <button
+                                  type="button"
+                                  disabled={si === table.colSections!.length - 1}
+                                  onClick={() => {
+                                    const newSections = [...table.colSections!]
+                                    ;[newSections[si], newSections[si + 1]] = [newSections[si + 1], newSections[si]]
+                                    const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                    onChangeManual({ ...settings, tables: next })
+                                  }}
+                                  style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: si === table.colSections!.length - 1 ? 'default' : 'pointer', color: si === table.colSections!.length - 1 ? '#ccc' : '#374151' }}
+                                >↓</button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newSections = table.colSections!.filter((_, j) => j !== si)
+                                    const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections.length ? newSections : undefined, colGroupBy: newSections.length ? t.colGroupBy : (table.colSections![0]?.colGroupBy ?? t.colGroupBy), colGroupRules: newSections.length ? t.colGroupRules : table.colSections![0]?.colGroupRules } : t)
+                                    onChangeManual({ ...settings, tables: next })
+                                  }}
+                                  style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                                >削除</button>
+                              </div>
+                            </div>
+                            {/* 見出し行数 */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                              <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>見出し行数</span>
+                              {[0, 1, 2].map(n => (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  onClick={() => {
+                                    const newSections = table.colSections!.map((s, j) =>
+                                      j === si ? { ...s, subHeaderLevels: n === 0 ? undefined : n } : s
+                                    )
+                                    const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                    onChangeManual({ ...settings, tables: next })
+                                  }}
+                                  style={{
+                                    fontSize: 11, padding: '1px 8px',
+                                    border: '1px solid #ccc', borderRadius: 3,
+                                    background: (section.subHeaderLevels ?? 0) === n ? '#3b82f6' : '#fff',
+                                    color: (section.subHeaderLevels ?? 0) === n ? '#fff' : '#374151',
+                                    cursor: 'pointer',
+                                  }}
+                                >{n}</button>
+                              ))}
+                            </div>
+                            {(() => {
+                              const colFields = columnFilterFields ?? filterFields
+                              const secIsDateField = colFields.find(f => f.key === section.colGroupBy)?.type === 'date'
+                              return (
+                                <>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                    <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>列のフィールド</span>
+                                    <div style={{ flex: 1 }}>
+                                      <Select
+                                        instanceId={`table-sec-col-${i}-${si}`}
+                                        styles={fieldSelectStyles}
+                                        options={colFields.map(f => ({ label: f.name, value: f.key }))}
+                                        value={section.colGroupBy ? (colFields.find(f => f.key === section.colGroupBy) ? { label: colFields.find(f => f.key === section.colGroupBy)!.name, value: section.colGroupBy } : { label: section.colGroupBy, value: section.colGroupBy }) : null}
+                                        onChange={(selected) => {
+                                          const newSections = table.colSections!.map((s, j) => j === si ? { ...s, colGroupBy: selected?.value ?? '', colGroupRules: undefined } : s)
+                                          const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                          onChangeManual({ ...settings, tables: next })
+                                        }}
+                                        placeholder="フィールドを選択..."
+                                        isClearable={false}
+                                      />
+                                    </div>
+                                  </div>
+                                  {section.colGroupBy && (
+                                    <div style={{ marginBottom: 6 }}>
+                                      <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>列のグルーピング</div>
+                                      <PieGroupRulesEditor
+                                        instanceId={`table-sec-col-rules-${i}-${si}`}
+                                        groupBy={section.colGroupBy}
+                                        groupRules={section.colGroupRules ?? []}
+                                        getFieldOptions={getFieldOptions}
+                                        filterFields={[...filterFields, ...dateFilterFields]}
+                                        enableAndConditions={true}
+                                        isDateField={secIsDateField}
+                                        onChange={(rules) => {
+                                          const newSections = table.colSections!.map((s, j) => j === si ? { ...s, colGroupRules: rules ?? undefined } : s)
+                                          const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                          onChangeManual({ ...settings, tables: next })
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+                                </>
+                              )
+                            })()}
+                            {/* グループ詳細設定（フィールド上書き・サブヘッダ） */}
+                            {(section.colGroupRules?.length ?? 0) > 0 && (() => {
+                              const colFields = columnFilterFields ?? filterFields
+                              const hasSubHeaders = (section.subHeaderLevels ?? 0) > 0
+                              const updateRules = (newRules: typeof section.colGroupRules) => {
+                                const newSections = table.colSections!.map((s, j) =>
+                                  j === si ? { ...s, colGroupRules: newRules } : s
+                                )
+                                onChangeManual({ ...settings, tables: tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t) })
+                              }
+                              return (
+                                <div style={{ marginBottom: 6 }}>
+                                  <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>
+                                    グループ詳細設定
+                                    {hasSubHeaders && <span style={{ color: '#9ca3af' }}>（サブヘッダ空欄=前の見出しを延長）</span>}
+                                  </div>
+                                  <table style={{ fontSize: 11, borderCollapse: 'collapse', width: '100%' }}>
+                                    <thead>
+                                      <tr>
+                                        <th style={{ padding: '2px 6px', background: '#f3f4f6', border: '1px solid #e5e7eb', textAlign: 'left' }}>グループ</th>
+                                        <th style={{ padding: '2px 6px', background: '#f3f4f6', border: '1px solid #e5e7eb', textAlign: 'center', minWidth: 120 }}>フィールド（省略可）</th>
+                                        {hasSubHeaders && <th style={{ padding: '2px 6px', background: '#f3f4f6', border: '1px solid #e5e7eb', textAlign: 'center' }}>見出し1</th>}
+                                        {(section.subHeaderLevels ?? 0) >= 2 && <th style={{ padding: '2px 6px', background: '#f3f4f6', border: '1px solid #e5e7eb', textAlign: 'center' }}>見出し2</th>}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {section.colGroupRules!.map((rule, ri) => (
+                                        <tr key={ri}>
+                                          <td style={{ padding: '2px 6px', border: '1px solid #e5e7eb', color: '#374151', whiteSpace: 'nowrap' }}>{rule.name}</td>
+                                          <td style={{ padding: '2px 4px', border: '1px solid #e5e7eb' }}>
+                                            <Select
+                                              instanceId={`table-sec-rule-field-${i}-${si}-${ri}`}
+                                              styles={{ ...fieldSelectStyles, control: (b) => ({ ...b, minHeight: 24, fontSize: 11 }) }}
+                                              options={colFields.map(f => ({ label: f.name, value: f.key }))}
+                                              value={rule.colGroupBy
+                                                ? (colFields.find(f => f.key === rule.colGroupBy)
+                                                  ? { label: colFields.find(f => f.key === rule.colGroupBy)!.name, value: rule.colGroupBy }
+                                                  : { label: rule.colGroupBy, value: rule.colGroupBy })
+                                                : null}
+                                              onChange={(selected) => {
+                                                const newRules = section.colGroupRules!.map((r, j) =>
+                                                  j === ri ? { ...r, colGroupBy: selected?.value || undefined } : r
+                                                )
+                                                updateRules(newRules)
+                                              }}
+                                              placeholder={colFields.find(f => f.key === section.colGroupBy)?.name ?? section.colGroupBy}
+                                              isClearable={true}
+                                            />
+                                          </td>
+                                          {hasSubHeaders && [0, 1].slice(0, section.subHeaderLevels).map(lv => (
+                                            <td key={lv} style={{ padding: '2px 4px', border: '1px solid #e5e7eb' }}>
+                                              <input
+                                                type="text"
+                                                value={rule.subHeaders?.[lv] ?? ''}
+                                                onChange={(e) => {
+                                                  const newSubHeaders = [...(rule.subHeaders ?? [])]
+                                                  newSubHeaders[lv] = e.target.value
+                                                  const newRules = section.colGroupRules!.map((r, j) =>
+                                                    j === ri ? { ...r, subHeaders: newSubHeaders } : r
+                                                  )
+                                                  updateRules(newRules)
+                                                }}
+                                                style={{ width: '100%', fontSize: 11, padding: '1px 4px', border: '1px solid #d1d5db', borderRadius: 2 }}
+                                              />
+                                            </td>
+                                          ))}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )
+                            })()}
+                            <div>
+                              <div style={{ fontSize: 11, color: '#555', marginBottom: 4 }}>セクション絞り込み条件（テーブル条件と AND）</div>
+                              <ConditionsEditor
+                                conditions={section.conditions ?? []}
+                                filterFields={filterFields}
+                                dateFilterFields={dateFilterFields}
+                                getFieldOptions={getFieldOptions}
+                                onChange={(next) => {
+                                  const conds = next ?? []
+                                  const newSections = table.colSections!.map((s, j) => j === si ? { ...s, conditions: conds.length ? conds : undefined } : s)
+                                  const updatedTables = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                  onChangeManual({ ...settings, tables: updatedTables })
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newSection: CrossTableColSection = { colGroupBy: '' }
+                              const next = tables.map((t, j) => j === i ? { ...t, colSections: [...(t.colSections ?? []), newSection] } : t)
+                              onChangeManual({ ...settings, tables: next })
+                            }}
+                            style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+                          >＋ セクションを追加</button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const first = table.colSections![0]
+                              const next = tables.map((t, j) => j === i ? { ...t, colGroupBy: first?.colGroupBy ?? t.colGroupBy, colGroupRules: first?.colGroupRules, colSections: undefined } : t)
+                              onChangeManual({ ...settings, tables: next })
+                            }}
+                            style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#6b7280' }}
+                          >セクション化を解除</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 単一セクションモード: 複数セクション化ボタン */}
+                    {!table.colSections && (
+                      <div style={{ marginTop: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const firstSection: CrossTableColSection = { colGroupBy: table.colGroupBy, colGroupRules: table.colGroupRules }
+                            const next = tables.map((t, j) => j === i ? { ...t, colSections: [firstSection], colGroupRules: undefined } : t)
+                            onChangeManual({ ...settings, tables: next })
+                          }}
+                          style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #93c5fd', borderRadius: 3, background: '#eff6ff', cursor: 'pointer', color: '#1d4ed8' }}
+                        >列を複数セクション化</button>
                       </div>
                     )}
 

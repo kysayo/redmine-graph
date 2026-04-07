@@ -26,13 +26,23 @@ export interface PieDataPoint {
 export interface PieGroupRuleAndCondition {
   field: string    // フィールドキー（例: 'cf_628'）
   values: string[] // 表示名/生値のリスト（getIssueGroupValue が返す値と一致させる）
+  dateCondition?: PieGroupRuleDateCondition  // 日付フィールド用条件（valuesの代わりに使用）
+}
+
+// クロス集計グルーピング: 日付フィールド用条件
+export interface PieGroupRuleDateCondition {
+  op: 'empty' | 'not_empty' | '<' | '<=' | '>' | '>='
+  value?: 'today' | string  // 'today' = 実行時に今日の JST 日付で評価。比較演算子のときのみ使用
 }
 
 // 円グラフ スライスグルーピングルール
 export interface PieGroupRule {
   name: string      // グループ名（例: "対応中"）
   values: string[]  // グループ対象の値リスト（例: ["In Progress", "In Progress(Permanent)"]）
+  dateCondition?: PieGroupRuleDateCondition  // 日付フィールド用条件（values の代わりに使用）
   andConditions?: PieGroupRuleAndCondition[]  // 追加AND条件（クロス集計のみで評価）
+  subHeaders?: string[]  // クロス集計テーブル用サブヘッダラベル [level0, level1, ...]
+  colGroupBy?: string    // クロス集計テーブル用: セクションの colGroupBy をこのルールで上書き
 }
 
 // 円グラフ 経過日数バケット（groupBy === 'elapsed_days' のときのスライス定義）
@@ -163,6 +173,31 @@ export interface HeadingConfig {
   color: string // アクセントカラー（HEX）
 }
 
+// クロス集計テーブル 列セクション定義（複数列グループ化）
+export interface CrossTableColSection {
+  label?: string                 // セクションヘッダ表示名（省略時 = colGroupBy のフィールド表示名）
+  colGroupBy: string             // このセクションの列グループキー
+  colGroupRules?: PieGroupRule[] // このセクションの列グルーピングルール
+  conditions?: SeriesCondition[] // セクション固有の絞り込み条件（テーブル conditions と AND）
+  subHeaderLevels?: number       // サブヘッダ行数 0〜2（デフォルト: 0）
+}
+
+// クロス集計テーブル 列セクションの集計データ
+export interface CrossTableSectionData {
+  label?: string
+  colGroupBy: string             // URLフィルタ構築に必要
+  colGroupRules?: PieGroupRule[]
+  sectionConditions?: SeriesCondition[]
+  subHeaderLevels?: number       // サブヘッダ行数 0〜2
+  colGroupByPerKey?: Record<string, string>  // colKey → 実際の colGroupBy（ルール別フィールド上書き時）
+  colKeys: string[]
+  colLabels: Record<string, string>
+  colFilterValues: Record<string, string[]>
+  colAndCondFilterValues?: Record<string, Record<string, string[]>>
+  cells: Record<string, Record<string, { count: number }>>
+  colTotals: Record<string, number>
+}
+
 // クロス集計テーブル設定
 export interface CrossTableConfig {
   id?: string                     // タイル識別子（tileOrder参照用）
@@ -173,6 +208,7 @@ export interface CrossTableConfig {
   rowGroupRules?: PieGroupRule[]  // 行のグルーピングルール（PieGroupRule を再利用）
   colGroupRules?: PieGroupRule[]  // 列のグルーピングルール
   fullWidth?: boolean             // false=3列グリッドに収まるサイズ、省略/true=全幅（デフォルト）
+  colSections?: CrossTableColSection[]  // 複数列セクション（存在する場合 colGroupBy より優先）
 }
 
 // クロス集計テーブルの集計結果
@@ -189,6 +225,7 @@ export interface CrossTableData {
   rowTotals: Record<string, number>
   colTotals: Record<string, number>
   grandTotal: number
+  sections?: CrossTableSectionData[]  // colSections モード時のみ存在
 }
 
 // 2軸グラフ1枚分の設定（v2以降。軸設定をグラフごとに独立して保持）
@@ -327,7 +364,7 @@ export interface SeriesDataPoint {
 // 系列の1絞り込み条件
 export interface SeriesCondition {
   field: string       // window.availableFilters のキー（例: 'cf_628', 'tracker_id'）
-  operator: '=' | '!' | '>=' | '<=' | '!*'  // '=' = 一致、'!' = 不一致、'>=' = 以上、'<=' = 以下（以内）、'!*' = 値なし
+  operator: '=' | '!' | '>=' | '<=' | '!*' | '*'  // '=' = 一致、'!' = 不一致、'>=' = 以上、'<=' = 以下（以内）、'!*' = 値なし、'*' = 値あり
   values: string[]    // 選択値の配列（例: ['QA', 'BUG']）
   elapsedDaysBaseField?: string  // field === 'elapsed_days' のとき: 経過日数計算のベース日付フィールドキー
   elapsedDaysMode?: 'past' | 'future'  // field === 'elapsed_days' のとき: 'past'=経過日数（デフォルト）、'future'=到来日数
@@ -337,6 +374,7 @@ export interface SeriesCondition {
 export interface FilterField {
   key: string   // availableFilters のキー
   name: string  // 表示名（例: 'Type', 'トラッカー'）
+  type?: 'list' | 'date'  // フィールド種別（省略時 = list として扱う）
 }
 
 // フィールドの選択肢1件
