@@ -151,6 +151,30 @@ export function buildRedmineFilterUrl(
         }
         continue
       }
+      // dateCondition を含む SeriesCondition（日付フィールド絞り込み）
+      if (cond.dateCondition) {
+        const { op, value } = cond.dateCondition
+        if (op === 'empty') {
+          filterMap.set(cond.field, { field: cond.field, operator: '!*', values: [] })
+        } else if (op === 'not_empty') {
+          filterMap.set(cond.field, { field: cond.field, operator: '*', values: [] })
+        } else {
+          const now = new Date()
+          const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+          const today = jst.toISOString().slice(0, 10)
+          let refDate = value === 'today' ? today : (value ?? today)
+          let urlOp: string
+          if (op === '<') {
+            const d = new Date(refDate); d.setDate(d.getDate() - 1); refDate = d.toISOString().slice(0, 10); urlOp = '<='
+          } else if (op === '>') {
+            const d = new Date(refDate); d.setDate(d.getDate() + 1); refDate = d.toISOString().slice(0, 10); urlOp = '>='
+          } else {
+            urlOp = op  // '<=' または '>=' はそのまま
+          }
+          filterMap.set(cond.field, { field: cond.field, operator: urlOp, values: [refDate] })
+        }
+        continue
+      }
       // Redmine URLフィルタで使用する演算子のみ通す（日付比較 <=/>=/*/!* を含む）
       if (!['=', '!', '!*', '*', '<=', '>='].includes(cond.operator)) continue
       filterMap.set(cond.field, {
