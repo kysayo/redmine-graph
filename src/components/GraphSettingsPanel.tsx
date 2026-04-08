@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Select from 'react-select'
-import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, TeamPreset, TileRef, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, SummaryCardDenominator, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -1045,20 +1045,22 @@ interface SummaryCardEditorRowProps {
   onMoveDown?: () => void
 }
 
+function initDenominators(card: SummaryCardConfig): SummaryCardDenominator[] {
+  if (card.denominators && card.denominators.length > 0) return card.denominators
+  if (card.denominator) return [{ label: '', conditions: card.denominator.conditions }]
+  return []
+}
+
 function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SummaryCardEditorRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
-  const [showDenominator, setShowDenominator] = useState(!!card.denominator)
+  const [denominators, setDenominators] = useState<SummaryCardDenominator[]>(() => initDenominators(card))
 
   const labelStyle: React.CSSProperties = { fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }
   const inputStyle: React.CSSProperties = { fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', width: 140 }
 
-  function handleToggleDenominator(checked: boolean) {
-    setShowDenominator(checked)
-    if (!checked) {
-      onChange({ ...card, denominator: undefined })
-    } else {
-      onChange({ ...card, denominator: { conditions: [] } })
-    }
+  function updateDenominators(next: SummaryCardDenominator[]) {
+    setDenominators(next)
+    onChange({ ...card, denominators: next.length > 0 ? next : undefined, denominator: undefined })
   }
 
   return (
@@ -1139,35 +1141,51 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
         />
       </div>
 
-      {/* 分母トグル */}
+      {/* 追加値リスト */}
       <div style={{ marginTop: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: showDenominator ? 6 : 0 }}>
-          <input
-            type="checkbox"
-            id={`denom-toggle-${card.title}-${card.color}`}
-            checked={showDenominator}
-            onChange={(e) => handleToggleDenominator(e.target.checked)}
-            style={{ cursor: 'pointer', width: 13, height: 13 }}
-          />
-          <label
-            htmlFor={`denom-toggle-${card.title}-${card.color}`}
-            style={{ fontSize: 11, color: '#555', cursor: 'pointer' }}
-          >
-            分母の条件を指定する（指定時は「分子 / 分母」形式で表示）
-          </label>
+        <div style={{ fontSize: 11, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>
+          追加値（「分子 / 値1 / 値2 ...」形式で表示）
         </div>
-        {showDenominator && (
-          <div style={{ marginTop: 4 }}>
-            <div style={{ fontSize: 11, color: '#555', marginBottom: 4, fontWeight: 'bold' }}>分母の絞り込み条件</div>
+        {denominators.map((denom, idx) => (
+          <div key={idx} style={{ border: '1px solid #e5e7eb', borderRadius: 4, padding: '6px 8px', marginBottom: 6, background: '#fafafa' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <label style={{ ...labelStyle, marginBottom: 0, flexShrink: 0 }}>ラベル</label>
+              <input
+                type="text"
+                value={denom.label ?? ''}
+                onChange={(e) => {
+                  const next = denominators.map((d, i) => i === idx ? { ...d, label: e.target.value } : d)
+                  updateDenominators(next)
+                }}
+                placeholder="予定（省略可）"
+                style={{ ...inputStyle, width: 120, flexShrink: 0 }}
+              />
+              <button
+                type="button"
+                onClick={() => updateDenominators(denominators.filter((_, i) => i !== idx))}
+                style={{ marginLeft: 'auto', fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e', flexShrink: 0 }}
+              >削除</button>
+            </div>
+            <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>絞り込み条件</div>
             <ConditionsEditor
-              conditions={card.denominator?.conditions ?? []}
+              conditions={denom.conditions}
               filterFields={filterFields}
               dateFilterFields={dateFilterFields}
               getFieldOptions={getFieldOptions}
-              onChange={(next) => onChange({ ...card, denominator: { conditions: next ?? [] } })}
+              onChange={(next) => {
+                const updated = denominators.map((d, i) => i === idx ? { ...d, conditions: next ?? [] } : d)
+                updateDenominators(updated)
+              }}
             />
           </div>
-        )}
+        ))}
+        <button
+          type="button"
+          onClick={() => updateDenominators([...denominators, { label: '', conditions: [] }])}
+          style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#4a9eda' }}
+        >
+          + 追加値を追加
+        </button>
       </div>
     </div>
   )

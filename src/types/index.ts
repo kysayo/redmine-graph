@@ -52,12 +52,20 @@ export interface ElapsedDaysBucket {
   max?: number    // 最大経過日数（含む）。省略 = 以上（上限なし）
 }
 
+// 集計カード 追加値1スロット
+export interface SummaryCardDenominator {
+  label?: string              // 任意ラベル（例: "予定", "実績"）
+  conditions: SeriesCondition[]
+}
+
 // 集計カード設定
 export interface SummaryCardConfig {
   title: string
   color: string  // HEX accent color（カード上辺ボーダー + 数値テキスト色）
   numerator: { conditions: SeriesCondition[] }    // 分子: 条件に合致するチケット数
-  denominator?: { conditions: SeriesCondition[] } // 分母: 省略可。指定時は「分子 / 分母」形式で表示
+  /** @deprecated denominators[] を使うこと。旧データ後方互換用 */
+  denominator?: { conditions: SeriesCondition[] }
+  denominators?: SummaryCardDenominator[]         // 追加値（任意個数）。指定時は「分子 / 値1 / 値2 ...」形式で表示
 }
 
 // 横棒グラフ 積み上げセグメント1件

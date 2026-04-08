@@ -98,9 +98,9 @@ Recharts の `PieChart` を使用した割合表示グラフ。
     - アクセントカラー: カード上辺ボーダー色 + 数値テキスト色（12色パレットから選択）
     - タイトル: カードの見出しテキスト（`\n` で任意改行可。1行目は太文字、2行目以降は通常ウェイト。設定UIはテキストエリア。`[r]text[/r]` で囲んだ部分は赤色（`#ef4444`）で表示）
     - 分子条件: 系列と同様の ConditionsEditor（条件に合致するチケット数を大きく表示）
-    - 分母条件: 省略可能（「分母条件を追加」ボタンで表示）。指定時は「分子 / 分母」形式で表示
+    - 追加値: 任意個数追加可能（「+ 追加値を追加」ボタン）。各追加値に任意ラベルと絞り込み条件を設定。指定時は「分子 / 値1 / 値2 ...」形式で表示。ラベルを設定した場合は数値の下に小さく表示
     - ↑↓ ボタンで並び順を変更。削除ボタンでカードを削除
-  - カードクリック: 分子数値クリック→分子条件でRedmineチケット一覧を新タブで開く / 分母数値クリック→分母条件で開く
+  - カードクリック: 分子数値クリック→分子条件でRedmineチケット一覧を新タブで開く / 追加値クリック→その条件で開く
   - データ未取得中（ローディング）は「—」を表示
   - 設定は `localStorage` の `UserSettings.summaryCards` へ保存
 - **円グラフ設定**（系列設定パネルの下部）:
@@ -123,7 +123,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - `showLabelsLeft?: boolean`: `true` のとき左軸系列の各データ点に値ラベルを常時表示
   - `showLabelsRight?: boolean`: `true` のとき右軸系列の各データ点に値ラベルを常時表示
   - `pies?: PieSeriesConfig[]`: 任意個数の円グラフ設定。各要素は `{ groupBy, label?, conditions?, groupRules?, elapsedDaysBuckets?, elapsedDaysBaseField? }`
-  - `summaryCards?: SummaryCardConfig[]`: 任意個数の集計カード設定。各要素は `{ title, color, numerator: { conditions }, denominator?: { conditions } }`
+  - `summaryCards?: SummaryCardConfig[]`: 任意個数の集計カード設定。各要素は `{ title, color, numerator: { conditions }, denominators?: SummaryCardDenominator[] }`
 
 ### プリセットの永続化（storage.ts）
 
@@ -350,7 +350,15 @@ if (container) {
 | `title` | `string` | カードの見出しテキスト（`\n` で改行可。1行目太文字。`[r]text[/r]` で囲んだ部分は赤色（`#ef4444`）で表示） |
 | `color` | `string` | アクセントカラー（HEX）。カード上辺ボーダーと数値テキスト色に使用 |
 | `numerator` | `{ conditions: SeriesCondition[] }` | 分子の絞り込み条件 |
-| `denominator` | `{ conditions: SeriesCondition[] }?` | 分母の絞り込み条件（省略時 = 分母なし） |
+| `denominators` | `SummaryCardDenominator[]?` | 追加値の配列（省略時 = 追加値なし）。指定時は「分子 / 値1 / 値2 ...」形式で表示 |
+
+### `SummaryCardDenominator`
+集計カードの追加値1スロットの設定。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `label` | `string?` | 任意ラベル（例: "予定"、"実績"）。指定時は数値の下に小さく表示 |
+| `conditions` | `SeriesCondition[]` | 絞り込み条件 |
 
 ### `PieSeriesConfig`
 円グラフ1枚の設定。

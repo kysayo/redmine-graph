@@ -1,12 +1,12 @@
 import React from 'react'
-import type { RedmineIssue, SeriesCondition, SummaryCardConfig } from '../types'
+import type { RedmineIssue, SeriesCondition, SummaryCardConfig, SummaryCardDenominator } from '../types'
 import { countIssues } from '../utils/issueAggregator'
 
 interface Props {
   cards: SummaryCardConfig[]
   issues: RedmineIssue[] | null  // null = ローディング中
   onNumeratorClick?: (conditions: SeriesCondition[]) => void
-  onDenominatorClick?: (conditions: SeriesCondition[]) => void
+  onExtraValueClick?: (conditions: SeriesCondition[]) => void
 }
 
 function parseRedTags(text: string, fontWeight: number): React.ReactNode[] {
@@ -20,18 +20,21 @@ function parseRedTags(text: string, fontWeight: number): React.ReactNode[] {
   })
 }
 
-export function SummaryCards({ cards, issues, onNumeratorClick, onDenominatorClick }: Props) {
+function getEffectiveDenominators(card: SummaryCardConfig): SummaryCardDenominator[] {
+  if (card.denominators && card.denominators.length > 0) return card.denominators
+  if (card.denominator) return [{ conditions: card.denominator.conditions }]
+  return []
+}
+
+export function SummaryCards({ cards, issues, onNumeratorClick, onExtraValueClick }: Props) {
   if (cards.length === 0) return null
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
       {cards.map((card, i) => {
         const numeratorCount = issues !== null ? countIssues(issues, card.numerator.conditions) : null
-        const denominatorCount = card.denominator && issues !== null
-          ? countIssues(issues, card.denominator.conditions)
-          : null
         const hasClickableNumerator = onNumeratorClick && card.numerator.conditions.length > 0
-        const hasClickableDenominator = onDenominatorClick && card.denominator && card.denominator.conditions.length > 0
+        const effectiveDenominators = getEffectiveDenominators(card)
 
         return (
           <div
@@ -68,20 +71,34 @@ export function SummaryCards({ cards, issues, onNumeratorClick, onDenominatorCli
               >
                 {numeratorCount !== null ? numeratorCount : '—'}
               </span>
-              {card.denominator && (
-                <span
-                  onClick={hasClickableDenominator ? () => onDenominatorClick!(card.denominator!.conditions) : undefined}
-                  style={{
-                    fontSize: 20,
-                    color: '#9ca3af',
-                    cursor: hasClickableDenominator ? 'pointer' : 'default',
-                    textDecoration: hasClickableDenominator ? 'underline' : 'none',
-                    textUnderlineOffset: 3,
-                  }}
-                >
-                  / {denominatorCount !== null ? denominatorCount : '—'}
-                </span>
-              )}
+              {effectiveDenominators.map((denom, idx) => {
+                const count = issues !== null ? countIssues(issues, denom.conditions) : null
+                const clickable = onExtraValueClick && denom.conditions.length > 0
+                return (
+                  <span
+                    key={idx}
+                    style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}
+                  >
+                    <span
+                      onClick={clickable ? () => onExtraValueClick!(denom.conditions) : undefined}
+                      style={{
+                        fontSize: 20,
+                        color: '#9ca3af',
+                        cursor: clickable ? 'pointer' : 'default',
+                        textDecoration: clickable ? 'underline' : 'none',
+                        textUnderlineOffset: 3,
+                      }}
+                    >
+                      / {count !== null ? count : '—'}
+                    </span>
+                    {denom.label && (
+                      <span style={{ fontSize: 9, color: '#9ca3af', lineHeight: 1, marginTop: 2 }}>
+                        {denom.label}
+                      </span>
+                    )}
+                  </span>
+                )
+              })}
             </div>
           </div>
         )

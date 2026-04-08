@@ -976,7 +976,7 @@ export function App({ container }: Props) {
           cards={settings.summaryCards!}
           issues={issueState.issues}
           onNumeratorClick={handleSummaryCardClick}
-          onDenominatorClick={handleSummaryCardClick}
+          onExtraValueClick={handleSummaryCardClick}
         />
       )}
 
