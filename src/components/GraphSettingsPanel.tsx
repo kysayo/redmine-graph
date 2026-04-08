@@ -416,17 +416,24 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
                             )}
                           </>
                         ) : (
-                          <select
-                            multiple
-                            value={cond.values}
-                            onChange={e => updateAndCondValues(idx, ci, Array.from(e.target.selectedOptions, o => o.value))}
-                            style={{ ...selectStyle, height: 52, minWidth: 120 }}
-                          >
-                            <option value="(No data)">(No data)</option>
-                            {condOpts.map(opt => (
-                              <option key={opt.value} value={opt.label}>{opt.label}</option>
+                          <div style={{ maxHeight: 80, overflowY: 'auto', border: '1px solid #ccc', borderRadius: 3, padding: '2px 4px', minWidth: 120, background: '#fff', fontSize: 12 }}>
+                            {[{ label: '(No data)', value: '(No data)' }, ...condOpts].map(opt => (
+                              <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={cond.values.includes(opt.label)}
+                                  onChange={e => {
+                                    const newValues = e.target.checked
+                                      ? [...cond.values, opt.label]
+                                      : cond.values.filter(v => v !== opt.label)
+                                    updateAndCondValues(idx, ci, newValues)
+                                  }}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                                {opt.label}
+                              </label>
                             ))}
-                          </select>
+                          </div>
                         )}
                         <button
                           type="button"
@@ -480,10 +487,11 @@ export function ConditionsEditor({ conditions, filterFields, dateFilterFields, g
   const [fieldOptions, setFieldOptions] = useState<Record<string, FilterFieldOption[]>>({})
   const [loadingField, setLoadingField] = useState<string | null>(null)
 
-  const allFields = [ELAPSED_DAYS_FIELD, ...filterFields]
+  const allFields = [ELAPSED_DAYS_FIELD, ...filterFields, ...dateFilterFields]
 
   // conditions のフィールドが変わったとき（プリセット読み込み含む）、未取得のフィールドの選択肢を取得
-  const fieldsKey = [...new Set(conditions.map(c => c.field).filter(f => f && f !== 'elapsed_days'))].sort().join(',')
+  // elapsed_days と日付フィールドはAPIフェッチ不要
+  const fieldsKey = [...new Set(conditions.map(c => c.field).filter(f => f && f !== 'elapsed_days' && !dateFilterFields.some(d => d.key === f)))].sort().join(',')
   useEffect(() => {
     const fields = fieldsKey ? fieldsKey.split(',') : []
     for (const field of fields) {
@@ -505,9 +513,15 @@ export function ConditionsEditor({ conditions, filterFields, dateFilterFields, g
   }
 
   async function handleConditionFieldChange(idx: number, newField: string) {
-    const next = conditions.map((c, i) => i === idx ? { ...c, field: newField, values: [] } : c)
+    const isDate = dateFilterFields.some(f => f.key === newField)
+    const next = conditions.map((c, i) => i === idx ? {
+      ...c,
+      field: newField,
+      values: [],
+      dateCondition: isDate ? { op: 'not_empty' as const } : undefined,
+    } : c)
     onChange(next)
-    if (newField && !fieldOptions[newField]) {
+    if (newField && !isDate && newField !== 'elapsed_days' && !fieldOptions[newField]) {
       setLoadingField(newField)
       const opts = await getFieldOptions(newField)
       setFieldOptions(prev => ({ ...prev, [newField]: opts }))
@@ -529,6 +543,21 @@ export function ConditionsEditor({ conditions, filterFields, dateFilterFields, g
 
   function updateConditionMode(idx: number, mode: 'past' | 'future') {
     onChange(conditions.map((c, i) => i === idx ? { ...c, elapsedDaysMode: mode } : c))
+  }
+
+  function updateConditionDateOp(idx: number, op: PieGroupRuleDateCondition['op']) {
+    const needsValue = ['<', '<=', '>', '>='].includes(op)
+    onChange(conditions.map((c, i) => i === idx
+      ? { ...c, values: [], dateCondition: { op, value: needsValue ? 'today' : undefined } }
+      : c
+    ))
+  }
+
+  function updateConditionDateValue(idx: number, value: string) {
+    onChange(conditions.map((c, i) => i === idx
+      ? { ...c, dateCondition: { ...(c.dateCondition ?? { op: 'not_empty' as const }), value: value || undefined } }
+      : c
+    ))
   }
 
   const elapsedDaysBaseFields = [...BUILTIN_DATE_FIELDS, ...dateFilterFields]
@@ -559,19 +588,21 @@ export function ConditionsEditor({ conditions, filterFields, dateFilterFields, g
               menuPosition="fixed"
             />
           </div>
-          {/* 演算子 */}
-          <select
-            value={cond.operator}
-            onChange={(e) => updateConditionOperator(idx, e.target.value as SeriesCondition['operator'])}
-            style={selectStyle}
-          >
-            <option value="=">=</option>
-            <option value="!">!=</option>
-            <option value=">=">&gt;=（以上）</option>
-            {cond.field === 'elapsed_days' && (
-              <option value="<=">&lt;=（以内）</option>
-            )}
-          </select>
+          {/* 演算子（日付フィールドは dateCondition 内で operator を管理するため非表示） */}
+          {cond.dateCondition === undefined && (
+            <select
+              value={cond.operator}
+              onChange={(e) => updateConditionOperator(idx, e.target.value as SeriesCondition['operator'])}
+              style={selectStyle}
+            >
+              <option value="=">=</option>
+              <option value="!">!=</option>
+              <option value=">=">&gt;=（以上）</option>
+              {cond.field === 'elapsed_days' && (
+                <option value="<=">&lt;=（以内）</option>
+              )}
+            </select>
+          )}
           {/* 値選択 */}
           {cond.field && (
             cond.field === 'elapsed_days' ? (
@@ -603,6 +634,40 @@ export function ConditionsEditor({ conditions, filterFields, dateFilterFields, g
                   placeholder="日数"
                 />
                 <span style={{ fontSize: 11, color: '#777' }}>(Business days)</span>
+              </>
+            ) : cond.dateCondition !== undefined ? (
+              <>
+                <select
+                  value={cond.dateCondition.op}
+                  onChange={(e) => updateConditionDateOp(idx, e.target.value as PieGroupRuleDateCondition['op'])}
+                  style={selectStyle}
+                >
+                  <option value="not_empty">記入済み</option>
+                  <option value="empty">空（未設定）</option>
+                  <option value="<">より前（&lt;）</option>
+                  <option value="<=">以前（&lt;=）</option>
+                  <option value=">">より後（&gt;）</option>
+                  <option value=">=">以降（&gt;=）</option>
+                </select>
+                {['<', '<=', '>', '>='].includes(cond.dateCondition.op) && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={cond.dateCondition.value === 'today'}
+                      onChange={(e) => updateConditionDateValue(idx, e.target.checked ? 'today' : '')}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    今日
+                  </label>
+                )}
+                {['<', '<=', '>', '>='].includes(cond.dateCondition.op) && cond.dateCondition.value !== 'today' && (
+                  <input
+                    type="date"
+                    value={cond.dateCondition.value ?? ''}
+                    onChange={(e) => updateConditionDateValue(idx, e.target.value)}
+                    style={selectStyle}
+                  />
+                )}
               </>
             ) : loadingField === cond.field ? (
               <span style={{ fontSize: 11, color: '#999' }}>読み込み中...</span>

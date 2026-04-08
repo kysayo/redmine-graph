@@ -368,6 +368,7 @@ export interface SeriesCondition {
   values: string[]    // 選択値の配列（例: ['QA', 'BUG']）
   elapsedDaysBaseField?: string  // field === 'elapsed_days' のとき: 経過日数計算のベース日付フィールドキー
   elapsedDaysMode?: 'past' | 'future'  // field === 'elapsed_days' のとき: 'past'=経過日数（デフォルト）、'future'=到来日数
+  dateCondition?: PieGroupRuleDateCondition  // field が日付型フィールドのとき: 日付比較条件（valuesの代わりに使用）
 }
 
 // フィルタフィールド一覧（UIの選択肢表示用）

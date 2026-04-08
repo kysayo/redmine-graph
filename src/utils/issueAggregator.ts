@@ -121,6 +121,15 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
   const values = cond.values.map(v => (v === 'me' && currentUserId ? currentUserId : v))
   let issueValues: string[] = []
 
+  // 日付フィールド条件（dateCondition が設定されている場合）
+  if (cond.dateCondition) {
+    const rawDate = getIssueDateByField(issue, field)
+    const dateValue = rawDate
+      ? (rawDate.includes('T') ? utcToJstDate(rawDate) : rawDate)
+      : '(No data)'
+    return matchesDateCondition(dateValue, cond.dateCondition)
+  }
+
   if (field === 'elapsed_days') {
     const mode = cond.elapsedDaysMode ?? 'past'
     const days = getElapsedDaysForIssue(issue, cond.elapsedDaysBaseField, mode)
@@ -782,58 +791,46 @@ function aggregateCrossTableMultiSection(
       }
       if (!rowKeySet.has(rowKey)) continue
 
-      let colKey: string
-      let matchedRuleField: string = secColGroupBy
-      if (secColGroupRules?.length) {
-        // ルールごとに個別フィールドで評価（colKey = ルールインデックス文字列）
-        let matchedIdx: number | null = null
-        for (let ri = 0; ri < secColGroupRules.length; ri++) {
-          const rule = secColGroupRules[ri]
-          if (!rule.name) continue
-          const ruleField = rule.colGroupBy ?? secColGroupBy
-          const rawVal = getIssueGroupValue(issue, ruleField)
-          const effectiveVal = (rawVal === null || rawVal === '') ? '(No data)' : rawVal
-          const matches = rule.dateCondition
-            ? matchesDateCondition(effectiveVal, rule.dateCondition)
-            : rule.values.includes(effectiveVal)
-          if (!matches) continue
-          if (rule.andConditions?.length) {
-            const allMatch = rule.andConditions.every(cond => {
-              const issueVal = getIssueGroupValue(issue, cond.field)
-              const effective = (issueVal === null || issueVal === '') ? '(No data)' : issueVal
-              if (cond.dateCondition) return matchesDateCondition(effective, cond.dateCondition)
-              return cond.values.includes(effective)
-            })
-            if (!allMatch) continue
-          }
-          matchedIdx = ri
-          matchedRuleField = ruleField
-          break
+      if (!secColGroupRules?.length) continue
+
+      // 全ルールを独立評価（複数ルールにマッチした場合は複数列にカウント）
+      // colGroupBy がルールごとに異なるフィールドを参照するケースに対応するため
+      // 最初にマッチしたルールで打ち切らず、全ルールを評価する
+      for (let ri = 0; ri < secColGroupRules.length; ri++) {
+        const rule = secColGroupRules[ri]
+        if (!rule.name) continue
+        const ruleField = rule.colGroupBy ?? secColGroupBy
+        const rawVal = getIssueGroupValue(issue, ruleField)
+        const effectiveVal = (rawVal === null || rawVal === '') ? '(No data)' : rawVal
+        const matches = rule.dateCondition
+          ? matchesDateCondition(effectiveVal, rule.dateCondition)
+          : rule.values.includes(effectiveVal)
+        if (!matches) continue
+        if (rule.andConditions?.length) {
+          const allMatch = rule.andConditions.every(cond => {
+            const issueVal = getIssueGroupValue(issue, cond.field)
+            const effective = (issueVal === null || issueVal === '') ? '(No data)' : issueVal
+            if (cond.dateCondition) return matchesDateCondition(effective, cond.dateCondition)
+            return cond.values.includes(effective)
+          })
+          if (!allMatch) continue
         }
-        if (matchedIdx === null) continue
-        colKey = String(matchedIdx)
-      } else {
-        continue  // グループルール未設定の場合は列を生成しない
+        const colKey = String(ri)
+        const colFv = getIssueGroupFilterValue(issue, ruleField)
+        if (colFv !== null) colFvMap.get(colKey)!.add(colFv)
+        rule.andConditions?.forEach(cond => {
+          if (cond.dateCondition) return  // 日付条件はURLフィルタを条件定義から直接構築するため収集不要
+          const fv = getIssueGroupFilterValue(issue, cond.field)
+          if (fv === null) return
+          if (!colAndCondFvMap[colKey]) colAndCondFvMap[colKey] = {}
+          if (!colAndCondFvMap[colKey][cond.field]) colAndCondFvMap[colKey][cond.field] = new Set()
+          colAndCondFvMap[colKey][cond.field].add(fv)
+        })
+        if (!cells[rowKey]) cells[rowKey] = {}
+        if (!cells[rowKey][colKey]) cells[rowKey][colKey] = { count: 0 }
+        cells[rowKey][colKey].count++
+        colTotals[colKey] = (colTotals[colKey] ?? 0) + 1
       }
-
-      const colFv = getIssueGroupFilterValue(issue, matchedRuleField)
-      if (colFv !== null) colFvMap.get(colKey)!.add(colFv)
-
-      const matchedColRuleIdx = parseInt(colKey)
-      const matchedColRule = secColGroupRules[matchedColRuleIdx]
-      matchedColRule?.andConditions?.forEach(cond => {
-        if (cond.dateCondition) return  // 日付条件はURLフィルタを条件定義から直接構築するため収集不要
-        const fv = getIssueGroupFilterValue(issue, cond.field)
-        if (fv === null) return
-        if (!colAndCondFvMap[colKey]) colAndCondFvMap[colKey] = {}
-        if (!colAndCondFvMap[colKey][cond.field]) colAndCondFvMap[colKey][cond.field] = new Set()
-        colAndCondFvMap[colKey][cond.field].add(fv)
-      })
-
-      if (!cells[rowKey]) cells[rowKey] = {}
-      if (!cells[rowKey][colKey]) cells[rowKey][colKey] = { count: 0 }
-      cells[rowKey][colKey].count++
-      colTotals[colKey] = (colTotals[colKey] ?? 0) + 1
     }
 
     const colOptionsSet = new Set(colOptionsOrder)

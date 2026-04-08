@@ -359,6 +359,30 @@ export function App({ container }: Props) {
     return Object.entries(andCondFvs).map(([field, values]) => ({ field, operator: '=' as const, values }))
   }
 
+  /**
+   * andCondFvs（観測値マップ）をルール定義の values で補完する。
+   * andConditions.values にはラベルが格納されており、CFフィールドはラベル＝フィルタ値のため直接使用可能。
+   * 観測値がルール定義値の部分集合の場合（例: セル内の件数が少ない）に全値をURLに含める。
+   */
+  function augmentAndCondFvsFromRuleDef(
+    andCondFvs: Record<string, string[]>,
+    groupRules: import('./types').PieGroupRule[] | undefined,
+    key: string
+  ): Record<string, string[]> {
+    const ruleIdx = parseInt(key)
+    const rule = (!isNaN(ruleIdx) && groupRules) ? groupRules[ruleIdx] : groupRules?.find(r => r.name === key)
+    if (!rule?.andConditions?.length) return andCondFvs
+    const result: Record<string, string[]> = { ...andCondFvs }
+    for (const cond of rule.andConditions) {
+      if (cond.dateCondition || !cond.values.length) continue
+      // CFフィールドはラベル＝フィルタ値なので直接使用可能
+      if (!cond.field.startsWith('cf_')) continue
+      const merged = new Set([...(result[cond.field] ?? []), ...cond.values])
+      result[cond.field] = Array.from(merged)
+    }
+    return result
+  }
+
   function andDateCondFiltersFromRules(
     groupRules: import('./types').PieGroupRule[] | undefined,
     key: string
@@ -412,10 +436,10 @@ export function App({ container }: Props) {
         ...(table.conditions ?? []),
         ...sectionConds,
         ...crossTableFieldCond(table.rowGroupBy, rowKey, rowFilterValues, table.rowGroupRules),
-        ...andCondFiltersFromMap(rowAndCondFvs),
+        ...andCondFiltersFromMap(augmentAndCondFvsFromRuleDef(rowAndCondFvs, table.rowGroupRules, rowKey)),
         ...andDateCondFiltersFromRules(table.rowGroupRules, rowKey),
         ...crossTableFieldCond(colGroupBy, colKey, colFilterValues, colGroupRules),
-        ...andCondFiltersFromMap(colAndCondFvs),
+        ...andCondFiltersFromMap(augmentAndCondFvsFromRuleDef(colAndCondFvs, colGroupRules, colKey)),
         ...andDateCondFiltersFromRules(colGroupRules, colKey),
       ]
     )
@@ -435,7 +459,7 @@ export function App({ container }: Props) {
       [
         ...(table.conditions ?? []),
         ...crossTableFieldCond(table.rowGroupBy, rowKey, rowFilterValues, table.rowGroupRules),
-        ...andCondFiltersFromMap(rowAndCondFvs),
+        ...andCondFiltersFromMap(augmentAndCondFvsFromRuleDef(rowAndCondFvs, table.rowGroupRules, rowKey)),
       ]
     )
     window.open(url, '_blank', 'noopener')
@@ -461,7 +485,7 @@ export function App({ container }: Props) {
         ...(table.conditions ?? []),
         ...sectionConds,
         ...crossTableFieldCond(colGroupBy, colKey, colFilterValues, colGroupRules),
-        ...andCondFiltersFromMap(colAndCondFvs),
+        ...andCondFiltersFromMap(augmentAndCondFvsFromRuleDef(colAndCondFvs, colGroupRules, colKey)),
         ...andDateCondFiltersFromRules(colGroupRules, colKey),
       ]
     )
