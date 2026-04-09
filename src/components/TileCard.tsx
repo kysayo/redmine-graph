@@ -18,9 +18,10 @@ interface TileCardProps {
   style?: React.CSSProperties
   fileName?: string
   onCopyTile?: () => void
+  onHide?: () => void
 }
 
-export function TileCard({ children, style, fileName = 'redmine-graph', onCopyTile }: TileCardProps) {
+export function TileCard({ children, style, fileName = 'redmine-graph', onCopyTile, onHide }: TileCardProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'ok' | 'err'>('idle')
 
@@ -73,6 +74,16 @@ export function TileCard({ children, style, fileName = 'redmine-graph', onCopyTi
         className="png-tile-buttons"
         style={{ position: 'absolute', top: 10, right: 12, display: 'flex', gap: 4, zIndex: 1 }}
       >
+        {onHide && (
+          <button
+            type="button"
+            onClick={onHide}
+            style={{ ...btnBase, padding: '3px 8px', color: '#9ca3af', borderColor: '#e5e7eb' }}
+            title="非表示"
+          >
+            −
+          </button>
+        )}
         <button
           type="button"
           onClick={handleCopy}

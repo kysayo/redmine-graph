@@ -1054,6 +1054,7 @@ function initDenominators(card: SummaryCardConfig): SummaryCardDenominator[] {
 function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SummaryCardEditorRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
   const [denominators, setDenominators] = useState<SummaryCardDenominator[]>(() => initDenominators(card))
+  const [collapsed, setCollapsed] = useState(false)
 
   const labelStyle: React.CSSProperties = { fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }
   const inputStyle: React.CSSProperties = { fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', width: 140 }
@@ -1066,6 +1067,11 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
   return (
     <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: '8px 10px', marginBottom: 8, borderLeft: `4px solid ${card.color}` }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        {/* 折りたたみ chevron */}
+        <span
+          onClick={() => setCollapsed(c => !c)}
+          style={{ fontSize: 10, color: '#9ca3af', cursor: 'pointer', userSelect: 'none', flexShrink: 0, paddingTop: 20, lineHeight: 1 }}
+        >{collapsed ? '▶' : '▼'}</span>
         {/* 色インジケーター＋カラーピッカー */}
         <div style={{ position: 'relative', flexShrink: 0, paddingTop: 18 }}>
           <div
@@ -1129,8 +1135,8 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
         </div>
       </div>
 
-      {/* 分子条件 */}
-      <div style={{ marginTop: 8 }}>
+      {/* 分子条件・追加値（折りたたみ対象） */}
+      {!collapsed && <><div style={{ marginTop: 8 }}>
         <div style={{ fontSize: 11, color: '#555', marginBottom: 4, fontWeight: 'bold' }}>分子（件数）の絞り込み条件</div>
         <ConditionsEditor
           conditions={card.numerator.conditions}
@@ -1186,7 +1192,7 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
         >
           + 追加値を追加
         </button>
-      </div>
+      </div></>}
     </div>
   )
 }
@@ -1521,6 +1527,11 @@ function HeadingEditorRow({ heading, onChange, onDelete }: HeadingEditorRowProps
 
 export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, onReset, teamPresets, filterFields = [], dateFilterFields = [], columnFilterFields, getFieldOptions = async () => [] }: Props) {
   const [isOpen, setIsOpen] = useState(false)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+  const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set())
+  function toggleCard(key: string) {
+    setCollapsedCards(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
+  }
   const [presets, setPresets] = useState<Preset[]>(() => loadPresets())
   const [presetNameInput, setPresetNameInput] = useState('')
   const [selectedPresetId, setSelectedPresetId] = useState('')
@@ -1803,11 +1814,16 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
         <div style={{ padding: '8px 12px 12px' }}>
           {/* タイル順序 */}
           <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>タイル順序</div>
-            {(settings.tileOrder ?? []).length === 0 && (
+            <div
+              onClick={() => setCollapsedSections(prev => { const next = new Set(prev); next.has('tileOrder') ? next.delete('tileOrder') : next.add('tileOrder'); return next })}
+              style={{ fontSize: 12, color: '#555', marginBottom: collapsedSections.has('tileOrder') ? 0 : 6, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{collapsedSections.has('tileOrder') ? '▶' : '▼'}</span>タイル順序
+            </div>
+            {!collapsedSections.has('tileOrder') && (settings.tileOrder ?? []).length === 0 && (
               <div style={{ fontSize: 12, color: '#aaa' }}>タイルがありません</div>
             )}
-            {(settings.tileOrder ?? []).map((ref, i) => {
+            {!collapsedSections.has('tileOrder') && (settings.tileOrder ?? []).map((ref, i) => {
               const order = settings.tileOrder ?? []
               // タイル名を取得
               let label = ''
@@ -1959,14 +1975,20 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
           {/* 2軸グラフ設定 */}
           <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>2軸グラフ設定</div>
-            {(settings.combos ?? []).map((combo, comboIdx) => (
+            <div
+              onClick={() => setCollapsedSections(prev => { const next = new Set(prev); next.has('combo') ? next.delete('combo') : next.add('combo'); return next })}
+              style={{ fontSize: 12, color: '#555', marginBottom: collapsedSections.has('combo') ? 0 : 6, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{collapsedSections.has('combo') ? '▶' : '▼'}</span>2軸グラフ設定
+            </div>
+            {!collapsedSections.has('combo') && <>{(settings.combos ?? []).map((combo, comboIdx) => (
               <div
                 key={combo.id}
                 style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: '10px 12px', marginBottom: 12, background: '#fafafa' }}
               >
                 {/* グラフ名・削除 */}
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: collapsedCards.has(`combo-${combo.id}`) ? 0 : 8 }}>
+                  <span onClick={() => toggleCard(`combo-${combo.id}`)} style={{ fontSize: 10, color: '#9ca3af', cursor: 'pointer', userSelect: 'none', flexShrink: 0 }}>{collapsedCards.has(`combo-${combo.id}`) ? '▶' : '▼'}</span>
                   <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>グラフ名</span>
                   <input
                     type="text"
@@ -1985,7 +2007,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     </button>
                   )}
                 </div>
-                {/* 軸設定 */}
+                {!collapsedCards.has(`combo-${combo.id}`) && <>{/* 軸設定 */}
                 <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
                   {/* 開始日 */}
                   <div>
@@ -2215,6 +2237,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 >
                   ＋ 系列を追加
                 </button>
+              </>}
               </div>
             ))}
             <button
@@ -2223,13 +2246,18 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               style={{ fontSize: 12, padding: '3px 10px', border: '1px solid #3b82f6', borderRadius: 3, background: '#eff6ff', cursor: 'pointer', color: '#1d4ed8' }}
             >
               ＋ 2軸グラフを追加
-            </button>
+            </button></>}
           </div>
 
           {/* 集計カード設定 */}
           <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>集計カード設定</div>
-            {(settings.summaryCards ?? []).map((card, i) => (
+            <div
+              onClick={() => setCollapsedSections(prev => { const next = new Set(prev); next.has('summaryCards') ? next.delete('summaryCards') : next.add('summaryCards'); return next })}
+              style={{ fontSize: 12, color: '#555', marginBottom: collapsedSections.has('summaryCards') ? 0 : 6, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{collapsedSections.has('summaryCards') ? '▶' : '▼'}</span>集計カード設定
+            </div>
+            {!collapsedSections.has('summaryCards') && <>{(settings.summaryCards ?? []).map((card, i) => (
               <SummaryCardEditorRow
                 key={i}
                 card={card}
@@ -2256,19 +2284,27 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
               }}
             >
               ＋ カードを追加
-            </button>
+            </button></>}
           </div>
 
           {/* 円グラフ・横棒グラフ設定 */}
           <div>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>円グラフ・横棒グラフ設定</div>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <div
+              onClick={() => setCollapsedSections(prev => { const next = new Set(prev); next.has('pie') ? next.delete('pie') : next.add('pie'); return next })}
+              style={{ fontSize: 12, color: '#555', marginBottom: collapsedSections.has('pie') ? 0 : 6, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{collapsedSections.has('pie') ? '▶' : '▼'}</span>円グラフ・横棒グラフ設定
+            </div>
+            <div style={{ display: collapsedSections.has('pie') ? 'none' : 'flex', gap: 16, flexWrap: 'wrap' }}>
               {(settings.pies ?? []).map((pie, i) => {
                 const pies = settings.pies ?? []
                 return (
                   <div key={i} style={{ minWidth: 200 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <label style={{ fontSize: 12, color: '#555' }}>{pie.chartType === 'bar' ? '横棒グラフ' : '円グラフ'} {i + 1}</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: collapsedCards.has(`pie-${pie.id ?? i}`) ? 0 : 2 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span onClick={() => toggleCard(`pie-${pie.id ?? i}`)} style={{ fontSize: 10, color: '#9ca3af', cursor: 'pointer', userSelect: 'none', flexShrink: 0 }}>{collapsedCards.has(`pie-${pie.id ?? i}`) ? '▶' : '▼'}</span>
+                        <label style={{ fontSize: 12, color: '#555' }}>{pie.chartType === 'bar' ? '横棒グラフ' : '円グラフ'} {i + 1}</label>
+                      </div>
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                         <button
                           type="button"
@@ -2296,6 +2332,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           </button>
                       </div>
                     </div>
+                    {!collapsedCards.has(`pie-${pie.id ?? i}`) && <>{/* pie body */}
                     <div style={{ marginBottom: 4 }}>
                       <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>タイトル（省略可）</label>
                       <input
@@ -2449,6 +2486,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         }}
                       />
                     )}
+                    </>}
                   </div>
                 )
               })}
@@ -2493,8 +2531,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
           {/* クロス集計テーブル設定 */}
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>クロス集計テーブル設定</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div
+              onClick={() => setCollapsedSections(prev => { const next = new Set(prev); next.has('table') ? next.delete('table') : next.add('table'); return next })}
+              style={{ fontSize: 12, color: '#555', marginBottom: collapsedSections.has('table') ? 0 : 6, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{collapsedSections.has('table') ? '▶' : '▼'}</span>クロス集計テーブル設定
+            </div>
+            <div style={{ display: collapsedSections.has('table') ? 'none' : 'flex', flexDirection: 'column', gap: 8 }}>
               {(settings.tables ?? []).map((table, i) => {
                 const tables = settings.tables ?? []
                 return (
@@ -2508,7 +2551,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     }}
                   >
                     {/* タイトル・削除・並べ替え */}
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: collapsedCards.has(`table-${table.id ?? i}`) ? 0 : 8 }}>
+                      <span onClick={() => toggleCard(`table-${table.id ?? i}`)} style={{ fontSize: 10, color: '#9ca3af', cursor: 'pointer', userSelect: 'none', flexShrink: 0 }}>{collapsedCards.has(`table-${table.id ?? i}`) ? '▶' : '▼'}</span>
                       <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>タイトル</span>
                       <input
                         type="text"
@@ -2560,7 +2604,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       >削除</button>
                     </div>
 
-                    {/* 行・列フィールド選択 */}
+                    {!collapsedCards.has(`table-${table.id ?? i}`) && <>{/* 行・列フィールド選択 */}
                     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 200px' }}>
                         <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>行のフィールド</span>
@@ -2921,6 +2965,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         全幅表示
                       </label>
                     </div>
+                    </>}
                   </div>
                 )
               })}
@@ -2948,8 +2993,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
           {/* EVMタイル設定 */}
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>EVMタイル設定</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div
+              onClick={() => setCollapsedSections(prev => { const next = new Set(prev); next.has('evm') ? next.delete('evm') : next.add('evm'); return next })}
+              style={{ fontSize: 12, color: '#555', marginBottom: collapsedSections.has('evm') ? 0 : 6, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{collapsedSections.has('evm') ? '▶' : '▼'}</span>EVMタイル設定
+            </div>
+            <div style={{ display: collapsedSections.has('evm') ? 'none' : 'flex', flexDirection: 'column', gap: 8 }}>
               {(settings.evmTiles ?? []).map((evm, i) => {
                 const evmTiles = settings.evmTiles ?? []
                 const actualDateOptions = [
@@ -2969,7 +3019,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     }}
                   >
                     {/* タイトル・並べ替え・削除 */}
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: collapsedCards.has(`evm-${evm.id ?? i}`) ? 0 : 8 }}>
+                      <span onClick={() => toggleCard(`evm-${evm.id ?? i}`)} style={{ fontSize: 10, color: '#9ca3af', cursor: 'pointer', userSelect: 'none', flexShrink: 0 }}>{collapsedCards.has(`evm-${evm.id ?? i}`) ? '▶' : '▼'}</span>
                       <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>タイトル</span>
                       <input
                         type="text"
@@ -3020,6 +3071,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                       >削除</button>
                     </div>
+                    {!collapsedCards.has(`evm-${evm.id ?? i}`) && <>{/* EVM body */}
 
                     {/* 対象期間 */}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
@@ -3262,6 +3314,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         </button>
                       </div>
                     </div>
+                    </>}
                   </div>
                 )
               })}
@@ -3302,8 +3355,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
           {/* 担当数マッピング設定 */}
           <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>担当数マッピング設定</div>
-            <div>
+            <div
+              onClick={() => setCollapsedSections(prev => { const next = new Set(prev); next.has('assignment') ? next.delete('assignment') : next.add('assignment'); return next })}
+              style={{ fontSize: 12, color: '#555', marginBottom: collapsedSections.has('assignment') ? 0 : 6, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{collapsedSections.has('assignment') ? '▶' : '▼'}</span>担当数マッピング設定
+            </div>
+            <div style={{ display: collapsedSections.has('assignment') ? 'none' : undefined }}>
               {(settings.assignmentMappings ?? []).map((mapping, i) => {
                 const mappings = settings.assignmentMappings ?? []
                 return (
@@ -3312,7 +3370,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                     style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 10, marginBottom: 8, background: '#fafafa' }}
                   >
                     {/* ヘッダ行: タイトル・↑↓・削除 */}
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: collapsedCards.has(`assignment-${mapping.id ?? i}`) ? 0 : 8, flexWrap: 'wrap' }}>
+                      <span onClick={() => toggleCard(`assignment-${mapping.id ?? i}`)} style={{ fontSize: 10, color: '#9ca3af', cursor: 'pointer', userSelect: 'none', flexShrink: 0 }}>{collapsedCards.has(`assignment-${mapping.id ?? i}`) ? '▶' : '▼'}</span>
                       <input
                         type="text"
                         value={mapping.title ?? ''}
@@ -3362,6 +3421,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #e53e3e', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                       >削除</button>
                     </div>
+                    {!collapsedCards.has(`assignment-${mapping.id ?? i}`) && <>{/* assignment body */}
 
                     {/* 担当者フィールド選択 */}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
@@ -3543,6 +3603,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         onChangeManual({ ...settings, assignmentMappings: next })
                       }}
                     />
+                    </>}
                   </div>
                 )
               })}
@@ -3587,8 +3648,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
           {/* 見出し設定 */}
           <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>見出し設定</div>
-            <div>
+            <div
+              onClick={() => setCollapsedSections(prev => { const next = new Set(prev); next.has('heading') ? next.delete('heading') : next.add('heading'); return next })}
+              style={{ fontSize: 12, color: '#555', marginBottom: collapsedSections.has('heading') ? 0 : 6, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{collapsedSections.has('heading') ? '▶' : '▼'}</span>見出し設定
+            </div>
+            <div style={{ display: collapsedSections.has('heading') ? 'none' : undefined }}>
               {(settings.headings ?? []).map((heading, i) => {
                 const headings = settings.headings ?? []
                 function updateHeading(updated: HeadingConfig) {
@@ -3635,7 +3701,13 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
 
           {/* ジャーナル収集タイル設定 */}
           <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 4, fontWeight: 'bold' }}>ジャーナル収集タイル</div>
+            <div
+              onClick={() => setCollapsedSections(prev => { const next = new Set(prev); next.has('journalCollector') ? next.delete('journalCollector') : next.add('journalCollector'); return next })}
+              style={{ fontSize: 12, color: '#555', marginBottom: collapsedSections.has('journalCollector') ? 0 : 4, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{collapsedSections.has('journalCollector') ? '▶' : '▼'}</span>ジャーナル収集タイル
+            </div>
+            {!collapsedSections.has('journalCollector') && <>
             <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 8 }}>
               各タイルの設定・削除はタイル上の「設定」ボタンから行えます
             </div>
@@ -3667,11 +3739,18 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
             >
               ＋ ジャーナル収集タイルを追加
             </button>
+            </>}
           </div>
 
           {/* ジャーナル更新回数タイル設定 */}
           <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 4, fontWeight: 'bold' }}>ジャーナル更新回数タイル</div>
+            <div
+              onClick={() => setCollapsedSections(prev => { const next = new Set(prev); next.has('journalCount') ? next.delete('journalCount') : next.add('journalCount'); return next })}
+              style={{ fontSize: 12, color: '#555', marginBottom: collapsedSections.has('journalCount') ? 0 : 4, fontWeight: 'bold', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <span style={{ fontSize: 10, lineHeight: 1 }}>{collapsedSections.has('journalCount') ? '▶' : '▼'}</span>ジャーナル更新回数タイル
+            </div>
+            {!collapsedSections.has('journalCount') && <>
             <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 8 }}>
               各タイルの設定・削除はタイル上の「設定」ボタンから行えます
             </div>
@@ -3707,6 +3786,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
             >
               ＋ ジャーナル更新回数タイルを追加
             </button>
+            </>}
           </div>
 
           </div>

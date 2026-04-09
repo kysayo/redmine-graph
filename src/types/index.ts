@@ -338,6 +338,7 @@ export interface UserSettings {
   journalCollectors?: JournalCollectorConfig[]
   journalCounts?: JournalCountConfig[]
   appliedTeamPreset?: string
+  hiddenTiles?: string[]  // 非表示タイルのID一覧（TileRef.id と一致）
 }
 
 // fetchAllIssues の進捗コールバック用

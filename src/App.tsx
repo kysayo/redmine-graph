@@ -588,6 +588,50 @@ export function App({ container }: Props) {
     })
   }, [issueState.issues, settings.pies])
 
+  function getTileLabel(ref: { type: string; id: string }): string {
+    if (ref.type === 'combo') {
+      const combo = (settings.combos ?? []).find(c => c.id === ref.id)
+      return `2軸グラフ: ${combo?.name || '（名前なし）'}`
+    }
+    if (ref.type === 'pie') {
+      const pie = (settings.pies ?? []).find(p => p.id === ref.id)
+      return `${pie?.chartType === 'bar' ? '横棒グラフ' : '円グラフ'}: ${pie?.label || pie?.groupBy || ''}`
+    }
+    if (ref.type === 'table') {
+      const table = (settings.tables ?? []).find(t => t.id === ref.id)
+      return `クロス集計: ${table?.label || table?.rowGroupBy || ''}`
+    }
+    if (ref.type === 'evm') {
+      const evm = (settings.evmTiles ?? []).find(e => e.id === ref.id)
+      return `EVM: ${evm?.title || ''}`
+    }
+    if (ref.type === 'assignment') {
+      const a = (settings.assignmentMappings ?? []).find(x => x.id === ref.id)
+      return `担当数マッピング: ${a?.title || ''}`
+    }
+    if (ref.type === 'heading') {
+      const h = (settings.headings ?? []).find(x => x.id === ref.id)
+      return `見出し: ${h?.text || ''}`
+    }
+    if (ref.type === 'journal-collector') {
+      const jc = (settings.journalCollectors ?? []).find(x => x.id === ref.id)
+      return `ジャーナル取得: ${jc?.name || ''}`
+    }
+    if (ref.type === 'journal-count') {
+      const jn = (settings.journalCounts ?? []).find(x => x.id === ref.id)
+      return `ジャーナル更新回数: ${jn?.name || ''}`
+    }
+    return ref.type
+  }
+
+  function hideTile(id: string) {
+    handleSettingsChange({ ...settings, hiddenTiles: [...(settings.hiddenTiles ?? []), id] })
+  }
+
+  function showTile(id: string) {
+    handleSettingsChange({ ...settings, hiddenTiles: (settings.hiddenTiles ?? []).filter(x => x !== id) })
+  }
+
   function copyTile(ref: { type: string; id: string }) {
     const newId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const order = [...(settings.tileOrder ?? [])]
@@ -641,13 +685,28 @@ export function App({ container }: Props) {
 
   // tileOrder に基づいて各タイルを描画するヘルパー
   function renderTile(ref: { type: string; id: string }, key: string) {
+    if ((settings.hiddenTiles ?? []).includes(ref.id)) {
+      const label = getTileLabel(ref)
+      return (
+        <div key={key} style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'default' }}>
+          <span style={{ fontSize: 10, color: '#9ca3af', lineHeight: 1 }}>▶</span>
+          <span style={{ fontSize: 12, color: '#9ca3af', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+          <button
+            type="button"
+            onClick={() => showTile(ref.id)}
+            style={{ fontSize: 11, padding: '1px 8px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#6b7280', flexShrink: 0 }}
+          >表示</button>
+        </div>
+      )
+    }
+
     if (ref.type === 'combo') {
       const idx = (settings.combos ?? []).findIndex(c => c.id === ref.id)
       if (idx === -1) return null
       const combo = settings.combos![idx]
       const comboData = combosData[idx]
       return (
-        <TileCard key={key} style={{ gridColumn: '1 / -1', padding: '20px 24px' }} fileName={`combo-chart-${idx}`} onCopyTile={() => copyTile(ref)}>
+        <TileCard key={key} style={{ gridColumn: '1 / -1', padding: '20px 24px' }} fileName={`combo-chart-${idx}`} onCopyTile={() => copyTile(ref)} onHide={() => hideTile(ref.id)}>
           <h2 style={{ fontSize: 15, margin: '0 0 16px', fontWeight: 600, color: '#111827' }}>{combo.name || 'チケット推移'}</h2>
           {shouldFetch && issueState.loading && (
             <div style={{ padding: '12px 0', color: '#666', fontSize: 13 }}>
@@ -710,6 +769,7 @@ export function App({ container }: Props) {
           }}
           fileName={`tile-${i}`}
           onCopyTile={() => copyTile(ref)}
+          onHide={() => hideTile(ref.id)}
         >
           {issueState.loading ? (
             <div style={{ textAlign: 'center', padding: '40px 24px', color: '#666', fontSize: 13 }}>Now Loading...</div>
@@ -760,6 +820,7 @@ export function App({ container }: Props) {
           }}
           fileName={`cross-table-${i}`}
           onCopyTile={() => copyTile(ref)}
+          onHide={() => hideTile(ref.id)}
         >
           {!data ? (
             <div>
@@ -817,6 +878,7 @@ export function App({ container }: Props) {
           style={{ gridColumn: '1 / -1', padding: '20px 24px' }}
           fileName={`evm-tile-${i}`}
           onCopyTile={() => copyTile(ref)}
+          onHide={() => hideTile(ref.id)}
         >
           {!data ? (
             <div>
@@ -862,6 +924,7 @@ export function App({ container }: Props) {
           }}
           fileName={`assignment-mapping-${i}`}
           onCopyTile={() => copyTile(ref)}
+          onHide={() => hideTile(ref.id)}
         >
           <AssignmentMappingPanel
             config={mapping}
@@ -881,7 +944,7 @@ export function App({ container }: Props) {
       const heading = (settings.headings ?? []).find(h => h.id === ref.id)
       if (!heading) return null
       return (
-        <div key={key} style={{ gridColumn: '1 / -1' }}>
+        <div key={key} style={{ gridColumn: '1 / -1', position: 'relative' }}>
           <div style={{
             borderLeft: `6px solid ${heading.color}`,
             background: heading.color + '22',
@@ -890,6 +953,12 @@ export function App({ container }: Props) {
           }}>
             <span style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{heading.text}</span>
           </div>
+          <button
+            type="button"
+            onClick={() => hideTile(ref.id)}
+            style={{ position: 'absolute', top: '50%', right: 8, transform: 'translateY(-50%)', fontSize: 12, padding: '2px 8px', border: '1px solid #e5e7eb', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#9ca3af' }}
+            title="非表示"
+          >−</button>
         </div>
       )
     }
@@ -899,7 +968,13 @@ export function App({ container }: Props) {
       const collector = collectors.find(c => c.id === ref.id)
       if (!collector) return null
       return (
-        <div key={key} style={{ gridColumn: '1 / -1', background: '#fff', borderRadius: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+        <div key={key} style={{ gridColumn: '1 / -1', background: '#fff', borderRadius: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => hideTile(ref.id)}
+            style={{ position: 'absolute', top: 10, right: 12, zIndex: 1, fontSize: 12, padding: '3px 8px', border: '1px solid #e5e7eb', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#9ca3af' }}
+            title="非表示"
+          >−</button>
           <JournalCollectorTile
             config={collector}
             projectId={projectId}
@@ -930,7 +1005,13 @@ export function App({ container }: Props) {
       const count = counts.find(c => c.id === ref.id)
       if (!count) return null
       return (
-        <div key={key} style={{ gridColumn: '1 / -1', background: '#fff', borderRadius: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+        <div key={key} style={{ gridColumn: '1 / -1', background: '#fff', borderRadius: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => hideTile(ref.id)}
+            style={{ position: 'absolute', top: 10, right: 12, zIndex: 1, fontSize: 12, padding: '3px 8px', border: '1px solid #e5e7eb', borderRadius: 6, background: '#fff', cursor: 'pointer', color: '#9ca3af' }}
+            title="非表示"
+          >−</button>
           <JournalCountTile
             config={count}
             apiKey={apiKey}
