@@ -211,6 +211,25 @@ export function addBusinessDaysToDate(dateStr: string, n: number): string {
 }
 
 /**
+ * 指定した週オフセット（月曜〜日曜、JST基準）の開始日・終了日を返す。
+ * offset=0: 今週、offset=1: 来週、offset=-1: 先週
+ */
+export function getWeekRange(offset: number): { start: string; end: string } {
+  const todayJst = utcToJstDate(new Date().toISOString())
+  const d = new Date(todayJst + 'T00:00:00Z')
+  const day = d.getUTCDay() // 0=日, 1=月, ..., 6=土
+  const daysSinceMonday = day === 0 ? 6 : day - 1
+  const monday = new Date(d)
+  monday.setUTCDate(d.getUTCDate() - daysSinceMonday + offset * 7)
+  const sunday = new Date(monday)
+  sunday.setUTCDate(monday.getUTCDate() + 6)
+  return {
+    start: monday.toISOString().slice(0, 10),
+    end: sunday.toISOString().slice(0, 10),
+  }
+}
+
+/**
  * フィールドキーに対応する日付文字列をチケットから取得する。
  * 値が空/未設定の場合は null を返す。
  * - updated_on / created_on / closed_on: UTC ISO文字列

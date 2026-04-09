@@ -339,11 +339,11 @@ if (container) {
 | フィールド | 型 | 説明 |
 |---|---|---|
 | `field` | `string` | `availableFilters` のキー（例: `cf_628`, `tracker_id`, `elapsed_days`） |
-| `operator` | `'=' \| '!' \| '>=' \| '<=' \| '!*' \| '*'` | 一致 / 不一致 / 以上 / 以内（`<=` は `elapsed_days` フィールドでのみ使用可能）/ 値なし（`!*` はクロス集計テーブルの `(No data)` グループクリック時に内部生成。URLでは `op[field]=!*` に変換）/ 値あり（`*` は日付条件の `not_empty` 判定時に内部生成） |
+| `operator` | `'=' \| '!' \| '>=' \| '<=' \| '!*' \| '*' \| '><'` | 一致 / 不一致 / 以上 / 以内（`<=` は `elapsed_days` フィールドでのみ使用可能）/ 値なし（`!*` はクロス集計テーブルの `(No data)` グループクリック時に内部生成。URLでは `op[field]=!*` に変換）/ 値あり（`*` は日付条件の `not_empty` 判定時に内部生成）/ 期間（`><` は週キーワード使用時に内部生成。URLでは `op[field]=%3E%3C&v[field][]=start&v[field][]=end` に変換） |
 | `values` | `string[]` | 選択値の配列（数値は文字列として格納） |
 | `elapsedDaysBaseField` | `string?` | `field === 'elapsed_days'` のとき: 経過日数計算のベース日付フィールドキー（例: `updated_on`, `cf_123`）。省略時は `updated_on || created_on` の旧来動作 |
 | `elapsedDaysMode` | `'past' \| 'future'?` | `field === 'elapsed_days'` のとき: `past`=経過日数（省略時デフォルト）/ `future`=到来日数 |
-| `dateCondition` | `PieGroupRuleDateCondition?` | `field` が日付型フィールドのとき: 日付比較条件（`values` の代わりに使用）。演算子: `not_empty`（記入済み）/ `empty`（空・未設定）/ `<`（より前）/ `<=`（以前）/ `>`（より後）/ `>=`（以降）。`value: 'today'` で実行時の今日JST日付と比較、省略時は固定日付文字列（`YYYY-MM-DD`） |
+| `dateCondition` | `PieGroupRuleDateCondition?` | `field` が日付型フィールドのとき: 日付比較条件（`values` の代わりに使用）。演算子: `not_empty`（記入済み）/ `empty`（空・未設定）/ `<`（より前）/ `<=`（以前）/ `>`（より後）/ `>=`（以降）/ `this_week`（今週月〜日）/ `next_week`（来週月〜日）/ `last_week`（先週月〜日）/ `to_this_week`（〜今週日曜）/ `to_next_week`（〜来週日曜）/ `from_next_week`（来週月曜〜）。`value: 'today'` で実行時の今日JST日付と比較、省略時は固定日付文字列（`YYYY-MM-DD`）。週キーワード使用時は `value` 不要 |
 
 ### `ElapsedDaysBucket`
 経過日数バケット定義。`groupBy === 'elapsed_days'` の円グラフでスライスの区間を定義する。
@@ -405,8 +405,8 @@ if (container) {
 
 | フィールド | 型 | 説明 |
 |---|---|---|
-| `op` | `'empty' \| 'not_empty' \| '<' \| '<=' \| '>' \| '>='` | 比較演算子。`empty`=未設定、`not_empty`=設定あり、その他=日付文字列の辞書順比較 |
-| `value` | `'today' \| string?` | 比較基準値。`'today'` は実行時の今日（JST）に解決。比較演算子のときのみ使用（`empty`/`not_empty` では不要） |
+| `op` | `'empty' \| 'not_empty' \| '<' \| '<=' \| '>' \| '>=' \| 'this_week' \| 'next_week' \| 'last_week' \| 'to_this_week' \| 'to_next_week' \| 'from_next_week'` | 比較演算子。`empty`=未設定、`not_empty`=設定あり、その他=日付文字列の辞書順比較。週キーワード: `this_week`/`next_week`/`last_week`=週内（月曜〜日曜）、`to_this_week`=今週まで（〜今週日曜）、`to_next_week`=来週まで（〜来週日曜）、`from_next_week`=来週以降（来週月曜〜）。いずれもJST基準 |
+| `value` | `'today' \| string?` | 比較基準値。`'today'` は実行時の今日（JST）に解決。比較演算子のときのみ使用（`empty`/`not_empty`/週キーワードでは不要） |
 
 ### クロス集計テーブル（CrossTable）
 
@@ -419,7 +419,7 @@ if (container) {
   - グルーピング設定時の表示順序 = ルール定義順（件数降順ではなく定義順が優先）
   - 0件でもルールに定義された行/列は常に表示される
   - **`(No data)` 対応**: 値選択リストの先頭に `(No data)` が常に表示される。ルールの values に `(No data)` を含めると、対象フィールドが未記入（空値）のチケットをそのグループとして集計する。クリック時のURLフィルタは Redmine の「値なし」演算子 `op[field]=!*` を使用
-  - **日付条件グルーピング（`dateCondition`）**: ルールに `dateCondition` を設定すると `values` の代わりに日付比較で集計する。演算子: `empty`（未設定）/ `not_empty`（設定あり）/ `<`（より前）/ `<=`（以前）/ `>`（より後）/ `>=`（以降）。`value: 'today'` で実行時の今日JST日付と比較。クリック時のURLフィルタは日付フィールドの比較演算子（`<=`, `>=`）に変換される
+  - **日付条件グルーピング（`dateCondition`）**: ルールに `dateCondition` を設定すると `values` の代わりに日付比較で集計する。演算子: `empty`（未設定）/ `not_empty`（設定あり）/ `<`（より前）/ `<=`（以前）/ `>`（より後）/ `>=`（以降）/ `this_week`（今週月〜日）/ `next_week`（来週月〜日）/ `last_week`（先週月〜日）/ `to_this_week`（今週まで）/ `to_next_week`（来週まで）/ `from_next_week`（来週以降）。`value: 'today'` で実行時の今日JST日付と比較。クリック時のURLフィルタ: 単方向演算子は `<=`/`>=` に変換、週内キーワード（`this_week` 等）は Redmine の `><`（between）演算子を用いた期間指定に変換、`to_*`/`from_*` は `<=`/`>=` に変換される
   - **ルール別列フィールド上書き（`PieGroupRule.colGroupBy`）**: `colSections` 内の各ルールに `colGroupBy` を設定すると、そのルールの集計と URL フィルタ構築に使うフィールドをセクションの `colGroupBy` から上書きできる。異なるフィールドを1セクションにまとめる場合に使用
   - **AND条件（`andConditions`）**: 各グルーピングルールにAND条件を追加可能（クロス集計専用）。設定UIの「＋ AND条件を追加」ボタンで追加。AND条件1件 = フィールド選択（react-select） + 値の複数選択（**チェックボックスリスト**）または日付条件（`dateCondition`）。主フィールド値がマッチしても AND条件を満たさないチケットは当該グループに計上されない（別ルールへのマッチ判定に進む）。AND条件付きのグループをクリックした場合、URLフィルタに主フィールドの条件に加えAND条件フィールドのフィルタも付加される（日付条件の場合はルール定義から直接変換）。CF フィールドの場合、セル内の観測値が少ない場合もルール定義の全値を URL に補完する（`augmentAndCondFvsFromRuleDef`）
 - **絞り込み条件**: 他のグラフと同様の `ConditionsEditor`（AND条件）

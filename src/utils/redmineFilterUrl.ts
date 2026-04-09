@@ -1,5 +1,5 @@
 import type { ElapsedDaysBucket, SeriesCondition } from '../types'
-import { jstDateNBusinessDaysAgo, jstDateWithBusinessDaysOffset } from './dateUtils'
+import { getWeekRange, jstDateNBusinessDaysAgo, jstDateWithBusinessDaysOffset } from './dateUtils'
 
 interface FilterParam {
   field: string
@@ -158,6 +158,16 @@ export function buildRedmineFilterUrl(
           filterMap.set(cond.field, { field: cond.field, operator: '!*', values: [] })
         } else if (op === 'not_empty') {
           filterMap.set(cond.field, { field: cond.field, operator: '*', values: [] })
+        } else if (op === 'this_week' || op === 'next_week' || op === 'last_week') {
+          const weekOffset = op === 'this_week' ? 0 : op === 'next_week' ? 1 : -1
+          const { start, end } = getWeekRange(weekOffset)
+          filterMap.set(cond.field, { field: cond.field, operator: '><', values: [start, end] })
+        } else if (op === 'to_this_week') {
+          filterMap.set(cond.field, { field: cond.field, operator: '<=', values: [getWeekRange(0).end] })
+        } else if (op === 'to_next_week') {
+          filterMap.set(cond.field, { field: cond.field, operator: '<=', values: [getWeekRange(1).end] })
+        } else if (op === 'from_next_week') {
+          filterMap.set(cond.field, { field: cond.field, operator: '>=', values: [getWeekRange(1).start] })
         } else {
           const now = new Date()
           const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
@@ -175,8 +185,8 @@ export function buildRedmineFilterUrl(
         }
         continue
       }
-      // Redmine URLフィルタで使用する演算子のみ通す（日付比較 <=/>=/*/!* を含む）
-      if (!['=', '!', '!*', '*', '<=', '>='].includes(cond.operator)) continue
+      // Redmine URLフィルタで使用する演算子のみ通す（日付比較 <=/>=/*/!*/>< を含む）
+      if (!['=', '!', '!*', '*', '<=', '>=', '><'].includes(cond.operator)) continue
       filterMap.set(cond.field, {
         field: cond.field,
         operator: cond.operator,

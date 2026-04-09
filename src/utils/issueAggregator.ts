@@ -1,5 +1,5 @@
 import type { CrossTableConfig, CrossTableData, CrossTableSectionData, ElapsedDaysBucket, EVMTileConfig, FilterFieldOption, PieDataPoint, PieGroupRule, PieGroupRuleDateCondition, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
-import { calcBusinessDaysUntilStr, calcBusinessElapsedDaysFromStr, countBusinessDaysBetween, getIssueDateByField, utcToJstDate } from './dateUtils'
+import { calcBusinessDaysUntilStr, calcBusinessElapsedDaysFromStr, countBusinessDaysBetween, getIssueDateByField, getWeekRange, utcToJstDate } from './dateUtils'
 
 /**
  * ベース日付フィールドを元にチケットの経過営業日数（月〜金）または到来営業日数を計算する。
@@ -456,6 +456,12 @@ function matchesDateCondition(dateValue: string, cond: PieGroupRuleDateCondition
   if (cond.op === 'empty') return isEmpty
   if (cond.op === 'not_empty') return !isEmpty
   if (isEmpty) return false
+  if (cond.op === 'this_week') { const { start, end } = getWeekRange(0); return dateValue >= start && dateValue <= end }
+  if (cond.op === 'next_week') { const { start, end } = getWeekRange(1); return dateValue >= start && dateValue <= end }
+  if (cond.op === 'last_week') { const { start, end } = getWeekRange(-1); return dateValue >= start && dateValue <= end }
+  if (cond.op === 'to_this_week') { return dateValue <= getWeekRange(0).end }
+  if (cond.op === 'to_next_week') { return dateValue <= getWeekRange(1).end }
+  if (cond.op === 'from_next_week') { return dateValue >= getWeekRange(1).start }
   const ref = cond.value === 'today' ? getJstTodayStr() : (cond.value ?? getJstTodayStr())
   if (cond.op === '<') return dateValue < ref
   if (cond.op === '<=') return dateValue <= ref

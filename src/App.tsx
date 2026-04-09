@@ -21,7 +21,7 @@ import type { EvmRegressionResult } from './utils/evmRegression'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueDescription, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
 import { buildElapsedDaysBucketFilter, buildRedmineFilterUrl } from './utils/redmineFilterUrl'
 import { loadSettings, saveSettings } from './utils/storage'
-import { setHolidays } from './utils/dateUtils'
+import { getWeekRange, setHolidays } from './utils/dateUtils'
 import { getProjectId } from './utils/urlParser'
 
 interface Props {
@@ -326,6 +326,16 @@ export function App({ container }: Props) {
       const { op, value } = rule.dateCondition
       if (op === 'empty') return [{ field: fieldKey, operator: '!*', values: [] }]
       if (op === 'not_empty') return [{ field: fieldKey, operator: '*', values: [] }]
+      // 週キーワード → Redmine の >< (between) 演算子で期間指定
+      if (op === 'this_week' || op === 'next_week' || op === 'last_week') {
+        const weekOffset = op === 'this_week' ? 0 : op === 'next_week' ? 1 : -1
+        const { start, end } = getWeekRange(weekOffset)
+        return [{ field: fieldKey, operator: '><', values: [start, end] }]
+      }
+      // 今週まで / 来週まで → <= 週末（日曜日）
+      if (op === 'to_this_week') return [{ field: fieldKey, operator: '<=', values: [getWeekRange(0).end] }]
+      if (op === 'to_next_week') return [{ field: fieldKey, operator: '<=', values: [getWeekRange(1).end] }]
+      if (op === 'from_next_week') return [{ field: fieldKey, operator: '>=', values: [getWeekRange(1).start] }]
       // 今日の JST 日付を取得
       const now = new Date()
       const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
@@ -396,6 +406,14 @@ export function App({ container }: Props) {
       const { op, value } = cond.dateCondition
       if (op === 'empty') { result.push({ field: cond.field, operator: '!*', values: [] }); continue }
       if (op === 'not_empty') { result.push({ field: cond.field, operator: '*', values: [] }); continue }
+      if (op === 'this_week' || op === 'next_week' || op === 'last_week') {
+        const weekOffset = op === 'this_week' ? 0 : op === 'next_week' ? 1 : -1
+        const { start, end } = getWeekRange(weekOffset)
+        result.push({ field: cond.field, operator: '><', values: [start, end] }); continue
+      }
+      if (op === 'to_this_week') { result.push({ field: cond.field, operator: '<=', values: [getWeekRange(0).end] }); continue }
+      if (op === 'to_next_week') { result.push({ field: cond.field, operator: '<=', values: [getWeekRange(1).end] }); continue }
+      if (op === 'from_next_week') { result.push({ field: cond.field, operator: '>=', values: [getWeekRange(1).start] }); continue }
       const now = new Date()
       const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
       const today = jst.toISOString().slice(0, 10)

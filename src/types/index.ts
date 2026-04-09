@@ -31,7 +31,7 @@ export interface PieGroupRuleAndCondition {
 
 // クロス集計グルーピング: 日付フィールド用条件
 export interface PieGroupRuleDateCondition {
-  op: 'empty' | 'not_empty' | '<' | '<=' | '>' | '>='
+  op: 'empty' | 'not_empty' | '<' | '<=' | '>' | '>=' | 'this_week' | 'next_week' | 'last_week' | 'to_this_week' | 'to_next_week' | 'from_next_week'
   value?: 'today' | string  // 'today' = 実行時に今日の JST 日付で評価。比較演算子のときのみ使用
 }
 
@@ -392,7 +392,7 @@ export interface SeriesDataPoint {
 // 系列の1絞り込み条件
 export interface SeriesCondition {
   field: string       // window.availableFilters のキー（例: 'cf_628', 'tracker_id'）
-  operator: '=' | '!' | '>=' | '<=' | '!*' | '*'  // '=' = 一致、'!' = 不一致、'>=' = 以上、'<=' = 以下（以内）、'!*' = 値なし、'*' = 値あり
+  operator: '=' | '!' | '>=' | '<=' | '!*' | '*' | '><'  // '=' = 一致、'!' = 不一致、'>=' = 以上、'<=' = 以下（以内）、'!*' = 値なし、'*' = 値あり、'><' = 期間（between）
   values: string[]    // 選択値の配列（例: ['QA', 'BUG']）
   elapsedDaysBaseField?: string  // field === 'elapsed_days' のとき: 経過日数計算のベース日付フィールドキー
   elapsedDaysMode?: 'past' | 'future'  // field === 'elapsed_days' のとき: 'past'=経過日数（デフォルト）、'future'=到来日数
