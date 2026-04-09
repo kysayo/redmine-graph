@@ -738,11 +738,12 @@ function aggregateCrossTableMultiSection(
     for (const [field, s] of Object.entries(fieldMap)) rowAndCondFilterValues[rk][field] = Array.from(s)
   }
 
-  // --- Step 2: 各セクションの集計 ---
-  const sections: CrossTableSectionData[] = []
+  // --- Step 2: 各セクションの集計（data セクションのみ。computed は後で処理） ---
+  const dataSections: CrossTableSectionData[] = []
 
   for (let si = 0; si < (colSections?.length ?? 0); si++) {
     const section = colSections![si]
+    if (section.type === 'computed') continue  // computed セクションはスキップ
     const sectionColOptions = colSectionOptions?.[si]
     const mergedConditions = [...(conditions ?? []), ...(section.conditions ?? [])]
     const { colGroupBy: secColGroupBy, colGroupRules: secColGroupRules } = section
@@ -853,7 +854,7 @@ function aggregateCrossTableMultiSection(
       for (const [field, s] of Object.entries(fieldMap)) colAndCondFilterValues[ck][field] = Array.from(s)
     }
 
-    sections.push({
+    dataSections.push({
       label: section.label,
       colGroupBy: secColGroupBy,
       colGroupRules: secColGroupRules,
@@ -869,6 +870,70 @@ function aggregateCrossTableMultiSection(
     })
   }
 
+  // --- Step 3: computed セクションの計算 ---
+  // config のセクションインデックス → data セクションデータ のマッピングを構築
+  const sectionDataByConfigIdx = new Map<number, CrossTableSectionData>()
+  let dataIdx = 0
+  for (let si = 0; si < (colSections?.length ?? 0); si++) {
+    const sec = colSections![si]
+    if (!sec.type || sec.type === 'data') {
+      sectionDataByConfigIdx.set(si, dataSections[dataIdx++])
+    }
+  }
+
+  // config 順に data と computed セクションを混在させた最終配列を構築
+  const finalSections: CrossTableSectionData[] = []
+  dataIdx = 0
+  for (let si = 0; si < (colSections?.length ?? 0); si++) {
+    const sec = colSections![si]
+    if (!sec.type || sec.type === 'data') {
+      finalSections.push(dataSections[dataIdx++])
+    } else if (sec.type === 'computed') {
+      const colKeys: string[] = []
+      const colLabels: Record<string, string> = {}
+      const computedCells: Record<string, Record<string, { count: number }>> = {}
+      const colTotals: Record<string, number> = {}
+
+      for (let ci = 0; ci < (sec.computedCols?.length ?? 0); ci++) {
+        const col = sec.computedCols![ci]
+        const colKey = String(ci)
+        colKeys.push(colKey)
+        colLabels[colKey] = col.label ?? String(ci)
+        colTotals[colKey] = 0
+
+        for (const rowKey of rowKeys) {
+          if (!computedCells[rowKey]) computedCells[rowKey] = {}
+          const value = col.formula.reduce((sum, term) => {
+            const refSec = sectionDataByConfigIdx.get(term.sectionIndex)
+            const count = refSec?.cells[rowKey]?.[String(term.ruleIndex)]?.count ?? 0
+            return sum + count * term.coefficient
+          }, 0)
+          computedCells[rowKey][colKey] = { count: value }
+          colTotals[colKey] += value
+        }
+      }
+
+      const colSubHeaders: Record<string, string[]> = {}
+      for (let ci = 0; ci < (sec.computedCols?.length ?? 0); ci++) {
+        const sh = sec.computedCols![ci].subHeaders
+        if (sh?.length) colSubHeaders[String(ci)] = sh
+      }
+
+      finalSections.push({
+        label: sec.label,
+        type: 'computed',
+        colGroupBy: '',
+        subHeaderLevels: sec.subHeaderLevels,
+        colKeys,
+        colLabels,
+        colFilterValues: {},
+        colSubHeaders: Object.keys(colSubHeaders).length > 0 ? colSubHeaders : undefined,
+        cells: computedCells,
+        colTotals,
+      })
+    }
+  }
+
   return {
     rowKeys,
     rowLabels,
@@ -881,7 +946,7 @@ function aggregateCrossTableMultiSection(
     colFilterValues: {},
     cells: {},
     colTotals: {},
-    sections,
+    sections: finalSections,
   }
 }
 

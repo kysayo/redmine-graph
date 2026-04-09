@@ -176,10 +176,12 @@ export function CrossTable({
                         />
                       )
                     }
-                    const rules = section.colGroupRules ?? []
+                    const subHeaderSources: (string[] | undefined)[] = section.type === 'computed'
+                      ? section.colKeys.map(ck => section.colSubHeaders?.[ck])
+                      : (section.colGroupRules ?? []).map(rule => rule.subHeaders)
                     const groups: { label: string; colspan: number }[] = []
-                    rules.forEach(rule => {
-                      const label = rule.subHeaders?.[lv] ?? ''
+                    subHeaderSources.forEach(sh => {
+                      const label = sh?.[lv] ?? ''
                       if (label !== '' || groups.length === 0) {
                         groups.push({ label, colspan: 1 })
                       } else {
@@ -239,6 +241,30 @@ export function CrossTable({
                     </td>
                     {sections.map((section, si) =>
                       section.colKeys.map((colKey, ci) => {
+                        const cellBorderLeft = ci === 0 ? '2px solid #9ca3af' : '1px solid #d1d5db'
+                        if (section.type === 'computed') {
+                          const value = section.cells[rowKey]?.[colKey]?.count ?? 0
+                          const displayValue = value > 0 ? `+${value}` : value < 0 ? `${value}` : '±0'
+                          const valueColor = value < 0 ? '#dc2626' : value > 0 ? '#059669' : '#6b7280'
+                          return (
+                            <td
+                              key={`${si}-${colKey}`}
+                              style={{
+                                padding: '8px 12px',
+                                textAlign: 'center',
+                                border: '1px solid #d1d5db',
+                                borderLeft: cellBorderLeft,
+                                color: valueColor,
+                                fontWeight: 600,
+                                background: isHovered ? rowBg : undefined,
+                                transition: 'background 0.1s',
+                                minWidth: 64,
+                              }}
+                            >
+                              {displayValue}
+                            </td>
+                          )
+                        }
                         const count = section.cells[rowKey]?.[colKey]?.count ?? 0
                         const colFv = section.colFilterValues[colKey] ?? []
                         const clickable = count > 0 && !!onCellClick
@@ -250,7 +276,7 @@ export function CrossTable({
                               padding: '8px 12px',
                               textAlign: 'center',
                               border: '1px solid #d1d5db',
-                              borderLeft: ci === 0 ? '2px solid #9ca3af' : '1px solid #d1d5db',
+                              borderLeft: cellBorderLeft,
                               color: '#111827',
                               cursor: clickable ? 'pointer' : 'default',
                               background: isHovered ? rowBg : undefined,
@@ -271,6 +297,24 @@ export function CrossTable({
                 <td style={totalRowLabelStyle}>合計</td>
                 {sections.map((section, si) =>
                   section.colKeys.map((colKey, ci) => {
+                    const totalBorderLeft = ci === 0 ? '2px solid #9ca3af' : '1px solid #d1d5db'
+                    if (section.type === 'computed') {
+                      const value = section.colTotals[colKey] ?? 0
+                      const displayValue = value > 0 ? `+${value}` : value < 0 ? `${value}` : '±0'
+                      const valueColor = value < 0 ? '#dc2626' : value > 0 ? '#059669' : '#6b7280'
+                      return (
+                        <td
+                          key={`${si}-${colKey}`}
+                          style={{
+                            ...totalRowCellStyle,
+                            borderLeft: totalBorderLeft,
+                            color: valueColor,
+                          }}
+                        >
+                          {displayValue}
+                        </td>
+                      )
+                    }
                     const colTotal = section.colTotals[colKey] ?? 0
                     const colFv = section.colFilterValues[colKey] ?? []
                     return (
@@ -279,7 +323,7 @@ export function CrossTable({
                         onClick={colTotal > 0 && onColTotalClick ? () => onColTotalClick(colKey, colFv, si) : undefined}
                         style={{
                           ...totalRowCellStyle,
-                          borderLeft: ci === 0 ? '2px solid #9ca3af' : '1px solid #d1d5db',
+                          borderLeft: totalBorderLeft,
                           cursor: colTotal > 0 && onColTotalClick ? 'pointer' : 'default',
                         }}
                       >

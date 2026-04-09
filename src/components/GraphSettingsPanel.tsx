@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Select from 'react-select'
-import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, SummaryCardDenominator, TeamPreset, TileRef, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, ComputedCol, ComputedColFormulaTerm, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, SummaryCardDenominator, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -2740,6 +2740,149 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                 >削除</button>
                               </div>
                             </div>
+                            {section.type === 'computed' ? (
+                              /* 計算式セクション: 編集UI */
+                              (() => {
+                                const dataSectionOptions = (table.colSections ?? [])
+                                  .map((s, idx) => ({ idx, s }))
+                                  .filter(({ s }) => !s.type || s.type === 'data')
+                                  .map(({ idx, s }) => ({ label: s.label || s.colGroupBy || `Section ${idx}`, value: idx }))
+
+                                const updateComputedCols = (newCols: ComputedCol[]) => {
+                                  const newSections = table.colSections!.map((s, j) => j === si ? { ...s, computedCols: newCols } : s)
+                                  onChangeManual({ ...settings, tables: tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t) })
+                                }
+
+                                const updateSection = (patch: Partial<CrossTableColSection>) => {
+                                  const newSections = table.colSections!.map((s, j) => j === si ? { ...s, ...patch } : s)
+                                  onChangeManual({ ...settings, tables: tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t) })
+                                }
+                                const hasSubHeaders = (section.subHeaderLevels ?? 0) > 0
+
+                                return (
+                                  <div>
+                                    <div style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#ede9fe', border: '1px solid #c4b5fd', borderRadius: 3, padding: '1px 6px', marginBottom: 8 }}>計算式セクション</div>
+                                    {/* 見出し行数 */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                      <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>見出し行数</span>
+                                      {[0, 1, 2].map(n => (
+                                        <button
+                                          key={n}
+                                          type="button"
+                                          onClick={() => updateSection({ subHeaderLevels: n === 0 ? undefined : n })}
+                                          style={{
+                                            fontSize: 11, padding: '1px 8px',
+                                            border: '1px solid #ccc', borderRadius: 3,
+                                            background: (section.subHeaderLevels ?? 0) === n ? '#3b82f6' : '#fff',
+                                            color: (section.subHeaderLevels ?? 0) === n ? '#fff' : '#374151',
+                                            cursor: 'pointer',
+                                          }}
+                                        >{n}</button>
+                                      ))}
+                                    </div>
+                                    {(section.computedCols ?? []).map((col, ci) => {
+                                      const updateCol = (newCol: ComputedCol) => {
+                                        updateComputedCols(section.computedCols!.map((c, j) => j === ci ? newCol : c))
+                                      }
+                                      return (
+                                        <div key={ci} style={{ border: '1px solid #e9d5ff', borderRadius: 3, padding: '6px 8px', marginBottom: 6, background: '#fdf4ff' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                            <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>列ラベル</span>
+                                            <input
+                                              type="text"
+                                              placeholder={`列${ci + 1}`}
+                                              value={col.label ?? ''}
+                                              onChange={(e) => updateCol({ ...col, label: e.target.value || undefined })}
+                                              style={{ flex: 1, fontSize: 12, padding: '2px 6px', border: '1px solid #d1d5db', borderRadius: 3 }}
+                                            />
+                                            {hasSubHeaders && [0, 1].slice(0, section.subHeaderLevels).map(lv => (
+                                              <input
+                                                key={lv}
+                                                type="text"
+                                                placeholder={`見出し${lv + 1}`}
+                                                value={col.subHeaders?.[lv] ?? ''}
+                                                onChange={(e) => {
+                                                  const newSubHeaders = [...(col.subHeaders ?? [])]
+                                                  newSubHeaders[lv] = e.target.value
+                                                  updateCol({ ...col, subHeaders: newSubHeaders })
+                                                }}
+                                                style={{ width: 72, fontSize: 11, padding: '2px 4px', border: '1px solid #d1d5db', borderRadius: 3 }}
+                                              />
+                                            ))}
+                                            <button
+                                              type="button"
+                                              onClick={() => updateComputedCols(section.computedCols!.filter((_, j) => j !== ci))}
+                                              style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                                            >削除</button>
+                                          </div>
+                                          {col.formula.map((term, ti) => {
+                                            const selectedSection = table.colSections?.[term.sectionIndex]
+                                            const ruleOptions = (selectedSection?.colGroupRules ?? []).map((r, ri) => ({ label: r.name, value: ri }))
+                                            const updateTerm = (newTerm: ComputedColFormulaTerm) => {
+                                              updateCol({ ...col, formula: col.formula.map((t, j) => j === ti ? newTerm : t) })
+                                            }
+                                            return (
+                                              <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => updateTerm({ ...term, coefficient: -term.coefficient })}
+                                                  style={{
+                                                    fontSize: 13, fontWeight: 700, width: 28, padding: '1px 0',
+                                                    border: '1px solid #ccc', borderRadius: 3,
+                                                    background: term.coefficient >= 0 ? '#d1fae5' : '#fee2e2',
+                                                    color: term.coefficient >= 0 ? '#065f46' : '#991b1b',
+                                                    cursor: 'pointer', textAlign: 'center',
+                                                  }}
+                                                >{term.coefficient >= 0 ? '+' : '−'}</button>
+                                                <div style={{ flex: 1 }}>
+                                                  <Select
+                                                    instanceId={`computed-sec-${i}-${si}-col-${ci}-term-${ti}-sec`}
+                                                    styles={{ ...fieldSelectStyles, control: (b) => ({ ...b, minHeight: 26, fontSize: 11 }) }}
+                                                    options={dataSectionOptions}
+                                                    value={dataSectionOptions.find(o => o.value === term.sectionIndex) ?? null}
+                                                    onChange={(opt) => updateTerm({ ...term, sectionIndex: opt?.value ?? 0, ruleIndex: 0 })}
+                                                    placeholder="セクション..."
+                                                    isClearable={false}
+                                                  />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                  <Select
+                                                    instanceId={`computed-sec-${i}-${si}-col-${ci}-term-${ti}-rule`}
+                                                    styles={{ ...fieldSelectStyles, control: (b) => ({ ...b, minHeight: 26, fontSize: 11 }) }}
+                                                    options={ruleOptions}
+                                                    value={ruleOptions.find(o => o.value === term.ruleIndex) ?? null}
+                                                    onChange={(opt) => updateTerm({ ...term, ruleIndex: opt?.value ?? 0 })}
+                                                    placeholder="ルール..."
+                                                    isClearable={false}
+                                                    noOptionsMessage={() => 'ルールなし'}
+                                                  />
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => updateCol({ ...col, formula: col.formula.filter((_, j) => j !== ti) })}
+                                                  style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#6b7280' }}
+                                                >×</button>
+                                              </div>
+                                            )
+                                          })}
+                                          <button
+                                            type="button"
+                                            onClick={() => updateCol({ ...col, formula: [...col.formula, { sectionIndex: dataSectionOptions[0]?.value ?? 0, ruleIndex: 0, coefficient: 1 }] })}
+                                            style={{ fontSize: 11, padding: '1px 8px', border: '1px solid #c4b5fd', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#7c3aed' }}
+                                          >＋ 項を追加</button>
+                                        </div>
+                                      )
+                                    })}
+                                    <button
+                                      type="button"
+                                      onClick={() => updateComputedCols([...(section.computedCols ?? []), { formula: [] }])}
+                                      style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #c4b5fd', borderRadius: 3, background: '#faf5ff', cursor: 'pointer', color: '#7c3aed' }}
+                                    >＋ 列を追加</button>
+                                  </div>
+                                )
+                              })()
+                            ) : (
+                            <>
                             {/* 見出し行数 */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                               <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>見出し行数</span>
@@ -2897,6 +3040,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                 }}
                               />
                             </div>
+                            </>
+                            )}
                           </div>
                         ))}
                         <div style={{ display: 'flex', gap: 6 }}>
@@ -2909,6 +3054,15 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                             }}
                             style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
                           >＋ セクションを追加</button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newSection: CrossTableColSection = { type: 'computed', colGroupBy: '', computedCols: [] }
+                              const next = tables.map((t, j) => j === i ? { ...t, colSections: [...(t.colSections ?? []), newSection] } : t)
+                              onChangeManual({ ...settings, tables: next })
+                            }}
+                            style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #c4b5fd', borderRadius: 3, background: '#faf5ff', cursor: 'pointer', color: '#7c3aed' }}
+                          >＋ 計算式セクションを追加</button>
                           <button
                             type="button"
                             onClick={() => {

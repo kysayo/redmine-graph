@@ -181,18 +181,35 @@ export interface HeadingConfig {
   color: string // アクセントカラー（HEX）
 }
 
+// 計算式セクション用: 計算式の1項（sectionIndex × coefficient）
+export interface ComputedColFormulaTerm {
+  sectionIndex: number   // config.colSections 内のインデックス（data セクションを参照）
+  ruleIndex: number      // 参照するルールのインデックス
+  coefficient: number    // 係数（例: 1 or -1）
+}
+
+// 計算式セクション用: 1列分の定義
+export interface ComputedCol {
+  label?: string
+  formula: ComputedColFormulaTerm[]
+  subHeaders?: string[]  // サブヘッダテキスト [level0, level1, ...]
+}
+
 // クロス集計テーブル 列セクション定義（複数列グループ化）
 export interface CrossTableColSection {
   label?: string                 // セクションヘッダ表示名（省略時 = colGroupBy のフィールド表示名）
-  colGroupBy: string             // このセクションの列グループキー
+  type?: 'data' | 'computed'     // セクション種別（省略時 = 'data'）
+  colGroupBy: string             // このセクションの列グループキー（computed の場合は空文字でよい）
   colGroupRules?: PieGroupRule[] // このセクションの列グルーピングルール
   conditions?: SeriesCondition[] // セクション固有の絞り込み条件（テーブル conditions と AND）
   subHeaderLevels?: number       // サブヘッダ行数 0〜2（デフォルト: 0）
+  computedCols?: ComputedCol[]   // type='computed' のみ使用
 }
 
 // クロス集計テーブル 列セクションの集計データ
 export interface CrossTableSectionData {
   label?: string
+  type?: 'data' | 'computed'     // computed セクションのマーカー
   colGroupBy: string             // URLフィルタ構築に必要
   colGroupRules?: PieGroupRule[]
   sectionConditions?: SeriesCondition[]
@@ -202,6 +219,7 @@ export interface CrossTableSectionData {
   colLabels: Record<string, string>
   colFilterValues: Record<string, string[]>
   colAndCondFilterValues?: Record<string, Record<string, string[]>>
+  colSubHeaders?: Record<string, string[]>  // colKey → サブヘッダテキスト配列（computed セクション用）
   cells: Record<string, Record<string, { count: number }>>
   colTotals: Record<string, number>
 }

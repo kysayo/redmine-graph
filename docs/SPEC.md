@@ -455,6 +455,38 @@ if (container) {
 - **列ルールの独立評価**: 各セクション内でも、全ルールを独立評価して集計する（最初にマッチしたルールで打ち切らない）。同一チケットが同一セクション内の複数ルールにマッチした場合は複数列に重複カウントされる。列合計は行合計（テーブル全体での一意カウント）を超えることがある
 - **設定UI**: 「列を複数セクション化」ボタンで既存の colGroupBy を最初のセクションに変換。セクションごとにラベル・フィールド・グルーピングルール・絞り込み条件を設定可能。↑↓ボタンで並び替え・削除も可能。「セクション化を解除」で単一セクションモードに戻る（先頭セクションの設定が復元される）
 
+#### 計算式セクション（`type: 'computed'`）
+
+`colSections` 内に `type: 'computed'` を設定したセクションを追加すると、**他のデータセクションの値を使った計算式**で列の値を表示できる。チケット件数をカウントするのではなく、既存セクションの集計値を参照して差分・合計などを計算する。
+
+- **用途例**: 「今日までに着手した実績（23件）」の隣に「遅延件数 − 前倒し件数 = −4」を `±N` 形式で表示する
+- **表示形式**: 正値 = `+N`（緑）、負値 = `-N`（赤）、ゼロ = `±0`（グレー）
+- **クリック動作なし**: 計算式セクションのセルはクリック不可（チケット一覧は開かない）
+- **合計行**: 各列の行合計値も同じ `±N` 形式で表示される
+- **サブヘッダ**: データセクションと同じく見出し行数（1〜2）と各列のサブヘッダテキストを設定可能
+- **設定UI**: 「＋ 計算式セクションを追加」ボタンで追加。見出し行数・列ラベル・サブヘッダ・計算式（項の追加/削除・±係数・参照セクション/ルール選択）をGUIで設定可能
+
+**設定例（Preset JSON）:**
+```json
+{
+  "label": "Delta",
+  "type": "computed",
+  "colGroupBy": "",
+  "subHeaderLevels": 1,
+  "computedCols": [
+    {
+      "label": "Start",
+      "subHeaders": ["Δ"],
+      "formula": [
+        { "sectionIndex": 2, "ruleIndex": 1, "coefficient":  1 },
+        { "sectionIndex": 2, "ruleIndex": 0, "coefficient": -1 }
+      ]
+    }
+  ]
+}
+```
+→ `colSections[2]`（例: Delay/Ahead）の `ruleIndex=1`（Ahead）から `ruleIndex=0`（Delay）を引いた値を表示
+
 #### `CrossTableConfig` 型
 
 | フィールド | 型 | 説明 |
@@ -473,10 +505,28 @@ if (container) {
 | フィールド | 型 | 説明 |
 |---|---|---|
 | `label` | `string?` | セクションヘッダ表示名（省略時 = `colGroupBy` のフィールドキー） |
-| `colGroupBy` | `string` | このセクションの列グループキー（ルールに `colGroupBy` が設定されている場合はルール単位で上書き可能） |
-| `colGroupRules` | `PieGroupRule[]?` | このセクションの列グルーピングルール |
-| `conditions` | `SeriesCondition[]?` | セクション固有の絞り込み条件（テーブルレベルの `conditions` と AND） |
-| `subHeaderLevels` | `number?` | サブヘッダ行数 0〜2（省略時 = 0）。`colGroupRules` の各ルールに `subHeaders` を設定し、ヘッダを複数行に分けて表示する場合に使用 |
+| `type` | `'data' \| 'computed'?` | セクション種別（省略時 = `'data'`）。`'computed'` の場合は `computedCols` を使用 |
+| `colGroupBy` | `string` | このセクションの列グループキー（ルールに `colGroupBy` が設定されている場合はルール単位で上書き可能。`type: 'computed'` の場合は空文字でよい） |
+| `colGroupRules` | `PieGroupRule[]?` | このセクションの列グルーピングルール（`type: 'data'` のみ有効） |
+| `conditions` | `SeriesCondition[]?` | セクション固有の絞り込み条件（テーブルレベルの `conditions` と AND。`type: 'data'` のみ有効） |
+| `subHeaderLevels` | `number?` | サブヘッダ行数 0〜2（省略時 = 0）。`colGroupRules` の各ルールまたは `computedCols` の各列に `subHeaders` を設定し、ヘッダを複数行に分けて表示する場合に使用 |
+| `computedCols` | `ComputedCol[]?` | 計算式列の定義（`type: 'computed'` のみ使用） |
+
+#### `ComputedCol` 型
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `label` | `string?` | 列ヘッダ表示名 |
+| `formula` | `ComputedColFormulaTerm[]` | 計算式の項リスト（各項の値を合算して列の値を求める） |
+| `subHeaders` | `string[]?` | サブヘッダテキスト `[level0, level1, ...]`（`subHeaderLevels` が1以上のセクションで使用） |
+
+#### `ComputedColFormulaTerm` 型
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `sectionIndex` | `number` | 参照する `colSections` のインデックス（`type: 'data'` のセクションのみ参照可能） |
+| `ruleIndex` | `number` | 参照するルール（`colGroupRules`）のインデックス |
+| `coefficient` | `number` | 係数（`1` で加算、`-1` で減算。整数以外も指定可能） |
 
 ### EVMタイル（EvmTile）
 
