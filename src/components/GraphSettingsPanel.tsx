@@ -2724,7 +2724,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 6 }}>列セクション</div>
                         {table.colSections.map((section, si) => (
                           <div key={si} style={{ border: '1px solid #d1d5db', borderRadius: 4, padding: 8, marginBottom: 8, background: '#fafafa' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                               <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>セクションラベル</span>
                               <input
                                 type="text"
@@ -2770,6 +2770,20 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                   style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
                                 >削除</button>
                               </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                              <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>グループ見出し</span>
+                              <input
+                                type="text"
+                                placeholder="省略可（同じ文字列のセクションを結合）"
+                                value={section.spanningHeader ?? ''}
+                                onChange={(e) => {
+                                  const newSections = table.colSections!.map((s, j) => j === si ? { ...s, spanningHeader: e.target.value || undefined } : s)
+                                  const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                  onChangeManual({ ...settings, tables: next })
+                                }}
+                                style={{ flex: 1, fontSize: 12, padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 3 }}
+                              />
                             </div>
                             {section.type === 'computed' ? (
                               /* 計算式セクション: 編集UI */

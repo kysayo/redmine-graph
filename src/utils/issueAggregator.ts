@@ -862,6 +862,7 @@ function aggregateCrossTableMultiSection(
 
     dataSections.push({
       label: section.label,
+      spanningHeader: section.spanningHeader,
       colGroupBy: secColGroupBy,
       colGroupRules: secColGroupRules,
       sectionConditions: section.conditions,
@@ -927,6 +928,7 @@ function aggregateCrossTableMultiSection(
 
       finalSections.push({
         label: sec.label,
+        spanningHeader: sec.spanningHeader,
         type: 'computed',
         colGroupBy: '',
         subHeaderLevels: sec.subHeaderLevels,

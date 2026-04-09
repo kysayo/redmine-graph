@@ -204,6 +204,7 @@ export interface CrossTableColSection {
   conditions?: SeriesCondition[] // セクション固有の絞り込み条件（テーブル conditions と AND）
   subHeaderLevels?: number       // サブヘッダ行数 0〜2（デフォルト: 0）
   computedCols?: ComputedCol[]   // type='computed' のみ使用
+  spanningHeader?: string        // スパニングヘッダ表示名。隣接する同一文字列のセクションが colSpan で結合される
 }
 
 // クロス集計テーブル 列セクションの集計データ
@@ -214,6 +215,7 @@ export interface CrossTableSectionData {
   colGroupRules?: PieGroupRule[]
   sectionConditions?: SeriesCondition[]
   subHeaderLevels?: number       // サブヘッダ行数 0〜2
+  spanningHeader?: string        // スパニングヘッダ表示名（config から引き継ぎ）
   colGroupByPerKey?: Record<string, string>  // colKey → 実際の colGroupBy（ルール別フィールド上書き時）
   colKeys: string[]
   colLabels: Record<string, string>

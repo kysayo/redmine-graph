@@ -130,6 +130,18 @@ export function CrossTable({
 
     const maxSubHeaderLevels = Math.max(0, ...sections.map(s => s.subHeaderLevels ?? 0))
 
+    // スパニングヘッダの計算（いずれかのセクションに spanningHeader があれば1行追加）
+    const hasSpanning = sections.some(s => s.spanningHeader)
+
+    // スパニンググループの先頭セクションかどうか判定（先頭以外は細い borderLeft を使う）
+    const isFirstInSpanningGroup = (si: number): boolean => {
+      if (!hasSpanning) return true
+      const label = sections[si].spanningHeader ?? ''
+      if (label === '') return true  // 未設定セクションは常に先頭扱い
+      if (si === 0) return true
+      return (sections[si - 1].spanningHeader ?? '') !== label
+    }
+
     return (
       <div>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 12 }}>{title}</div>
@@ -143,24 +155,65 @@ export function CrossTable({
             }}
           >
             <thead>
+              {/* スパニングヘッダ行（spanningHeader が設定されている場合のみ表示）
+                  AssignmentMappingPanelの「月」行と同じ方式：colSpan でマージせず1セクション=1セルで描画し、
+                  グループ内の境界は borderLeft: 'none' にすることで背景色と同色の細線のみ残す。
+                  border-collapse: collapse では 'none' より 1px solid が優先されるが、
+                  その 1px solid #d1d5db は背景色 #d1d5db と同色のため不可視になる。 */}
+              {hasSpanning && (
+                <tr>
+                  <th
+                    rowSpan={3 + maxSubHeaderLevels}
+                    style={{
+                      ...stickyColStyle,
+                      zIndex: 2,
+                      background: '#f3f4f6',
+                      verticalAlign: 'middle',
+                    }}
+                  />
+                  {sections.map((section, si) => (
+                    <th
+                      key={si}
+                      colSpan={section.colKeys.length}
+                      style={{
+                        background: '#d1d5db',
+                        fontWeight: 700,
+                        fontSize: cellFontSize,
+                        padding: compact ? '4px 8px' : '6px 12px',
+                        textAlign: 'center',
+                        whiteSpace: headerWhiteSpace,
+                        wordBreak: compact ? 'break-word' : undefined,
+                        // border shorthand を使わず個別指定。グループ内の縦線は背景色と同色にして不可視にする
+                        borderTop: '1px solid #d1d5db',
+                        borderBottom: '1px solid #d1d5db',
+                        borderLeft: isFirstInSpanningGroup(si) ? '2px solid #9ca3af' : '1px solid #d1d5db',
+                      }}
+                    >
+                      {isFirstInSpanningGroup(si) ? (section.spanningHeader ?? '') : ''}
+                    </th>
+                  ))}
+                </tr>
+              )}
               {/* セクションラベル行 */}
               <tr>
-                <th
-                  rowSpan={2 + maxSubHeaderLevels}
-                  style={{
-                    ...stickyColStyle,
-                    zIndex: 2,
-                    background: '#f3f4f6',
-                    verticalAlign: 'middle',
-                  }}
-                />
+                {!hasSpanning && (
+                  <th
+                    rowSpan={2 + maxSubHeaderLevels}
+                    style={{
+                      ...stickyColStyle,
+                      zIndex: 2,
+                      background: '#f3f4f6',
+                      verticalAlign: 'middle',
+                    }}
+                  />
+                )}
                 {sections.map((section, si) => (
                   <th
                     key={si}
                     colSpan={section.colKeys.length}
                     style={{
                       ...sectionHeaderStyle,
-                      borderLeft: '2px solid #9ca3af',
+                      borderLeft: isFirstInSpanningGroup(si) ? '2px solid #9ca3af' : '1px solid #d1d5db',
                     }}
                   >
                     {section.label ?? section.colGroupBy}
@@ -179,7 +232,7 @@ export function CrossTable({
                           colSpan={section.colKeys.length}
                           style={{
                             ...headerCellStyle,
-                            borderLeft: '2px solid #9ca3af',
+                            borderLeft: isFirstInSpanningGroup(si) ? '2px solid #9ca3af' : '1px solid #d1d5db',
                           }}
                         />
                       )
@@ -202,7 +255,7 @@ export function CrossTable({
                         colSpan={group.colspan}
                         style={{
                           ...headerCellStyle,
-                          borderLeft: gi === 0 ? '2px solid #9ca3af' : '1px solid #d1d5db',
+                          borderLeft: gi === 0 && isFirstInSpanningGroup(si) ? '2px solid #9ca3af' : '1px solid #d1d5db',
                         }}
                       >
                         {group.label}
@@ -219,7 +272,7 @@ export function CrossTable({
                       key={`${si}-${colKey}`}
                       style={{
                         ...headerCellStyle,
-                        borderLeft: ci === 0 ? '2px solid #9ca3af' : '1px solid #d1d5db',
+                        borderLeft: ci === 0 && isFirstInSpanningGroup(si) ? '2px solid #9ca3af' : '1px solid #d1d5db',
                       }}
                     >
                       {section.colLabels[colKey]}
@@ -249,7 +302,7 @@ export function CrossTable({
                     </td>
                     {sections.map((section, si) =>
                       section.colKeys.map((colKey, ci) => {
-                        const cellBorderLeft = ci === 0 ? '2px solid #9ca3af' : '1px solid #d1d5db'
+                        const cellBorderLeft = ci === 0 && isFirstInSpanningGroup(si) ? '2px solid #9ca3af' : '1px solid #d1d5db'
                         if (section.type === 'computed') {
                           const value = section.cells[rowKey]?.[colKey]?.count ?? 0
                           const displayValue = value > 0 ? `+${value}` : value < 0 ? `${value}` : '±0'
@@ -305,7 +358,7 @@ export function CrossTable({
                 <td style={totalRowLabelStyle}>合計</td>
                 {sections.map((section, si) =>
                   section.colKeys.map((colKey, ci) => {
-                    const totalBorderLeft = ci === 0 ? '2px solid #9ca3af' : '1px solid #d1d5db'
+                    const totalBorderLeft = ci === 0 && isFirstInSpanningGroup(si) ? '2px solid #9ca3af' : '1px solid #d1d5db'
                     if (section.type === 'computed') {
                       const value = section.colTotals[colKey] ?? 0
                       const displayValue = value > 0 ? `+${value}` : value < 0 ? `${value}` : '±0'
