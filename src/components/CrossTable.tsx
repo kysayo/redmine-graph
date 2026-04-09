@@ -4,6 +4,7 @@ import type { CrossTableData } from '../types'
 interface CrossTableProps {
   data: CrossTableData
   title: string
+  compact?: boolean
   onCellClick?: (
     rowKey: string,
     colKey: string,
@@ -23,6 +24,7 @@ interface CrossTableProps {
 export function CrossTable({
   data,
   title,
+  compact = false,
   onCellClick,
   onRowTotalClick,
   onColTotalClick,
@@ -32,14 +34,18 @@ export function CrossTable({
 
   const { rowKeys, colKeys, rowLabels, colLabels, rowFilterValues, colFilterValues, cells, rowTotals, colTotals, grandTotal, sections } = data
 
+  const cellPadding = compact ? '4px 8px' : '8px 12px'
+  const cellFontSize = compact ? 12 : 13
+  const headerWhiteSpace: React.CSSProperties['whiteSpace'] = compact ? 'normal' : 'nowrap'
+
   const stickyColStyle: React.CSSProperties = {
     position: 'sticky',
     left: 0,
     background: '#f3f4f6',
     zIndex: 1,
     fontWeight: 600,
-    fontSize: 13,
-    padding: '8px 12px',
+    fontSize: cellFontSize,
+    padding: cellPadding,
     textAlign: 'left',
     whiteSpace: 'nowrap',
     border: '1px solid #d1d5db',
@@ -49,18 +55,19 @@ export function CrossTable({
   const headerCellStyle: React.CSSProperties = {
     background: '#f3f4f6',
     fontWeight: 600,
-    fontSize: 13,
-    padding: '8px 12px',
+    fontSize: cellFontSize,
+    padding: cellPadding,
     textAlign: 'center',
-    whiteSpace: 'nowrap',
+    whiteSpace: headerWhiteSpace,
+    wordBreak: compact ? 'break-word' : undefined,
     border: '1px solid #d1d5db',
   }
 
   const totalColStyle: React.CSSProperties = {
     background: '#e5e7eb',
     fontWeight: 700,
-    fontSize: 13,
-    padding: '8px 12px',
+    fontSize: cellFontSize,
+    padding: cellPadding,
     textAlign: 'center',
     whiteSpace: 'nowrap',
     border: '1px solid #d1d5db',
@@ -70,8 +77,8 @@ export function CrossTable({
   const totalRowCellStyle: React.CSSProperties = {
     background: '#e5e7eb',
     fontWeight: 700,
-    fontSize: 13,
-    padding: '8px 12px',
+    fontSize: cellFontSize,
+    padding: cellPadding,
     textAlign: 'center',
     border: '1px solid #d1d5db',
     borderTop: '2px solid #9ca3af',
@@ -111,10 +118,11 @@ export function CrossTable({
     const sectionHeaderStyle: React.CSSProperties = {
       background: '#e8ecf0',
       fontWeight: 700,
-      fontSize: 13,
-      padding: '6px 12px',
+      fontSize: cellFontSize,
+      padding: compact ? '4px 8px' : '6px 12px',
       textAlign: 'center',
-      whiteSpace: 'nowrap',
+      whiteSpace: headerWhiteSpace,
+      wordBreak: compact ? 'break-word' : undefined,
       border: '1px solid #d1d5db',
       borderLeft: '2px solid #9ca3af',
       borderBottom: '1px solid #d1d5db',
@@ -130,7 +138,7 @@ export function CrossTable({
             style={{
               borderCollapse: 'collapse',
               width: '100%',
-              fontSize: 13,
+              fontSize: cellFontSize,
               tableLayout: 'auto',
             }}
           >
@@ -250,7 +258,7 @@ export function CrossTable({
                             <td
                               key={`${si}-${colKey}`}
                               style={{
-                                padding: '8px 12px',
+                                padding: cellPadding,
                                 textAlign: 'center',
                                 border: '1px solid #d1d5db',
                                 borderLeft: cellBorderLeft,
@@ -258,7 +266,7 @@ export function CrossTable({
                                 fontWeight: 600,
                                 background: isHovered ? rowBg : undefined,
                                 transition: 'background 0.1s',
-                                minWidth: 64,
+                                minWidth: compact ? 48 : 64,
                               }}
                             >
                               {displayValue}
@@ -273,7 +281,7 @@ export function CrossTable({
                             key={`${si}-${colKey}`}
                             onClick={clickable ? () => onCellClick!(rowKey, colKey, rowFv, colFv, si) : undefined}
                             style={{
-                              padding: '8px 12px',
+                              padding: cellPadding,
                               textAlign: 'center',
                               border: '1px solid #d1d5db',
                               borderLeft: cellBorderLeft,
@@ -281,7 +289,7 @@ export function CrossTable({
                               cursor: clickable ? 'pointer' : 'default',
                               background: isHovered ? rowBg : undefined,
                               transition: 'background 0.1s',
-                              minWidth: 64,
+                              minWidth: compact ? 48 : 64,
                             }}
                           >
                             {count > 0 ? count : ''}
@@ -372,7 +380,7 @@ export function CrossTable({
           style={{
             borderCollapse: 'collapse',
             width: '100%',
-            fontSize: 13,
+            fontSize: cellFontSize,
             tableLayout: 'auto',
           }}
         >
@@ -435,14 +443,14 @@ export function CrossTable({
                         key={colKey}
                         onClick={clickable ? () => onCellClick!(rowKey, colKey, rowFv, colFv) : undefined}
                         style={{
-                          padding: '8px 12px',
+                          padding: cellPadding,
                           textAlign: 'center',
                           border: '1px solid #d1d5db',
                           color: '#111827',
                           cursor: clickable ? 'pointer' : 'default',
                           background: isHovered ? rowBg : undefined,
                           transition: 'background 0.1s',
-                          minWidth: 64,
+                          minWidth: compact ? 48 : 64,
                         }}
                       >
                         {count > 0 ? count : ''}

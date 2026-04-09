@@ -100,6 +100,34 @@ export function saveSettings(settings: UserSettings): void {
   }
 }
 
+interface UIState {
+  isOpen: boolean
+  collapsedSections: string[]
+  collapsedCards: string[]
+}
+
+function buildUiStateKey(): string {
+  return `redmine-graph:ui-state:${getProjectId()}`
+}
+
+export function loadUiState(): UIState {
+  try {
+    const raw = localStorage.getItem(buildUiStateKey())
+    if (!raw) return { isOpen: false, collapsedSections: [], collapsedCards: [] }
+    return JSON.parse(raw) as UIState
+  } catch {
+    return { isOpen: false, collapsedSections: [], collapsedCards: [] }
+  }
+}
+
+export function saveUiState(state: UIState): void {
+  try {
+    localStorage.setItem(buildUiStateKey(), JSON.stringify(state))
+  } catch {
+    // ストレージが使えない環境では無視
+  }
+}
+
 const PRESETS_KEY = 'redmine-graph:presets'
 
 export function loadPresets(): Preset[] {

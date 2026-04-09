@@ -233,7 +233,8 @@ export interface CrossTableConfig {
   conditions?: SeriesCondition[]  // 集計対象の絞り込み条件（AND条件）
   rowGroupRules?: PieGroupRule[]  // 行のグルーピングルール（PieGroupRule を再利用）
   colGroupRules?: PieGroupRule[]  // 列のグルーピングルール
-  fullWidth?: boolean             // false=3列グリッドに収まるサイズ、省略/true=全幅（デフォルト）
+  fullWidth?: boolean             // 後方互換: false=1列、省略/true=全幅。tileColumns が指定された場合はそちら優先
+  tileColumns?: 1 | 2 | 3        // タイルの幅（1=1/3幅、2=2/3幅、3=全幅）。省略時は fullWidth に従う
   colSections?: CrossTableColSection[]  // 複数列セクション（存在する場合 colGroupBy より優先）
 }
 

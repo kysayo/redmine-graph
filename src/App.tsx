@@ -688,7 +688,7 @@ export function App({ container }: Props) {
     if ((settings.hiddenTiles ?? []).includes(ref.id)) {
       const label = getTileLabel(ref)
       return (
-        <div key={key} style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'default' }}>
+        <div key={key} style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer' }} onClick={() => showTile(ref.id)}>
           <span style={{ fontSize: 10, color: '#9ca3af', lineHeight: 1 }}>▶</span>
           <span style={{ fontSize: 12, color: '#9ca3af', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
           <button
@@ -811,11 +811,13 @@ export function App({ container }: Props) {
       const rowName = filterFields.find(f => f.key === table.rowGroupBy)?.name ?? table.rowGroupBy
       const colName = hasSections ? '' : (filterFields.find(f => f.key === table.colGroupBy)?.name ?? table.colGroupBy)
       const title = table.label || (hasSections ? rowName : `${rowName} × ${colName}`)
+      const tileColumns = table.tileColumns ?? (table.fullWidth !== false ? 3 : 1)
+      const tableGridColumn = tileColumns === 3 ? '1 / -1' : tileColumns === 2 ? 'span 2' : undefined
       return (
         <TileCard
           key={key}
           style={{
-            ...(table.fullWidth !== false ? { gridColumn: '1 / -1' } : {}),
+            ...(tableGridColumn ? { gridColumn: tableGridColumn } : {}),
             padding: '20px 24px',
           }}
           fileName={`cross-table-${i}`}
@@ -833,6 +835,7 @@ export function App({ container }: Props) {
             <CrossTable
               data={data}
               title={title}
+              compact={tileColumns < 3}
               onCellClick={issueState.issues !== null
                 ? (rk, ck, rfv, cfv, si) => handleCrossTableCellClick(
                     table, rk, ck, rfv, cfv,

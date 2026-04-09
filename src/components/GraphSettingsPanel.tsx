@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Select from 'react-select'
 import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, ComputedCol, ComputedColFormulaTerm, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, SummaryCardDenominator, TeamPreset, TileRef, UserSettings } from '../types'
-import { loadPresets, savePresets } from '../utils/storage'
+import { loadPresets, savePresets, loadUiState, saveUiState } from '../utils/storage'
 
 const fieldSelectStyles = {
   control: (base: object) => ({
@@ -1043,6 +1043,8 @@ interface SummaryCardEditorRowProps {
   onDelete: () => void
   onMoveUp?: () => void
   onMoveDown?: () => void
+  collapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
 function initDenominators(card: SummaryCardConfig): SummaryCardDenominator[] {
@@ -1051,10 +1053,12 @@ function initDenominators(card: SummaryCardConfig): SummaryCardDenominator[] {
   return []
 }
 
-function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown }: SummaryCardEditorRowProps) {
+function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown, collapsed: collapsedProp, onToggleCollapse }: SummaryCardEditorRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
   const [denominators, setDenominators] = useState<SummaryCardDenominator[]>(() => initDenominators(card))
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsedInternal, setCollapsedInternal] = useState(false)
+  const collapsed = collapsedProp !== undefined ? collapsedProp : collapsedInternal
+  const toggleCollapsed = onToggleCollapse ?? (() => setCollapsedInternal(c => !c))
 
   const labelStyle: React.CSSProperties = { fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }
   const inputStyle: React.CSSProperties = { fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', width: 140 }
@@ -1069,7 +1073,7 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         {/* 折りたたみ chevron */}
         <span
-          onClick={() => setCollapsed(c => !c)}
+          onClick={toggleCollapsed}
           style={{ fontSize: 10, color: '#9ca3af', cursor: 'pointer', userSelect: 'none', flexShrink: 0, paddingTop: 20, lineHeight: 1 }}
         >{collapsed ? '▶' : '▼'}</span>
         {/* 色インジケーター＋カラーピッカー */}
@@ -1526,12 +1530,19 @@ function HeadingEditorRow({ heading, onChange, onDelete }: HeadingEditorRowProps
 }
 
 export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChange, onReset, teamPresets, filterFields = [], dateFilterFields = [], columnFilterFields, getFieldOptions = async () => [] }: Props) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
-  const [collapsedCards, setCollapsedCards] = useState<Set<string>>(new Set())
+  const [isOpen, setIsOpen] = useState(() => loadUiState().isOpen)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set(loadUiState().collapsedSections))
+  const [collapsedCards, setCollapsedCards] = useState<Set<string>>(() => new Set(loadUiState().collapsedCards))
   function toggleCard(key: string) {
     setCollapsedCards(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
   }
+  useEffect(() => {
+    saveUiState({
+      isOpen,
+      collapsedSections: Array.from(collapsedSections),
+      collapsedCards: Array.from(collapsedCards),
+    })
+  }, [isOpen, collapsedSections, collapsedCards])
   const [presets, setPresets] = useState<Preset[]>(() => loadPresets())
   const [presetNameInput, setPresetNameInput] = useState('')
   const [selectedPresetId, setSelectedPresetId] = useState('')
@@ -2268,6 +2279,8 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                 onDelete={() => deleteSummaryCard(i)}
               onMoveUp={i > 0 ? () => moveSummaryCard(i, i - 1) : undefined}
               onMoveDown={i < (settings.summaryCards ?? []).length - 1 ? () => moveSummaryCard(i, i + 1) : undefined}
+              collapsed={collapsedCards.has(`summaryCard-${i}`)}
+              onToggleCollapse={() => toggleCard(`summaryCard-${i}`)}
               />
             ))}
             <button
@@ -3105,19 +3118,27 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         }}
                       />
                     </div>
-                    {/* 全幅表示 */}
-                    <div style={{ marginTop: 6 }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={table.fullWidth !== false}
-                          onChange={(e) => {
-                            const next = tables.map((t, j) => j === i ? { ...t, fullWidth: e.target.checked } : t)
-                            onChangeManual({ ...settings, tables: next })
-                          }}
-                        />
-                        全幅表示
-                      </label>
+                    {/* タイル幅 */}
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>タイル幅</span>
+                      {([1, 2, 3] as const).map(cols => {
+                        const currentCols = table.tileColumns ?? (table.fullWidth !== false ? 3 : 1)
+                        const labels: Record<number, string> = { 1: '1列', 2: '2列', 3: '全幅' }
+                        return (
+                          <label key={cols} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, cursor: 'pointer' }}>
+                            <input
+                              type="radio"
+                              name={`table-tile-columns-${table.id ?? i}`}
+                              checked={currentCols === cols}
+                              onChange={() => {
+                                const next = tables.map((t, j) => j === i ? { ...t, tileColumns: cols, fullWidth: undefined } : t)
+                                onChangeManual({ ...settings, tables: next })
+                              }}
+                            />
+                            {labels[cols]}
+                          </label>
+                        )
+                      })}
                     </div>
                     </>}
                   </div>
