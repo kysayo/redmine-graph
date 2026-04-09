@@ -378,8 +378,11 @@ export function aggregateIssues(
   const todayStr = formatDate(new Date())
   const hideFutureSeries = series.filter(s => s.hideFuture)
   if (hideFutureSeries.length > 0) {
+    // 週次集計時: 今週のアンカー日を計算（今日以降で最初のanchorDay）
+    // アンカー日が今日より後でも「今週」なので非表示にしない
+    const currentWeekAnchor = weeklyMode ? getNextAnchorDate(todayStr, anchorDay) : null
     for (const point of result) {
-      if (point.date > todayStr) {
+      if (point.date > todayStr && point.date !== currentWeekAnchor) {
         for (const s of hideFutureSeries) {
           point[s.id] = null
         }
