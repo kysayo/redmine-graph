@@ -67,10 +67,8 @@ function parseRawSearchFilters(rawSearch: string): FilterParam[] {
   if (fields.length === 0) return []
 
   return fields.map((field) => {
-    const op = params.get(`op[${field}]`) ?? '='
+    const operator = params.get(`op[${field}]`) ?? '='
     const values = params.getAll(`v[${field}][]`)
-    // Redmineの演算子を SeriesCondition の operator に変換（= と ! のみサポート）
-    const operator: '=' | '!' = op === '!' ? '!' : '='
     return { field, operator, values }
   })
 }

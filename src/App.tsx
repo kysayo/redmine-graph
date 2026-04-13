@@ -366,7 +366,16 @@ export function App({ container }: Props) {
   }
 
   function andCondFiltersFromMap(andCondFvs: Record<string, string[]>): SeriesCondition[] {
-    return Object.entries(andCondFvs).map(([field, values]) => ({ field, operator: '=' as const, values }))
+    return Object.entries(andCondFvs)
+      .filter(([, values]) => values.length > 0)
+      .map(([field, values]) => {
+        const realValues = values.filter(v => v !== '(No data)')
+        if (realValues.length === 0) {
+          // (No data) のみ → Redmine の「値なし」演算子 !*
+          return { field, operator: '!*' as const, values: [] }
+        }
+        return { field, operator: '=' as const, values: realValues }
+      })
   }
 
   /**
@@ -478,6 +487,7 @@ export function App({ container }: Props) {
         ...(table.conditions ?? []),
         ...crossTableFieldCond(table.rowGroupBy, rowKey, rowFilterValues, table.rowGroupRules),
         ...andCondFiltersFromMap(augmentAndCondFvsFromRuleDef(rowAndCondFvs, table.rowGroupRules, rowKey)),
+        ...andDateCondFiltersFromRules(table.rowGroupRules, rowKey),
       ]
     )
     window.open(url, '_blank', 'noopener')

@@ -54,9 +54,11 @@ function getIssueAssigneeId(issue: RedmineIssue, assigneeField: string): string 
 export function AssignmentMappingPanel({ config, issues, onExtraValuesChange }: Props) {
   const {
     title,
+    mode = 'period',
     assigneeField,
     endDateField,
     fallbackDays,
+    dateField,
     displayStartDate,
     displayEndDate,
     conditions = [],
@@ -103,43 +105,64 @@ export function AssignmentMappingPanel({ config, issues, onExtraValuesChange }: 
       : issues
 
     for (const issue of filtered) {
-      const startDate = issue.start_date
-      if (!startDate) continue  // 開始日が空はスキップ
-
       const assigneeId = getIssueAssigneeId(issue, assigneeField)
       if (!assigneeId || !personIdSet.has(assigneeId)) continue
 
-      // 終了日: endDateField から取得、空なら start_date + fallbackDays 営業日
-      const rawEnd = getIssueDateByField(issue, endDateField)
-      let endDate: string
-      if (rawEnd) {
-        // ISO文字列（UTC）の場合はJST日付に変換が必要。YYYY-MM-DDの場合はそのまま
-        if (rawEnd.includes('T') || rawEnd.endsWith('Z')) {
-          // UTCからJST変換（+9時間）
-          const d = new Date(rawEnd)
+      const personCounts = map[assigneeId]
+
+      if (mode === 'pinpoint') {
+        // ピンポイントモード: dateField の値が表示期間内ならその日にカウント
+        if (!dateField) continue
+        const rawDate = getIssueDateByField(issue, dateField)
+        if (!rawDate) continue
+        let targetDate: string
+        if (rawDate.includes('T') || rawDate.endsWith('Z')) {
+          const d = new Date(rawDate)
           const jstMs = d.getTime() + 9 * 60 * 60 * 1000
-          endDate = new Date(jstMs).toISOString().slice(0, 10)
+          targetDate = new Date(jstMs).toISOString().slice(0, 10)
         } else {
-          endDate = rawEnd.slice(0, 10)
+          targetDate = rawDate.slice(0, 10)
+        }
+        if (targetDate < displayStartDate || targetDate > displayEndDate) continue
+        if (dates.includes(targetDate)) {
+          personCounts[targetDate] = (personCounts[targetDate] ?? 0) + 1
         }
       } else {
-        endDate = addBusinessDaysToDate(startDate, fallbackDays)
-      }
+        // 期間モード: start_date 〜 endDateField の期間が表示日付と重なる場合にカウント
+        const startDate = issue.start_date
+        if (!startDate) continue  // 開始日が空はスキップ
 
-      // 表示期間と[startDate, endDate]の重なりを求めてカウント
-      const overlapStart = startDate > displayStartDate ? startDate : displayStartDate
-      const overlapEnd = endDate < displayEndDate ? endDate : displayEndDate
-      if (overlapStart > overlapEnd) continue
+        // 終了日: endDateField から取得、空なら start_date + fallbackDays 営業日
+        const rawEnd = getIssueDateByField(issue, endDateField)
+        let endDate: string
+        if (rawEnd) {
+          // ISO文字列（UTC）の場合はJST日付に変換が必要。YYYY-MM-DDの場合はそのまま
+          if (rawEnd.includes('T') || rawEnd.endsWith('Z')) {
+            // UTCからJST変換（+9時間）
+            const d = new Date(rawEnd)
+            const jstMs = d.getTime() + 9 * 60 * 60 * 1000
+            endDate = new Date(jstMs).toISOString().slice(0, 10)
+          } else {
+            endDate = rawEnd.slice(0, 10)
+          }
+        } else {
+          endDate = addBusinessDaysToDate(startDate, fallbackDays)
+        }
 
-      const personCounts = map[assigneeId]
-      for (const date of dates) {
-        if (date >= overlapStart && date <= overlapEnd) {
-          personCounts[date] = (personCounts[date] ?? 0) + 1
+        // 表示期間と[startDate, endDate]の重なりを求めてカウント
+        const overlapStart = startDate > displayStartDate ? startDate : displayStartDate
+        const overlapEnd = endDate < displayEndDate ? endDate : displayEndDate
+        if (overlapStart > overlapEnd) continue
+
+        for (const date of dates) {
+          if (date >= overlapStart && date <= overlapEnd) {
+            personCounts[date] = (personCounts[date] ?? 0) + 1
+          }
         }
       }
     }
     return map
-  }, [issues, conditions, assigneeField, endDateField, fallbackDays, displayStartDate, displayEndDate, dates, personIdSet])
+  }, [issues, conditions, mode, assigneeField, endDateField, fallbackDays, dateField, displayStartDate, displayEndDate, dates, personIdSet])
 
   const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -181,17 +204,25 @@ export function AssignmentMappingPanel({ config, issues, onExtraValuesChange }: 
       undefined,
       [...conditions, personCondition]
     )
-    // 日付範囲フィルタを追加（start_date <= date かつ endDateField >= date）
+    // 日付フィルタを追加
     // buildRedmineFilterUrl は >= / <= を pieConditions から除外するため手動で追加する
     const [basePart, queryPart] = baseUrl.split('?')
     const params = new URLSearchParams(queryPart)
-    params.append('f[]', 'start_date')
-    params.set('op[start_date]', '<=')
-    params.append('v[start_date][]', date)
-    if (endDateField) {
-      params.append('f[]', endDateField)
-      params.set(`op[${endDateField}]`, '>=')
-      params.append(`v[${endDateField}][]`, date)
+    if (mode === 'pinpoint' && dateField) {
+      // ピンポイントモード: dateField = date の完全一致フィルタ
+      params.append('f[]', dateField)
+      params.set(`op[${dateField}]`, '=')
+      params.append(`v[${dateField}][]`, date)
+    } else {
+      // 期間モード: start_date <= date かつ endDateField >= date
+      params.append('f[]', 'start_date')
+      params.set('op[start_date]', '<=')
+      params.append('v[start_date][]', date)
+      if (endDateField) {
+        params.append('f[]', endDateField)
+        params.set(`op[${endDateField}]`, '>=')
+        params.append(`v[${endDateField}][]`, date)
+      }
     }
     window.open(`${basePart}?${params.toString()}`, '_blank', 'noopener')
   }

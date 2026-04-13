@@ -2763,6 +2763,17 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    const cloned = JSON.parse(JSON.stringify(table.colSections![si]))
+                                    const newSections = [...table.colSections!]
+                                    newSections.splice(si + 1, 0, cloned)
+                                    const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                    onChangeManual({ ...settings, tables: next })
+                                  }}
+                                  style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#374151' }}
+                                >複製</button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
                                     const newSections = table.colSections!.filter((_, j) => j !== si)
                                     const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections.length ? newSections : undefined, colGroupBy: newSections.length ? t.colGroupBy : (table.colSections![0]?.colGroupBy ?? t.colGroupBy), colGroupRules: newSections.length ? t.colGroupRules : table.colSections![0]?.colGroupRules } : t)
                                     onChangeManual({ ...settings, tables: next })
@@ -3649,8 +3660,39 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       </div>
                     </div>
 
-                    {/* 終了日フィールド選択 */}
+                    {/* 集計モード選択 */}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#555', minWidth: 100 }}>集計モード</span>
+                      <label style={{ fontSize: 11, color: '#555', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name={`mapping-mode-${i}`}
+                          value="period"
+                          checked={(mapping.mode ?? 'period') === 'period'}
+                          onChange={() => {
+                            const next = mappings.map((t, j) => j === i ? { ...t, mode: 'period' as const } : t)
+                            onChangeManual({ ...settings, assignmentMappings: next })
+                          }}
+                        />
+                        期間（開始〜終了日）
+                      </label>
+                      <label style={{ fontSize: 11, color: '#555', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name={`mapping-mode-${i}`}
+                          value="pinpoint"
+                          checked={mapping.mode === 'pinpoint'}
+                          onChange={() => {
+                            const next = mappings.map((t, j) => j === i ? { ...t, mode: 'pinpoint' as const } : t)
+                            onChangeManual({ ...settings, assignmentMappings: next })
+                          }}
+                        />
+                        日付のピンポイント
+                      </label>
+                    </div>
+
+                    {/* 終了日フィールド選択（期間モードのみ） */}
+                    {(mapping.mode ?? 'period') === 'period' && <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 11, color: '#555', minWidth: 100 }}>終了日フィールド</span>
                       <div style={{ flex: 1, minWidth: 160 }}>
                         <Select
@@ -3666,10 +3708,10 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           placeholder="フィールドを選択..."
                         />
                       </div>
-                    </div>
+                    </div>}
 
-                    {/* 終了日未記入時の営業日数 */}
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                    {/* 終了日未記入時の営業日数（期間モードのみ） */}
+                    {(mapping.mode ?? 'period') === 'period' && <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 11, color: '#555', minWidth: 100 }}>終了日空の場合</span>
                       <input
                         type="number"
@@ -3682,7 +3724,26 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, width: 50 }}
                       />
                       <span style={{ fontSize: 11, color: '#777' }}>営業日後まで</span>
-                    </div>
+                    </div>}
+
+                    {/* 集計日付フィールド選択（ピンポイントモードのみ） */}
+                    {mapping.mode === 'pinpoint' && <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#555', minWidth: 100 }}>集計日付フィールド</span>
+                      <div style={{ flex: 1, minWidth: 160 }}>
+                        <Select
+                          styles={fieldSelectStyles}
+                          options={dateFilterFields.map(f => ({ label: f.name, value: f.key }))}
+                          value={mapping.dateField
+                            ? { label: dateFilterFields.find(f => f.key === mapping.dateField)?.name ?? mapping.dateField, value: mapping.dateField }
+                            : null}
+                          onChange={(selected) => {
+                            const next = mappings.map((t, j) => j === i ? { ...t, dateField: selected?.value ?? '' } : t)
+                            onChangeManual({ ...settings, assignmentMappings: next })
+                          }}
+                          placeholder="フィールドを選択..."
+                        />
+                      </div>
+                    </div>}
 
                     {/* 表示期間 */}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
@@ -3830,6 +3891,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                   const assignmentId = generateId()
                   const newMapping: AssignmentMappingConfig = {
                     id: assignmentId,
+                    mode: 'period',
                     assigneeField: filterFields.find(f => f.key === 'assigned_to_id')?.key ?? filterFields[0]?.key ?? 'assigned_to_id',
                     endDateField: dateFilterFields.find(f => f.key === 'due_date')?.key ?? dateFilterFields[0]?.key ?? 'due_date',
                     fallbackDays: 5,

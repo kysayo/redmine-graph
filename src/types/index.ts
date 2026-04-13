@@ -161,9 +161,11 @@ export interface AssignmentMappingPerson {
 export interface AssignmentMappingConfig {
   id?: string                    // タイル識別子（tileOrder参照用）
   title?: string
+  mode?: 'period' | 'pinpoint'   // 集計モード: 'period'=期間重複集計(デフォルト), 'pinpoint'=日付ピンポイント集計
   assigneeField: string          // 担当者フィールドキー（例: 'assigned_to_id'）
-  endDateField: string           // 終了日フィールドキー（例: 'due_date', 'cf_XXX'）
-  fallbackDays: number           // 終了日が空の場合の営業日数（デフォルト: 5）
+  endDateField: string           // 終了日フィールドキー（例: 'due_date', 'cf_XXX'）。period モード用
+  fallbackDays: number           // 終了日が空の場合の営業日数（デフォルト: 5）。period モード用
+  dateField?: string             // ピンポイントモードで集計に使う日付フィールドキー（例: 'due_date'）
   displayStartDate: string       // 表示開始日（YYYY-MM-DD）
   displayEndDate: string         // 表示終了日（YYYY-MM-DD）
   conditions?: SeriesCondition[]
