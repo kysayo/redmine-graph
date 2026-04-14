@@ -58,14 +58,33 @@ export interface SummaryCardDenominator {
   conditions: SeriesCondition[]
 }
 
+// 集計カード 計算値の1項
+export interface SummaryCardFormulaTerm {
+  valueIndex: number   // 参照する値のインデックス（slots内のkind='value'スロットの位置）
+  coefficient: number  // 係数（1 = 加算 / -1 = 減算）
+}
+
+// 集計カード 計算値スロット（後方互換用）
+export interface SummaryCardComputedValue {
+  label?: string
+  formula: SummaryCardFormulaTerm[]
+}
+
+// 集計カード 統合スロット（kind='value': 条件集計値 / kind='computed': 計算値）
+export type SummaryCardSlot =
+  | { kind: 'value'; label?: string; conditions: SeriesCondition[] }
+  | { kind: 'computed'; label?: string; formula: SummaryCardFormulaTerm[] }
+
 // 集計カード設定
 export interface SummaryCardConfig {
   title: string
   color: string  // HEX accent color（カード上辺ボーダー + 数値テキスト色）
-  numerator: { conditions: SeriesCondition[] }    // 分子: 条件に合致するチケット数
+  numerator: { label?: string; conditions: SeriesCondition[] }    // 分子: 条件に合致するチケット数（slots未使用時のフォールバック）
   /** @deprecated denominators[] を使うこと。旧データ後方互換用 */
   denominator?: { conditions: SeriesCondition[] }
-  denominators?: SummaryCardDenominator[]         // 追加値（任意個数）。指定時は「分子 / 値1 / 値2 ...」形式で表示
+  denominators?: SummaryCardDenominator[]         // 追加値（slots未使用時のフォールバック）
+  computedValues?: SummaryCardComputedValue[]     // 計算値（slots未使用時のフォールバック）
+  slots?: SummaryCardSlot[]                       // 統合スロット（存在時は numerator/denominators/computedValues より優先）
 }
 
 // 横棒グラフ 積み上げセグメント1件

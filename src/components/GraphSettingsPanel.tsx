@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Select from 'react-select'
-import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, ComputedCol, ComputedColFormulaTerm, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, SummaryCardDenominator, TeamPreset, TileRef, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, ComputedCol, ComputedColFormulaTerm, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, SummaryCardDenominator, SummaryCardFormulaTerm, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets, loadUiState, saveUiState } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -1071,9 +1071,29 @@ function initDenominators(card: SummaryCardConfig): SummaryCardDenominator[] {
   return []
 }
 
+// SummaryCardEditorRow 内部で使うスロット型
+type SummaryEditorSlot =
+  | { kind: 'value'; label: string; conditions: SeriesCondition[] }
+  | { kind: 'computed'; label: string; formula: SummaryCardFormulaTerm[] }
+
+function initEditorSlots(card: SummaryCardConfig): SummaryEditorSlot[] {
+  if (card.slots && card.slots.length > 0) {
+    return card.slots.map(s => s.kind === 'value'
+      ? { kind: 'value', label: s.label ?? '', conditions: s.conditions }
+      : { kind: 'computed', label: s.label ?? '', formula: s.formula }
+    )
+  }
+  const denoms = initDenominators(card)
+  return [
+    { kind: 'value', label: card.numerator.label ?? '', conditions: card.numerator.conditions },
+    ...denoms.map(d => ({ kind: 'value' as const, label: d.label ?? '', conditions: d.conditions })),
+    ...(card.computedValues ?? []).map(cv => ({ kind: 'computed' as const, label: cv.label ?? '', formula: cv.formula })),
+  ]
+}
+
 function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOptions, onChange, onDelete, onMoveUp, onMoveDown, collapsed: collapsedProp, onToggleCollapse }: SummaryCardEditorRowProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
-  const [denominators, setDenominators] = useState<SummaryCardDenominator[]>(() => initDenominators(card))
+  const [slots, setSlots] = useState<SummaryEditorSlot[]>(() => initEditorSlots(card))
   const [collapsedInternal, setCollapsedInternal] = useState(false)
   const collapsed = collapsedProp !== undefined ? collapsedProp : collapsedInternal
   const toggleCollapsed = onToggleCollapse ?? (() => setCollapsedInternal(c => !c))
@@ -1081,9 +1101,59 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
   const labelStyle: React.CSSProperties = { fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }
   const inputStyle: React.CSSProperties = { fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', width: 140 }
 
-  function updateDenominators(next: SummaryCardDenominator[]) {
-    setDenominators(next)
-    onChange({ ...card, denominators: next.length > 0 ? next : undefined, denominator: undefined })
+  function applySlots(newSlots: SummaryEditorSlot[]) {
+    setSlots(newSlots)
+    const valueSlots = newSlots.filter((s): s is Extract<SummaryEditorSlot, { kind: 'value' }> => s.kind === 'value')
+    const computedSlots = newSlots.filter((s): s is Extract<SummaryEditorSlot, { kind: 'computed' }> => s.kind === 'computed')
+    const slotsForSave = newSlots.map(s => s.kind === 'value'
+      ? { kind: 'value' as const, label: s.label || undefined, conditions: s.conditions }
+      : { kind: 'computed' as const, label: s.label || undefined, formula: s.formula }
+    )
+    onChange({
+      ...card,
+      slots: slotsForSave.length > 0 ? slotsForSave : undefined,
+      // レガシーフィールドも同期（slots非対応の旧コードへの後方互換）
+      numerator: { ...card.numerator, label: valueSlots[0]?.label || undefined, conditions: valueSlots[0]?.conditions ?? [] },
+      denominators: valueSlots.slice(1).length > 0 ? valueSlots.slice(1).map(s => ({ label: s.label || undefined, conditions: s.conditions })) : undefined,
+      denominator: undefined,
+      computedValues: computedSlots.length > 0 ? computedSlots.map(s => ({ label: s.label || undefined, formula: s.formula })) : undefined,
+    })
+  }
+
+  function moveSlot(fromIdx: number, toIdx: number) {
+    const newSlots = [...slots]
+    const [item] = newSlots.splice(fromIdx, 1)
+    newSlots.splice(toIdx, 0, item)
+
+    // value スロットの並び順変化を valueIndex に反映
+    const oldValueSlots = slots.filter(s => s.kind === 'value')
+    const newValueSlots = newSlots.filter(s => s.kind === 'value')
+    const oldToNew = new Map<number, number>()
+    oldValueSlots.forEach((slot, oldVi) => {
+      const newVi = newValueSlots.indexOf(slot)
+      if (newVi >= 0) oldToNew.set(oldVi, newVi)
+    })
+
+    const updatedSlots: SummaryEditorSlot[] = newSlots.map(s => {
+      if (s.kind !== 'computed') return s
+      return {
+        ...s,
+        formula: s.formula.map(term => ({
+          ...term,
+          valueIndex: oldToNew.has(term.valueIndex) ? oldToNew.get(term.valueIndex)! : term.valueIndex,
+        })),
+      }
+    })
+    applySlots(updatedSlots)
+  }
+
+  // 計算式セレクターの選択肢（value スロットのみ、順序インデックスで参照）
+  function getValueOptions(): { label: string; value: number }[] {
+    const valueSlots = slots.filter(s => s.kind === 'value')
+    return valueSlots.map((s, vi) => ({
+      label: `${vi}: ${vi === 0 ? '分子' : `値${vi}`}${s.label ? ` (${s.label})` : ''}`,
+      value: vi,
+    }))
   }
 
   return (
@@ -1157,63 +1227,171 @@ function SummaryCardEditorRow({ card, filterFields, dateFilterFields, getFieldOp
         </div>
       </div>
 
-      {/* 分子条件・追加値（折りたたみ対象） */}
+      {/* 統合スロットリスト（折りたたみ対象） */}
       {!collapsed && <><div style={{ marginTop: 8 }}>
-        <div style={{ fontSize: 11, color: '#555', marginBottom: 4, fontWeight: 'bold' }}>分子（件数）の絞り込み条件</div>
-        <ConditionsEditor
-          conditions={card.numerator.conditions}
-          filterFields={filterFields}
-          dateFilterFields={dateFilterFields}
-          getFieldOptions={getFieldOptions}
-          onChange={(next) => onChange({ ...card, numerator: { conditions: next ?? [] } })}
-        />
-      </div>
-
-      {/* 追加値リスト */}
-      <div style={{ marginTop: 8 }}>
         <div style={{ fontSize: 11, color: '#555', marginBottom: 6, fontWeight: 'bold' }}>
-          追加値（「分子 / 値1 / 値2 ...」形式で表示）
+          集計値（先頭が分子として大きく表示）
         </div>
-        {denominators.map((denom, idx) => (
-          <div key={idx} style={{ border: '1px solid #e5e7eb', borderRadius: 4, padding: '6px 8px', marginBottom: 6, background: '#fafafa' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <label style={{ ...labelStyle, marginBottom: 0, flexShrink: 0 }}>ラベル</label>
-              <input
-                type="text"
-                value={denom.label ?? ''}
-                onChange={(e) => {
-                  const next = denominators.map((d, i) => i === idx ? { ...d, label: e.target.value } : d)
-                  updateDenominators(next)
-                }}
-                placeholder="予定（省略可）"
-                style={{ ...inputStyle, width: 120, flexShrink: 0 }}
-              />
-              <button
-                type="button"
-                onClick={() => updateDenominators(denominators.filter((_, i) => i !== idx))}
-                style={{ marginLeft: 'auto', fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e', flexShrink: 0 }}
-              >削除</button>
-            </div>
-            <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>絞り込み条件</div>
-            <ConditionsEditor
-              conditions={denom.conditions}
-              filterFields={filterFields}
-              dateFilterFields={dateFilterFields}
-              getFieldOptions={getFieldOptions}
-              onChange={(next) => {
-                const updated = denominators.map((d, i) => i === idx ? { ...d, conditions: next ?? [] } : d)
-                updateDenominators(updated)
+        {slots.map((slot, idx) => {
+          const isFirst = idx === 0
+          const valueOptions = getValueOptions()
+          const badgeStyle: React.CSSProperties = {
+            fontSize: 10, fontWeight: 700, borderRadius: 3, padding: '1px 6px', flexShrink: 0,
+          }
+          return (
+            <div
+              key={idx}
+              style={{
+                border: '1px solid #e5e7eb',
+                borderRadius: 4,
+                padding: '6px 8px',
+                marginBottom: 6,
+                background: slot.kind === 'computed' ? '#f5f0ff' : '#fafafa',
               }}
-            />
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => updateDenominators([...denominators, { label: '', conditions: [] }])}
-          style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#4a9eda' }}
-        >
-          + 追加値を追加
-        </button>
+            >
+              {/* ヘッダ行：バッジ・ラベル・↑↓・削除 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                {isFirst && (
+                  <span style={{ ...badgeStyle, background: '#dbeafe', color: '#1d4ed8' }}>分子</span>
+                )}
+                {!isFirst && slot.kind === 'value' && (
+                  <span style={{ ...badgeStyle, background: '#f3f4f6', color: '#6b7280' }}>追加値</span>
+                )}
+                {slot.kind === 'computed' && (
+                  <span style={{ ...badgeStyle, background: '#ede9fe', color: '#7c3aed' }}>計算値</span>
+                )}
+                <label style={{ ...labelStyle, marginBottom: 0, flexShrink: 0 }}>ラベル</label>
+                <input
+                  type="text"
+                  value={slot.label}
+                  onChange={(e) => {
+                    const next = slots.map((s, i) => i === idx ? { ...s, label: e.target.value } : s)
+                    applySlots(next)
+                  }}
+                  placeholder="省略可"
+                  style={{ ...inputStyle, width: 120, flexShrink: 0 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => moveSlot(idx, idx - 1)}
+                  disabled={isFirst}
+                  title="上へ移動"
+                  style={{ marginLeft: 'auto', fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: isFirst ? 'default' : 'pointer', color: isFirst ? '#ccc' : '#333', flexShrink: 0 }}
+                >↑</button>
+                <button
+                  type="button"
+                  onClick={() => moveSlot(idx, idx + 1)}
+                  disabled={idx >= slots.length - 1}
+                  title="下へ移動"
+                  style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: idx < slots.length - 1 ? 'pointer' : 'default', color: idx < slots.length - 1 ? '#333' : '#ccc', flexShrink: 0 }}
+                >↓</button>
+                <button
+                  type="button"
+                  onClick={() => applySlots(slots.filter((_, i) => i !== idx))}
+                  style={{ fontSize: 11, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e', flexShrink: 0 }}
+                >削除</button>
+              </div>
+
+              {/* value スロット: 絞り込み条件エディタ */}
+              {slot.kind === 'value' && (
+                <>
+                  <div style={{ fontSize: 11, color: '#555', marginBottom: 2 }}>絞り込み条件</div>
+                  <ConditionsEditor
+                    conditions={slot.conditions}
+                    filterFields={filterFields}
+                    dateFilterFields={dateFilterFields}
+                    getFieldOptions={getFieldOptions}
+                    onChange={(next) => {
+                      const updated = slots.map((s, i) => i === idx && s.kind === 'value' ? { ...s, conditions: next ?? [] } : s)
+                      applySlots(updated)
+                    }}
+                  />
+                </>
+              )}
+
+              {/* computed スロット: 計算式エディタ */}
+              {slot.kind === 'computed' && (
+                <>
+                  <div style={{ fontSize: 11, color: '#555', marginBottom: 4 }}>計算式</div>
+                  {slot.formula.map((term, ti) => (
+                    <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = slots.map((s, i) => i === idx && s.kind === 'computed'
+                            ? { ...s, formula: s.formula.map((t, j) => j === ti ? { ...t, coefficient: -t.coefficient } : t) }
+                            : s
+                          )
+                          applySlots(updated)
+                        }}
+                        style={{
+                          fontSize: 13, fontWeight: 700, width: 28, padding: '1px 0',
+                          border: '1px solid #ccc', borderRadius: 3,
+                          background: term.coefficient >= 0 ? '#d1fae5' : '#fee2e2',
+                          color: term.coefficient >= 0 ? '#065f46' : '#991b1b',
+                          cursor: 'pointer', textAlign: 'center', flexShrink: 0,
+                        }}
+                      >{term.coefficient >= 0 ? '+' : '−'}</button>
+                      <div style={{ flex: 1 }}>
+                        <Select
+                          instanceId={`summary-slot-${idx}-term-${ti}`}
+                          styles={{ ...fieldSelectStyles, control: (b) => ({ ...b, minHeight: 26, fontSize: 11 }) }}
+                          options={valueOptions}
+                          value={valueOptions.find(o => o.value === term.valueIndex) ?? null}
+                          onChange={(opt) => {
+                            const updated = slots.map((s, i) => i === idx && s.kind === 'computed'
+                              ? { ...s, formula: s.formula.map((t, j) => j === ti ? { ...t, valueIndex: opt?.value ?? 0 } : t) }
+                              : s
+                            )
+                            applySlots(updated)
+                          }}
+                          placeholder="値を選択..."
+                          isClearable={false}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = slots.map((s, i) => i === idx && s.kind === 'computed'
+                            ? { ...s, formula: s.formula.filter((_, j) => j !== ti) }
+                            : s
+                          )
+                          applySlots(updated)
+                        }}
+                        style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#6b7280', flexShrink: 0 }}
+                      >×</button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = slots.map((s, i) => i === idx && s.kind === 'computed'
+                        ? { ...s, formula: [...s.formula, { valueIndex: 0, coefficient: 1 }] }
+                        : s
+                      )
+                      applySlots(updated)
+                    }}
+                    style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#4a9eda' }}
+                  >+ 項を追加</button>
+                </>
+              )}
+            </div>
+          )
+        })}
+
+        {/* 追加ボタン */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            onClick={() => applySlots([...slots, { kind: 'value', label: '', conditions: [] }])}
+            style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#4a9eda' }}
+          >+ 追加値を追加</button>
+          <button
+            type="button"
+            onClick={() => applySlots([...slots, { kind: 'computed', label: '', formula: [] }])}
+            style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#7c3aed' }}
+          >+ 計算値を追加</button>
+        </div>
       </div></>}
     </div>
   )

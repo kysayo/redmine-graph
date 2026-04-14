@@ -101,10 +101,13 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - 各カードに設定できる項目:
     - アクセントカラー: カード上辺ボーダー色 + 数値テキスト色（12色パレットから選択）
     - タイトル: カードの見出しテキスト（`\n` で任意改行可。1行目は太文字、2行目以降は通常ウェイト。設定UIはテキストエリア。`[r]text[/r]` で囲んだ部分は赤色（`#ef4444`）で表示）
-    - 分子条件: 系列と同様の ConditionsEditor（条件に合致するチケット数を大きく表示）
-    - 追加値: 任意個数追加可能（「+ 追加値を追加」ボタン）。各追加値に任意ラベルと絞り込み条件を設定。指定時は「分子 / 値1 / 値2 ...」形式で表示。ラベルを設定した場合は数値の下に小さく表示
-    - ↑↓ ボタンで並び順を変更。削除ボタンでカードを削除
-  - カードクリック: 分子数値クリック→分子条件でRedmineチケット一覧を新タブで開く / 追加値クリック→その条件で開く
+    - **集計値スロット（統合スロットリスト）**: 先頭が「分子」として大きく表示され、以降は「追加値」として `/N` 形式で並ぶ。ラベルを設定した場合は数値の下に小さく表示
+      - **追加値スロット（kind: 'value'）**: 「+ 追加値を追加」ボタンで追加。絞り込み条件に合致するチケット数を集計して表示
+      - **計算値スロット（kind: 'computed'）**: 「+ 計算値を追加」ボタンで追加。他のスロット（value）を参照して係数付きの加減算で計算した値を表示（例: 分子 − 値1 = 残数）。各計算項は `+`/`−` ボタンと値セレクタで構成
+      - ↑↓ ボタンでスロットの並び順を変更。value スロットを並び替えた場合、computed スロットの `valueIndex` 参照も自動的に更新される
+      - 削除ボタンでスロットを削除（先頭スロットも削除可）
+    - ↑↓ ボタンでカード自体の並び順を変更。削除ボタンでカードを削除
+  - カードクリック: 分子（先頭 value スロット）数値クリック→その条件でRedmineチケット一覧を新タブで開く / 追加値スロットクリック→その条件で開く（計算値スロットはクリック不可）
   - データ未取得中（ローディング）は「—」を表示
   - 設定は `localStorage` の `UserSettings.summaryCards` へ保存
 - **円グラフ設定**（系列設定パネルの下部）:
@@ -128,7 +131,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - `showLabelsLeft?: boolean`: `true` のとき左軸系列の各データ点に値ラベルを常時表示
   - `showLabelsRight?: boolean`: `true` のとき右軸系列の各データ点に値ラベルを常時表示
   - `pies?: PieSeriesConfig[]`: 任意個数の円グラフ設定。各要素は `{ groupBy, label?, conditions?, groupRules?, elapsedDaysBuckets?, elapsedDaysBaseField? }`
-  - `summaryCards?: SummaryCardConfig[]`: 任意個数の集計カード設定。各要素は `{ title, color, numerator: { conditions }, denominators?: SummaryCardDenominator[] }`
+  - `summaryCards?: SummaryCardConfig[]`: 任意個数の集計カード設定。各要素は `{ title, color, numerator, slots?, denominators?, computedValues? }`。`slots` が存在する場合は `numerator`/`denominators`/`computedValues` より優先（後方互換のため旧フィールドも同期保存）
 
 ### UI状態の永続化（storage.ts）
 
@@ -361,11 +364,41 @@ if (container) {
 |---|---|---|
 | `title` | `string` | カードの見出しテキスト（`\n` で改行可。1行目太文字。`[r]text[/r]` で囲んだ部分は赤色（`#ef4444`）で表示） |
 | `color` | `string` | アクセントカラー（HEX）。カード上辺ボーダーと数値テキスト色に使用 |
-| `numerator` | `{ conditions: SeriesCondition[] }` | 分子の絞り込み条件 |
-| `denominators` | `SummaryCardDenominator[]?` | 追加値の配列（省略時 = 追加値なし）。指定時は「分子 / 値1 / 値2 ...」形式で表示 |
+| `numerator` | `{ label?: string; conditions: SeriesCondition[] }` | 分子の絞り込み条件（`slots` 未使用時のフォールバック） |
+| `denominators` | `SummaryCardDenominator[]?` | 追加値の配列（`slots` 未使用時のフォールバック） |
+| `computedValues` | `SummaryCardComputedValue[]?` | 計算値の配列（`slots` 未使用時のフォールバック） |
+| `slots` | `SummaryCardSlot[]?` | 統合スロットリスト（存在時は `numerator`/`denominators`/`computedValues` より優先） |
+
+### `SummaryCardSlot`
+集計カードの統合スロット。`kind` フィールドで種別を判別する。
+
+```
+type SummaryCardSlot =
+  | { kind: 'value'; label?: string; conditions: SeriesCondition[] }
+  | { kind: 'computed'; label?: string; formula: SummaryCardFormulaTerm[] }
+```
+
+- `kind: 'value'` — 条件に合致するチケット数を集計して表示
+- `kind: 'computed'` — 他の value スロットを参照して係数付き加減算で計算した値を表示
+
+### `SummaryCardFormulaTerm`
+計算値スロット（`kind: 'computed'`）の計算式1項。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `valueIndex` | `number` | 参照する value スロットのインデックス（`slots` 内の `kind === 'value'` スロットの順序） |
+| `coefficient` | `number` | 係数（`1` = 加算 / `-1` = 減算） |
+
+### `SummaryCardComputedValue`
+計算値（`slots` 未使用時の後方互換フィールド）。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `label` | `string?` | 任意ラベル。指定時は数値の下に小さく表示 |
+| `formula` | `SummaryCardFormulaTerm[]` | 計算式の項リスト |
 
 ### `SummaryCardDenominator`
-集計カードの追加値1スロットの設定。
+集計カードの追加値1スロットの設定（`slots` 未使用時の後方互換フィールド）。
 
 | フィールド | 型 | 説明 |
 |---|---|---|
