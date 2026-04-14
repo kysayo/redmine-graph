@@ -754,11 +754,11 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
   }
 
   function handleAggregationChange(newAgg: SeriesConfig['aggregation']) {
-    if (newAgg === 'difference') {
-      const candidates = allSeries.filter(s => s.id !== series.id && s.aggregation !== 'difference')
+    if (newAgg === 'difference' || newAgg === 'sum') {
+      const candidates = allSeries.filter(s => s.id !== series.id && s.aggregation !== 'difference' && s.aggregation !== 'sum')
       onChange({
         ...series,
-        aggregation: 'difference',
+        aggregation: newAgg,
         refSeriesIds: candidates.length >= 2 ? [candidates[0].id, candidates[1].id] : undefined,
       })
     } else {
@@ -766,8 +766,8 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
     }
   }
 
-  // 参照系列の選択肢（自身 + difference 系列を除く）
-  const refCandidates = allSeries.filter(s => s.id !== series.id && s.aggregation !== 'difference')
+  // 参照系列の選択肢（自身 + difference/sum 系列を除く）
+  const refCandidates = allSeries.filter(s => s.id !== series.id && s.aggregation !== 'difference' && s.aggregation !== 'sum')
 
   const labelStyle: React.CSSProperties = {
     fontSize: 12,
@@ -840,8 +840,8 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
         />
       </div>
 
-      {/* 日付フィールド（difference の場合は非表示） */}
-      {series.aggregation !== 'difference' && (
+      {/* 日付フィールド（difference/sum の場合は非表示） */}
+      {series.aggregation !== 'difference' && series.aggregation !== 'sum' && (
         <div>
           <label style={labelStyle}>集計軸</label>
           <select
@@ -922,6 +922,7 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
           <option value="daily">日別</option>
           <option value="cumulative">累計</option>
           <option value="difference">差 (A − B)</option>
+          <option value="sum">和 (A + B)</option>
         </select>
       </div>
 
@@ -937,11 +938,11 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
         </label>
       )}
 
-      {/* difference の場合: 参照系列選択 */}
-      {series.aggregation === 'difference' && (
+      {/* difference/sum の場合: 参照系列選択 */}
+      {(series.aggregation === 'difference' || series.aggregation === 'sum') && (
         <>
           <div>
-            <label style={labelStyle}>系列A（被減数）</label>
+            <label style={labelStyle}>系列A</label>
             <select
               value={series.refSeriesIds?.[0] ?? ''}
               onChange={(e) => onChange({ ...series, refSeriesIds: [e.target.value, series.refSeriesIds?.[1] ?? ''] as [string, string] })}
@@ -952,7 +953,7 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
             </select>
           </div>
           <div>
-            <label style={labelStyle}>系列B（減数）</label>
+            <label style={labelStyle}>系列B</label>
             <select
               value={series.refSeriesIds?.[1] ?? ''}
               onChange={(e) => onChange({ ...series, refSeriesIds: [series.refSeriesIds?.[0] ?? '', e.target.value] as [string, string] })}
@@ -965,8 +966,8 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
         </>
       )}
 
-      {/* 対象ステータス・絞り込み条件（difference の場合は非表示） */}
-      {series.aggregation !== 'difference' && (
+      {/* 対象ステータス・絞り込み条件（difference/sum の場合は非表示） */}
+      {series.aggregation !== 'difference' && series.aggregation !== 'sum' && (
         <>
           <div>
             <label style={labelStyle}>対象ステータス（未選択=全て）</label>

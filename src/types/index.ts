@@ -136,8 +136,8 @@ export interface SeriesConfig {
   statusIds: number[]                               // 対象ステータスID（空 = 全ステータス）
   chartType: 'bar' | 'line'
   yAxisId: 'left' | 'right'
-  aggregation: 'daily' | 'cumulative' | 'difference'
-  refSeriesIds?: [string, string]                   // aggregation === 'difference' のとき: [被減数系列ID, 減数系列ID]
+  aggregation: 'daily' | 'cumulative' | 'difference' | 'sum'
+  refSeriesIds?: [string, string]                   // aggregation === 'difference' | 'sum' のとき: [系列AのID, 系列BのID]
   color: string                                     // 系列の色（HEX）
   conditions?: SeriesCondition[]                    // 絞り込み条件（省略可 = フィルタなし）
   visible?: boolean                                 // 表示/非表示（省略時 = true として扱う）
