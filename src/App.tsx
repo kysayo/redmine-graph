@@ -362,6 +362,7 @@ export function App({ container }: Props) {
 
     const isNoData = rule?.values.includes('(No data)') && filterValues.length === 0
     if (isNoData) return [{ field: fieldKey, operator: '!*', values: [] }]
+    if (rule?.values.includes('(記入がある)')) return [{ field: fieldKey, operator: '*', values: [] }]
     return filterValues.length ? [{ field: fieldKey, operator: '=', values: filterValues }] : []
   }
 
@@ -369,6 +370,9 @@ export function App({ container }: Props) {
     return Object.entries(andCondFvs)
       .filter(([, values]) => values.length > 0)
       .map(([field, values]) => {
+        if (values.includes('(記入がある)')) {
+          return { field, operator: '*' as const, values: [] }
+        }
         const realValues = values.filter(v => v !== '(No data)')
         if (realValues.length === 0) {
           // (No data) のみ → Redmine の「値なし」演算子 !*
@@ -394,8 +398,20 @@ export function App({ container }: Props) {
     const result: Record<string, string[]> = { ...andCondFvs }
     for (const cond of rule.andConditions) {
       if (cond.dateCondition || !cond.values.length) continue
+      // (記入がある) は CF/非CF 問わず sentinel を注入（値あり演算子 * を生成させるため）
+      if (cond.values.includes('(記入がある)')) {
+        result[cond.field] = ['(記入がある)']
+        continue
+      }
+      // 非CFフィールドで (No data) のみの場合、sentinel を注入（!* 演算子を生成させるため）
+      // null のチケットはフィルタ値が収集されないため、ルール定義から補完が必要
+      if (!cond.field.startsWith('cf_')) {
+        if (cond.values.includes('(No data)') && !result[cond.field]?.length) {
+          result[cond.field] = ['(No data)']
+        }
+        continue
+      }
       // CFフィールドはラベル＝フィルタ値なので直接使用可能
-      if (!cond.field.startsWith('cf_')) continue
       const merged = new Set([...(result[cond.field] ?? []), ...cond.values])
       result[cond.field] = Array.from(merged)
     }

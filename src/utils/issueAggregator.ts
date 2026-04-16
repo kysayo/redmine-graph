@@ -505,13 +505,16 @@ function applyGroupRulesForCrossTable(value: string, groupRules: PieGroupRule[],
     if (!rule.name) continue
     const matches = rule.dateCondition
       ? matchesDateCondition(value, rule.dateCondition)
-      : rule.values.includes(value)
+      : rule.values.includes('(記入がある)')
+        ? value !== '(No data)'
+        : rule.values.includes(value)
     if (!matches) continue
     if (rule.andConditions?.length) {
       const allMatch = rule.andConditions.every(cond => {
         const issueVal = getIssueGroupValue(issue, cond.field)
         const effective = (issueVal === null || issueVal === '') ? '(No data)' : issueVal
         if (cond.dateCondition) return matchesDateCondition(effective, cond.dateCondition)
+        if (cond.values.includes('(記入がある)')) return effective !== '(No data)'
         return cond.values.includes(effective)
       })
       if (!allMatch) continue
@@ -834,13 +837,16 @@ function aggregateCrossTableMultiSection(
         const effectiveVal = (resolvedVal === null || resolvedVal === '') ? '(No data)' : resolvedVal
         const matches = rule.dateCondition
           ? matchesDateCondition(effectiveVal, rule.dateCondition)
-          : rule.values.includes(effectiveVal)
+          : rule.values.includes('(記入がある)')
+            ? effectiveVal !== '(No data)'
+            : rule.values.includes(effectiveVal)
         if (!matches) continue
         if (rule.andConditions?.length) {
           const allMatch = rule.andConditions.every(cond => {
             const issueVal = getIssueGroupValue(issue, cond.field)
             const effective = (issueVal === null || issueVal === '') ? '(No data)' : issueVal
             if (cond.dateCondition) return matchesDateCondition(effective, cond.dateCondition)
+            if (cond.values.includes('(記入がある)')) return effective !== '(No data)'
             return cond.values.includes(effective)
           })
           if (!allMatch) continue

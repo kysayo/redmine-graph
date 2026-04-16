@@ -354,6 +354,7 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
                     style={{ ...selectStyle, height: 60, minWidth: 130 }}
                   >
                     <option value="(No data)">(No data)</option>
+                    <option value="(記入がある)">(記入がある)</option>
                     {options.map((opt) => (
                       <option key={opt.value} value={opt.label}>{opt.label}</option>
                     ))}
@@ -429,7 +430,7 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
                           </>
                         ) : (
                           <div style={{ maxHeight: 80, overflowY: 'auto', border: '1px solid #ccc', borderRadius: 3, padding: '2px 4px', minWidth: 120, background: '#fff', fontSize: 12 }}>
-                            {[{ label: '(No data)', value: '(No data)' }, ...condOpts].map(opt => (
+                            {[{ label: '(No data)', value: '(No data)' }, { label: '(記入がある)', value: '(記入がある)' }, ...condOpts].map(opt => (
                               <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                                 <input
                                   type="checkbox"
