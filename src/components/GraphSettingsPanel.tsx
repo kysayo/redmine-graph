@@ -123,12 +123,13 @@ interface PieGroupRulesEditorProps {
   groupRules: PieGroupRule[]
   getFieldOptions: (key: string) => Promise<FilterFieldOption[]>
   onChange: (rules: PieGroupRule[] | undefined) => void
+  onMoveRule?: (fromIdx: number, toIdx: number) => void
   filterFields?: FilterField[]
   enableAndConditions?: boolean
   isDateField?: boolean  // true のとき日付フィールド用 UI（operator + value）を表示
 }
 
-function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions, onChange, filterFields, enableAndConditions, isDateField }: PieGroupRulesEditorProps) {
+function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions, onChange, onMoveRule, filterFields, enableAndConditions, isDateField }: PieGroupRulesEditorProps) {
   const [options, setOptions] = useState<FilterFieldOption[]>([])
   const [loading, setLoading] = useState(false)
   // AND条件の選択肢キャッシュ（fieldKey → options）
@@ -181,6 +182,17 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
   function removeRule(idx: number) {
     const next = groupRules.filter((_, i) => i !== idx)
     onChange(next.length ? next : undefined)
+  }
+
+  function moveRule(idx: number, direction: 'up' | 'down') {
+    const toIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (onMoveRule) {
+      onMoveRule(idx, toIdx)
+      return
+    }
+    const next = [...groupRules]
+    ;[next[idx], next[toIdx]] = [next[toIdx], next[idx]]
+    onChange(next)
   }
 
   function updateRuleName(idx: number, name: string) {
@@ -360,6 +372,18 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
                     ))}
                   </select>
                 )}
+                <button
+                  type="button"
+                  disabled={idx === 0}
+                  onClick={() => moveRule(idx, 'up')}
+                  style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? '#ccc' : '#374151' }}
+                >↑</button>
+                <button
+                  type="button"
+                  disabled={idx === groupRules.length - 1}
+                  onClick={() => moveRule(idx, 'down')}
+                  style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: idx === groupRules.length - 1 ? 'default' : 'pointer', color: idx === groupRules.length - 1 ? '#ccc' : '#374151' }}
+                >↓</button>
                 <button
                   type="button"
                   onClick={() => removeRule(idx)}
@@ -2924,7 +2948,12 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                   onClick={() => {
                                     const newSections = [...table.colSections!]
                                     ;[newSections[si - 1], newSections[si]] = [newSections[si], newSections[si - 1]]
-                                    const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                    const [a, b] = [si - 1, si]
+                                    const updatedSections = newSections.map(sec => {
+                                      if (sec.type !== 'computed') return sec
+                                      return { ...sec, computedCols: sec.computedCols?.map(col => ({ ...col, formula: col.formula.map(term => term.sectionIndex === a ? { ...term, sectionIndex: b } : term.sectionIndex === b ? { ...term, sectionIndex: a } : term) })) }
+                                    })
+                                    const next = tables.map((t, j) => j === i ? { ...t, colSections: updatedSections } : t)
                                     onChangeManual({ ...settings, tables: next })
                                   }}
                                   style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: si === 0 ? 'default' : 'pointer', color: si === 0 ? '#ccc' : '#374151' }}
@@ -2935,7 +2964,12 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                   onClick={() => {
                                     const newSections = [...table.colSections!]
                                     ;[newSections[si], newSections[si + 1]] = [newSections[si + 1], newSections[si]]
-                                    const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
+                                    const [a, b] = [si, si + 1]
+                                    const updatedSections = newSections.map(sec => {
+                                      if (sec.type !== 'computed') return sec
+                                      return { ...sec, computedCols: sec.computedCols?.map(col => ({ ...col, formula: col.formula.map(term => term.sectionIndex === a ? { ...term, sectionIndex: b } : term.sectionIndex === b ? { ...term, sectionIndex: a } : term) })) }
+                                    })
+                                    const next = tables.map((t, j) => j === i ? { ...t, colSections: updatedSections } : t)
                                     onChangeManual({ ...settings, tables: next })
                                   }}
                                   style={{ fontSize: 11, padding: '1px 5px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: si === table.colSections!.length - 1 ? 'default' : 'pointer', color: si === table.colSections!.length - 1 ? '#ccc' : '#374151' }}
@@ -3181,6 +3215,27 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                                           const newSections = table.colSections!.map((s, j) => j === si ? { ...s, colGroupRules: rules ?? undefined } : s)
                                           const next = tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t)
                                           onChangeManual({ ...settings, tables: next })
+                                        }}
+                                        onMoveRule={(fromIdx, toIdx) => {
+                                          const updatedSections = table.colSections!.map(sec => {
+                                            if (sec.type !== 'computed') return sec
+                                            return {
+                                              ...sec,
+                                              computedCols: sec.computedCols?.map(col => ({
+                                                ...col,
+                                                formula: col.formula.map(term =>
+                                                  term.sectionIndex !== si ? term
+                                                  : term.ruleIndex === fromIdx ? { ...term, ruleIndex: toIdx }
+                                                  : term.ruleIndex === toIdx ? { ...term, ruleIndex: fromIdx }
+                                                  : term
+                                                )
+                                              }))
+                                            }
+                                          })
+                                          const newSections = updatedSections.map((s, j) =>
+                                            j === si ? { ...s, colGroupRules: (() => { const r = [...(s.colGroupRules ?? [])]; [r[fromIdx], r[toIdx]] = [r[toIdx], r[fromIdx]]; return r })() } : s
+                                          )
+                                          onChangeManual({ ...settings, tables: tables.map((t, j) => j === i ? { ...t, colSections: newSections } : t) })
                                         }}
                                       />
                                     </div>
