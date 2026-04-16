@@ -801,7 +801,11 @@ function aggregateCrossTableMultiSection(
     for (const issue of issues) {
       if (mergedConditions.length && !issueMatchesConditions(issue, mergedConditions)) continue
       const rawRowLabel = getIssueGroupValue(issue, rowGroupBy)
-      const effectiveRowLabel = (rawRowLabel === null || rawRowLabel === '') ? '(No data)' : rawRowLabel
+      // CF フィールドはAPIがIDを返すことがある（ユーザー型CF等）。options でラベルに解決する
+      const resolvedRowLabel = rowGroupBy.startsWith('cf_') && rawRowLabel && rowOptions
+        ? (rowOptions.find(o => o.value === rawRowLabel)?.label ?? rawRowLabel)
+        : rawRowLabel
+      const effectiveRowLabel = (resolvedRowLabel === null || resolvedRowLabel === '') ? '(No data)' : resolvedRowLabel
       let rowKey: string
       if (rowGroupRules?.length) {
         const matched = applyGroupRulesForCrossTable(effectiveRowLabel, rowGroupRules, issue)
@@ -823,7 +827,11 @@ function aggregateCrossTableMultiSection(
         if (!rule.name) continue
         const ruleField = rule.colGroupBy ?? secColGroupBy
         const rawVal = getIssueGroupValue(issue, ruleField)
-        const effectiveVal = (rawVal === null || rawVal === '') ? '(No data)' : rawVal
+        // CF フィールドはAPIがIDを返すことがある（ユーザー型CF等）。options でラベルに解決する
+        const resolvedVal = ruleField.startsWith('cf_') && rawVal && sectionColOptions
+          ? (sectionColOptions.find(o => o.value === rawVal)?.label ?? rawVal)
+          : rawVal
+        const effectiveVal = (resolvedVal === null || resolvedVal === '') ? '(No data)' : resolvedVal
         const matches = rule.dateCondition
           ? matchesDateCondition(effectiveVal, rule.dateCondition)
           : rule.values.includes(effectiveVal)
@@ -1054,8 +1062,15 @@ export function aggregateCrossTable(
 
     const rawRowLabel = getIssueGroupValue(issue, rowGroupBy)
     const rawColLabel = getIssueGroupValue(issue, colGroupBy)
-    const effectiveRowLabel = (rawRowLabel === null || rawRowLabel === '') ? '(No data)' : rawRowLabel
-    const effectiveColLabel = (rawColLabel === null || rawColLabel === '') ? '(No data)' : rawColLabel
+    // CF フィールドはAPIがIDを返すことがある（ユーザー型CF等）。options でラベルに解決する
+    const resolvedRowLabel = rowGroupBy.startsWith('cf_') && rawRowLabel && rowOptions
+      ? (rowOptions.find(o => o.value === rawRowLabel)?.label ?? rawRowLabel)
+      : rawRowLabel
+    const resolvedColLabel = colGroupBy && colGroupBy.startsWith('cf_') && rawColLabel && colOptions
+      ? (colOptions.find(o => o.value === rawColLabel)?.label ?? rawColLabel)
+      : rawColLabel
+    const effectiveRowLabel = (resolvedRowLabel === null || resolvedRowLabel === '') ? '(No data)' : resolvedRowLabel
+    const effectiveColLabel = (resolvedColLabel === null || resolvedColLabel === '') ? '(No data)' : resolvedColLabel
 
     // グルーピング定義がある場合: AND条件を含めてマッチしたグループ名を取得（null = 除外）
     let rowKey: string
