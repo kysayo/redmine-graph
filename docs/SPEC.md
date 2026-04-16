@@ -451,6 +451,7 @@ type SummaryCardSlot =
 - **グルーピング（`rowGroupRules` / `colGroupRules`）**: 複数の値を1行/列にまとめるルールを定義可能（`PieGroupRulesEditor` を再利用）
   - グルーピング未設定時: 全値を件数降順で表示
   - **グルーピング設定時: ルールで定義した行/列のみ表示。どのルールにも属さない値（未グループ値）は除外される**
+  - **ユーザー型カスタムフィールドのグループ値解決**: Redmine API（`/issues.json`）はユーザー型 CF の値をユーザーID（数値文字列）で返す。グルーピングルールの `values` は表示名（`/queries/filter` API から取得）を格納しているため、集計時に `rowOptions`/`colOptions` を使って ID → 表示名に解決してからルールマッチングを行う（`aggregateCrossTable` / `aggregateCrossTableMultiSection` 内で処理）。URLフィルタ構築には引き続きID値を使用する
   - グルーピング設定時の表示順序 = ルール定義順（件数降順ではなく定義順が優先）
   - 0件でもルールに定義された行/列は常に表示される
   - **`(No data)` 対応**: 値選択リストの先頭に `(No data)` が常に表示される。ルールの values に `(No data)` を含めると、対象フィールドが未記入（空値）のチケットをそのグループとして集計する。クリック時のURLフィルタは Redmine の「値なし」演算子 `op[field]=!*` を使用
