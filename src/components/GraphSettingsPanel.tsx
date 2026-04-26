@@ -526,9 +526,13 @@ export function ConditionsEditor({ conditions, filterFields, dateFilterFields, g
 
   const allFields = [ELAPSED_DAYS_FIELD, ...filterFields, ...dateFilterFields]
 
+  // テキスト型フィールド判定ヘルパー（選択肢プリフェッチ対象外）
+  const isStringField = (key: string) =>
+    filterFields.find(f => f.key === key)?.type === 'string'
+
   // conditions のフィールドが変わったとき（プリセット読み込み含む）、未取得のフィールドの選択肢を取得
-  // elapsed_days と日付フィールドはAPIフェッチ不要
-  const fieldsKey = [...new Set(conditions.map(c => c.field).filter(f => f && f !== 'elapsed_days' && !dateFilterFields.some(d => d.key === f)))].sort().join(',')
+  // elapsed_days・日付フィールド・テキスト型フィールドはAPIフェッチ不要
+  const fieldsKey = [...new Set(conditions.map(c => c.field).filter(f => f && f !== 'elapsed_days' && !dateFilterFields.some(d => d.key === f) && !isStringField(f)))].sort().join(',')
   useEffect(() => {
     const fields = fieldsKey ? fieldsKey.split(',') : []
     for (const field of fields) {
@@ -551,14 +555,16 @@ export function ConditionsEditor({ conditions, filterFields, dateFilterFields, g
 
   async function handleConditionFieldChange(idx: number, newField: string) {
     const isDate = dateFilterFields.some(f => f.key === newField)
+    const isString = isStringField(newField)
     const next = conditions.map((c, i) => i === idx ? {
       ...c,
       field: newField,
       values: [],
+      operator: isString ? ('~' as const) : c.operator,
       dateCondition: isDate ? { op: 'not_empty' as const } : undefined,
     } : c)
     onChange(next)
-    if (newField && !isDate && newField !== 'elapsed_days' && !fieldOptions[newField]) {
+    if (newField && !isDate && !isString && newField !== 'elapsed_days' && !fieldOptions[newField]) {
       setLoadingField(newField)
       const opts = await getFieldOptions(newField)
       setFieldOptions(prev => ({ ...prev, [newField]: opts }))
@@ -632,11 +638,22 @@ export function ConditionsEditor({ conditions, filterFields, dateFilterFields, g
               onChange={(e) => updateConditionOperator(idx, e.target.value as SeriesCondition['operator'])}
               style={selectStyle}
             >
-              <option value="=">=</option>
-              <option value="!">!=</option>
-              <option value=">=">&gt;=（以上）</option>
-              {cond.field === 'elapsed_days' && (
-                <option value="<=">&lt;=（以内）</option>
+              {isStringField(cond.field) ? (
+                <>
+                  <option value="~">含む</option>
+                  <option value="!~">含まない</option>
+                  <option value="=">=（完全一致）</option>
+                  <option value="!">!=（完全不一致）</option>
+                </>
+              ) : (
+                <>
+                  <option value="=">=</option>
+                  <option value="!">!=</option>
+                  <option value=">=">&gt;=（以上）</option>
+                  {cond.field === 'elapsed_days' && (
+                    <option value="<=">&lt;=（以内）</option>
+                  )}
+                </>
               )}
             </select>
           )}
@@ -712,6 +729,38 @@ export function ConditionsEditor({ conditions, filterFields, dateFilterFields, g
                   />
                 )}
               </>
+            ) : isStringField(cond.field) ? (
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                {(cond.values.length ? cond.values : ['']).map((val, vIdx) => (
+                  <div key={vIdx} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <input
+                      type="text"
+                      value={val}
+                      onChange={(e) => {
+                        const base = cond.values.length ? cond.values : ['']
+                        const next = base.map((v, i) => i === vIdx ? e.target.value : v)
+                        updateConditionValues(idx, next)
+                      }}
+                      style={{ ...selectStyle, minWidth: 100, width: 120 }}
+                      placeholder="検索文字列"
+                    />
+                    {cond.values.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => updateConditionValues(idx, cond.values.filter((_, i) => i !== vIdx))}
+                        style={{ fontSize: 10, padding: '1px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#e53e3e' }}
+                        title="このキーワードを削除"
+                      >×</button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => updateConditionValues(idx, [...(cond.values.length ? cond.values : ['']), ''])}
+                  style={{ fontSize: 10, padding: '1px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+                  title="OR 条件でキーワードを追加"
+                >+ OR</button>
+              </div>
             ) : loadingField === cond.field ? (
               <span style={{ fontSize: 11, color: '#999' }}>読み込み中...</span>
             ) : (

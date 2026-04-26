@@ -88,8 +88,9 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - 集計方法: `daily`（日別）/ `cumulative`（累計）/ `difference`（差: A − B）/ `sum`（和: A + B）
     - `difference` / `sum` 選択時: 集計対象日付・対象ステータス・絞り込み条件の設定は非表示となり、代わりに参照する「系列A」「系列B」のセレクタが表示される。グラフ値は各日付において系列Aの値 ± 系列Bの値として計算される。`difference`/`sum` 系列は互いに参照系列の候補に現れない（ネスト防止）
   - 対象ステータス: Redmine APIから取得したステータス一覧から複数選択（空=全ステータス）。集計軸が `custom`（特殊な日付）の場合は非活性（グレーアウト）
-  - 絞り込み条件: チケットの項目で絞り込み。フィールド（react-select、テキスト入力補完あり）・演算子・値の組み合わせ。複数条件はAND。対応フィールド: ステータス、トラッカー、優先度、カスタムフィールド（リスト系）、経過日数（日）、**日付フィールド**（開始日・期日・カスタム日付フィールドなど `type === 'date'` のフィールド）。ページリロード後も復元のため、マウント時に設定済みフィールドの選択肢を事前取得する（日付・経過日数フィールドはAPIフェッチ不要）
+  - 絞り込み条件: チケットの項目で絞り込み。フィールド（react-select、テキスト入力補完あり）・演算子・値の組み合わせ。複数条件はAND。対応フィールド: ステータス、トラッカー、優先度、カスタムフィールド（リスト系・テキスト型）、経過日数（日）、**日付フィールド**（開始日・期日・カスタム日付フィールドなど `type === 'date'` のフィールド）。ページリロード後も復元のため、マウント時に設定済みフィールドの選択肢を事前取得する（日付・経過日数・テキスト型フィールドはAPIフェッチ不要）
     - **日付フィールド絞り込み**: 日付型フィールドを選択すると専用UIに切り替わる。演算子は「記入済み / 空（未設定） / より前（<）/ 以前（<=）/ より後（>）/ 以降（>=）」から選択。`<`/`<=`/`>`/`>=` 選択時は「今日」チェックボックスまたは固定日付ピッカーで比較値を指定。`SeriesCondition.dateCondition` フィールドに格納（`values` は使用しない）。日付型フィールドでは演算子セレクトを非表示にし、`dateCondition` 内で演算子を管理
+    - **テキスト型カスタムフィールド絞り込み**: `window.availableFilters` で `type: 'string'`（または `'text'`）のCFを選択すると、演算子に「含む（`~`）/ 含まない（`!~`）/ =（完全一致）/ !=（完全不一致）」が出現し、値入力が複数テキスト入力欄に切り替わる。各キーワードは `+ OR` ボタンで追加可能で、`~` は「いずれか1つでも含めばマッチ」、`!~` は「どれも含まない場合にマッチ」の OR 評価。比較はすべて **case-insensitive**（大文字/小文字を区別しない）。`SeriesCondition.values: string[]` に各キーワードが格納される。空文字のキーワードは評価時に無視される。テキスト型CFの値が null/未設定のチケットは `~` ではマッチせず、`!~` ではマッチする扱い
     - **経過日数/到来日数（`elapsed_days`）フィールド**: 仮想フィールド。「経過日数」を選択すると追加でモードセレクトとベース日付フィールドのセレクタが表示される。
     - **モード**: `経過日数`（今日←ベース日付、正値=N日前）または `到来日数`（今日→ベース日付、正値=N日後、負値=期限超過日数）を選択（デフォルト: 経過日数）
     - ベース日付フィールドが空（未設定）のチケットは条件に**マッチしない**（除外される）
@@ -201,7 +202,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - `closed_on` 系列: `utcToJstDate()` でUTC→JST変換してから集計。`closed_on` が null のチケットはスキップ
   - `custom` 系列: `customDateFieldKey` で指定したフィールドを取得。`cf_{id}` 形式はカスタムフィールドから、`start_date`・`due_date` 等はチケットの直接プロパティから取得。値が空/null/未設定のチケットはスキップ。UTC変換不要（Redmineはカスタム日付をYYYY-MM-DD形式で返す）
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
-- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`author_id`・`assigned_to_id`・`category_id`・`fixed_version_id`・`cf_{id}`（カスタムフィールド）・`elapsed_days`（経過日数、仮想フィールド）。演算子: `=`（一致）、`!`（不一致）、`>=`（以上）
+- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`author_id`・`assigned_to_id`・`category_id`・`fixed_version_id`・`cf_{id}`（カスタムフィールド：リスト系・テキスト型の両方）・`elapsed_days`（経過日数、仮想フィールド）。演算子: `=`（一致）、`!`（不一致）、`>=`（以上）、`<=`（以内）、`~`（含む／部分一致、case-insensitive）、`!~`（含まない）
   - **特殊値 `"me"` の解決**: フィールド値として `"me"`（Redmineの「自分」選択肢）が指定された場合、`window.ViewCustomize.context.user.id` を参照して現在ログイン中のユーザーIDに変換してから比較する。`author_id`・`assigned_to_id` どちらでも有効
 - **経過日数バケット集計**: `groupBy === 'elapsed_days'` かつ `elapsedDaysBuckets` が定義されている場合、通常のフィールドグルーピングの代わりにバケット分類を実行。各チケットの `elapsedDaysBaseField`（省略時は `updated_on || created_on`）からJST換算の経過日数を計算し、最初に条件が合致したバケットに計上。ベース日付フィールドが空（未設定）のチケットはスキップ（集計対象外）。バケット順序はユーザー定義順を維持
 - **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換。`startDate` 指定時は `startDate` より前のチケット数を初期値として積算（グラフ開始時点の既存チケット数を反映）
@@ -211,7 +212,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 
 絞り込み条件UIで使用するフィールド一覧と選択肢を取得するユーティリティ。
 
-- **`getAvailableFilterFields()`**: `window.availableFilters`（Redmineページ埋め込みJS変数）からリスト系フィールドを抽出。対象タイプ: `list`, `list_optional`, `list_with_history`, `list_optional_with_history`, `list_status`（`status_id` フィールド用）
+- **`getAvailableFilterFields()`**: `window.availableFilters`（Redmineページ埋め込みJS変数）からリスト系およびテキスト型フィールドを抽出。対象タイプ: `list`, `list_optional`, `list_with_history`, `list_optional_with_history`, `list_status`（`status_id` フィールド用）、および `string`, `text`（テキスト型CF、部分一致用途）。返却 `FilterField.type` はリスト系が `'list'`、テキスト型が `'string'`
 - **`getAvailableDateFilterFields()`**: `window.availableFilters` から日付型フィールドを抽出。対象タイプ: `date`のみ（`date_past` の `created_on`/`closed_on` は除外）。キーに `.` を含むフィールド（バージョン関連）も除外。「特殊な日付」集計軸の選択肢として使用。返す `FilterField` の `type` は `'date'`
 - **`getAvailableColumnFilterFields()`**: クロス集計テーブルの列フィールド選択用。リスト系フィールド（`type: 'list'`）と日付型フィールド（`type: 'date'`）の両方を返す。`FilterField.type` で種別を区別できる
 - **`fetchFilterFieldOptions(fieldKey, apiKey)`**: 指定フィールドの選択肢を取得。
@@ -336,16 +337,16 @@ if (container) {
 |---|---|---|
 | `key` | `string` | `availableFilters` のキー（例: `cf_123`, `tracker_id`） |
 | `name` | `string` | 表示名（例: `'Type'`, `'トラッカー'`） |
-| `type` | `'list' \| 'date'?` | フィールド種別。`getAvailableColumnFilterFields()` が返す場合のみ付与。`getAvailableFilterFields()` / `getAvailableDateFilterFields()` では省略または `'date'` |
+| `type` | `'list' \| 'date' \| 'string'?` | フィールド種別。`getAvailableFilterFields()` はリスト系を `'list'`、テキスト型CF（`type: 'string'`/`'text'`）を `'string'` として返す。`getAvailableColumnFilterFields()` は `'list'` / `'date'` のみ返す。`getAvailableDateFilterFields()` は `'date'` のみ返す |
 
 ### `SeriesCondition`
-絞り込み条件の1件。`operator` は `'=' | '!' | '>='`。
+絞り込み条件の1件。`operator` は `'=' | '!' | '>='` など。
 
 | フィールド | 型 | 説明 |
 |---|---|---|
 | `field` | `string` | `availableFilters` のキー（例: `cf_628`, `tracker_id`, `elapsed_days`） |
-| `operator` | `'=' \| '!' \| '>=' \| '<=' \| '!*' \| '*' \| '><'` | 一致 / 不一致 / 以上 / 以内（`<=` は `elapsed_days` フィールドでのみ使用可能）/ 値なし（`!*` はクロス集計テーブルの `(No data)` グループクリック時に内部生成。URLでは `op[field]=!*` に変換）/ 値あり（`*` は日付条件の `not_empty` 判定時に内部生成）/ 期間（`><` は週キーワード使用時に内部生成。URLでは `op[field]=%3E%3C&v[field][]=start&v[field][]=end` に変換） |
-| `values` | `string[]` | 選択値の配列（数値は文字列として格納） |
+| `operator` | `'=' \| '!' \| '>=' \| '<=' \| '!*' \| '*' \| '><' \| '~' \| '!~'` | 一致 / 不一致 / 以上 / 以内（`<=` は `elapsed_days` フィールドでのみ使用可能）/ 値なし（`!*` はクロス集計テーブルの `(No data)` グループクリック時に内部生成。URLでは `op[field]=!*` に変換）/ 値あり（`*` は日付条件の `not_empty` 判定時に内部生成）/ 期間（`><` は週キーワード使用時に内部生成。URLでは `op[field]=%3E%3C&v[field][]=start&v[field][]=end` に変換）/ 含む（`~`）・含まない（`!~`）はテキスト型CF用の部分一致（case-insensitive、複数 `values` は OR 評価） |
+| `values` | `string[]` | 選択値の配列（数値は文字列として格納）。`~` / `!~` のときは各要素が検索キーワード（OR）で、空文字は評価時に無視 |
 | `elapsedDaysBaseField` | `string?` | `field === 'elapsed_days'` のとき: 経過日数計算のベース日付フィールドキー（例: `updated_on`, `cf_123`）。省略時は `updated_on || created_on` の旧来動作 |
 | `elapsedDaysMode` | `'past' \| 'future'?` | `field === 'elapsed_days'` のとき: `past`=経過日数（省略時デフォルト）/ `future`=到来日数 |
 | `dateCondition` | `PieGroupRuleDateCondition?` | `field` が日付型フィールドのとき: 日付比較条件（`values` の代わりに使用）。演算子: `not_empty`（記入済み）/ `empty`（空・未設定）/ `<`（より前）/ `<=`（以前）/ `>`（より後）/ `>=`（以降）/ `this_week`（今週月〜日）/ `next_week`（来週月〜日）/ `last_week`（先週月〜日）/ `to_this_week`（〜今週日曜）/ `to_next_week`（〜来週日曜）/ `from_next_week`（来週月曜〜）。`value: 'today'` で実行時の今日JST日付と比較、省略時は固定日付文字列（`YYYY-MM-DD`）。週キーワード使用時は `value` 不要 |

@@ -415,8 +415,8 @@ export interface SeriesDataPoint {
 // 系列の1絞り込み条件
 export interface SeriesCondition {
   field: string       // window.availableFilters のキー（例: 'cf_628', 'tracker_id'）
-  operator: '=' | '!' | '>=' | '<=' | '!*' | '*' | '><'  // '=' = 一致、'!' = 不一致、'>=' = 以上、'<=' = 以下（以内）、'!*' = 値なし、'*' = 値あり、'><' = 期間（between）
-  values: string[]    // 選択値の配列（例: ['QA', 'BUG']）
+  operator: '=' | '!' | '>=' | '<=' | '!*' | '*' | '><' | '~' | '!~'  // '=' = 一致、'!' = 不一致、'>=' = 以上、'<=' = 以下（以内）、'!*' = 値なし、'*' = 値あり、'><' = 期間（between）、'~' = 含む（部分一致、case-insensitive）、'!~' = 含まない
+  values: string[]    // 選択値の配列（例: ['QA', 'BUG']。テキスト型CFでは複数キーワードOR）
   elapsedDaysBaseField?: string  // field === 'elapsed_days' のとき: 経過日数計算のベース日付フィールドキー
   elapsedDaysMode?: 'past' | 'future'  // field === 'elapsed_days' のとき: 'past'=経過日数（デフォルト）、'future'=到来日数
   dateCondition?: PieGroupRuleDateCondition  // field が日付型フィールドのとき: 日付比較条件（valuesの代わりに使用）
@@ -426,7 +426,7 @@ export interface SeriesCondition {
 export interface FilterField {
   key: string   // availableFilters のキー
   name: string  // 表示名（例: 'Type', 'トラッカー'）
-  type?: 'list' | 'date'  // フィールド種別（省略時 = list として扱う）
+  type?: 'list' | 'date' | 'string'  // フィールド種別（省略時 = list として扱う）
 }
 
 // フィールドの選択肢1件

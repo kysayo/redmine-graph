@@ -10,19 +10,29 @@ const LIST_TYPES = new Set([
   'list_status',  // status_id フィールド用
 ])
 
+// テキスト系フィールドタイプ（自由記入・部分一致のみ）
+const STRING_TYPES = new Set(['string', 'text'])
+
 /**
- * window.availableFilters からリスト系フィールドの一覧を返す
+ * window.availableFilters からリスト系フィールドおよびテキスト型フィールドの一覧を返す
  * Redmineチケット一覧ページに存在しない場合（開発環境など）は空配列を返す
+ * - list 系: FilterField.type = 'list'
+ * - string/text 系: FilterField.type = 'string'（部分一致のみ）
  */
 export function getAvailableFilterFields(): FilterField[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const af = (window as any).availableFilters
   if (!af) return []
-  return Object.entries(af)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter(([, f]: any) => LIST_TYPES.has(f.type))
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map(([key, f]: any) => ({ key, name: f.name as string }))
+  const result: FilterField[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const [key, f] of Object.entries(af) as [string, any][]) {
+    if (LIST_TYPES.has(f?.type)) {
+      result.push({ key, name: f.name as string, type: 'list' })
+    } else if (STRING_TYPES.has(f?.type)) {
+      result.push({ key, name: f.name as string, type: 'string' })
+    }
+  }
+  return result
 }
 
 /**

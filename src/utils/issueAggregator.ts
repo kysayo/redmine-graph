@@ -159,11 +159,20 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
   } else if (field.startsWith('cf_')) {
     const cfId = Number(field.slice(3))
     const cf = issue.custom_fields?.find(c => c.id === cfId)
-    if (!cf) return operator === '!'
+    if (!cf) return operator === '!' || operator === '!~'
     const v = cf.value
     issueValues = Array.isArray(v) ? v.filter((x): x is string => x !== null) : v !== null ? [v] : []
   } else {
     return true
+  }
+
+  // テキスト部分一致（case-insensitive、複数キーワードは OR 評価）
+  if (operator === '~' || operator === '!~') {
+    const needles = values.map(v => v.toLowerCase()).filter(v => v !== '')
+    if (needles.length === 0) return true
+    const lowerIssueValues = issueValues.map(v => v.toLowerCase())
+    const hasMatch = needles.some(n => lowerIssueValues.some(v => v.includes(n)))
+    return operator === '~' ? hasMatch : !hasMatch
   }
 
   const hasMatch = values.some(v => issueValues.includes(v))
