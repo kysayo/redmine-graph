@@ -1076,7 +1076,7 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
           </div>
 
           <div style={{ width: '100%', marginTop: 6, paddingTop: 6, borderTop: '1px solid #f0f0f0' }}>
-            <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>絞り込み条件</div>
+            <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>絞り込み条件（系列ごと）</div>
             <ConditionsEditor
               conditions={series.conditions ?? []}
               filterFields={filterFields}
@@ -2490,6 +2490,37 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 70 }}
                     />
                   </div>
+                </div>
+                {/* 共通絞り込み条件（全系列に AND で適用） */}
+                <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
+                  <div
+                    onClick={() => toggleCard(`combo-${combo.id}-common`)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: collapsedCards.has(`combo-${combo.id}-common`) ? 0 : 6, userSelect: 'none' }}
+                  >
+                    <span style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>
+                      {collapsedCards.has(`combo-${combo.id}-common`) ? '▶' : '▼'}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: combo.commonConditions?.length ? '#333' : '#9ca3af' }}>
+                      共通絞り込み条件
+                      {combo.commonConditions?.length
+                        ? ` (${combo.commonConditions.length}件)`
+                        : ' (条件なし)'}
+                    </span>
+                  </div>
+                  {!collapsedCards.has(`combo-${combo.id}-common`) && (
+                    <>
+                      <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                        全系列の絞り込み条件と AND で結合されます。
+                      </div>
+                      <ConditionsEditor
+                        conditions={combo.commonConditions ?? []}
+                        filterFields={filterFields}
+                        dateFilterFields={dateFilterFields}
+                        getFieldOptions={getFieldOptions}
+                        onChange={(next) => updateCombo(comboIdx, { commonConditions: next })}
+                      />
+                    </>
+                  )}
                 </div>
                 {/* 系列設定 */}
                 {combo.series.map((s, i) => (

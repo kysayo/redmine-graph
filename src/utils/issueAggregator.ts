@@ -257,7 +257,8 @@ export function countIssues(issues: RedmineIssue[], conditions: SeriesCondition[
 export function aggregateIssues(
   issues: RedmineIssue[],
   series: SeriesConfig[],
-  options: AggregateOptions = {}
+  options: AggregateOptions = {},
+  commonConditions?: SeriesCondition[],
 ): SeriesDataPoint[] {
   const { startDate, hideWeekends = false, weeklyMode = false, anchorDay = 1, futureWeeks = 0 } = options
 
@@ -296,6 +297,10 @@ export function aggregateIssues(
 
       // ステータスフィルタ
       if (s.statusIds.length > 0 && !s.statusIds.includes(issue.status.id)) {
+        continue
+      }
+      // 共通条件フィルタ（全系列に AND で適用）
+      if (commonConditions?.length && !issueMatchesConditions(issue, commonConditions)) {
         continue
       }
       // 条件フィルタ

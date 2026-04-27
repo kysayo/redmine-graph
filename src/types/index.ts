@@ -283,6 +283,7 @@ export interface ComboChartConfig {
   id: string
   name?: string              // タイル見出し（省略時 = '2軸グラフ'）
   series: SeriesConfig[]
+  commonConditions?: SeriesCondition[]  // 全系列に AND で適用される共通条件（未設定/空 = 適用なし）
   startDate?: string         // グラフX軸の開始日（YYYY-MM-DD）。未設定=自動
   hideWeekends?: boolean     // true のとき土日をX軸から除外し、土日分は月曜に計上
   yAxisLeftMin?: number      // 左軸Y軸の最小値。未設定=自動スケール

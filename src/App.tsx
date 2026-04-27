@@ -577,7 +577,7 @@ export function App({ container }: Props) {
         futureWeeks: (combo.showFuture ?? false) ? (combo.futureWeeks ?? 1) : 0,
       }
       if (issueState.issues !== null) {
-        return aggregateIssues(issueState.issues, combo.series, options)
+        return aggregateIssues(issueState.issues, combo.series, options, combo.commonConditions)
       }
       // Redmineに接続できない場合はダミーデータ
       return generateSeriesDummyData(combo.series, options)
