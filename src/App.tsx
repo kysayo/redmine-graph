@@ -577,7 +577,7 @@ export function App({ container }: Props) {
         futureWeeks: (combo.showFuture ?? false) ? (combo.futureWeeks ?? 1) : 0,
       }
       if (issueState.issues !== null) {
-        return aggregateIssues(issueState.issues, combo.series, options, combo.commonConditions)
+        return aggregateIssues(issueState.issues, combo.series, options, combo.commonConditions, combo.stackGroups)
       }
       // Redmineに接続できない場合はダミーデータ
       return generateSeriesDummyData(combo.series, options)
@@ -792,6 +792,7 @@ export function App({ container }: Props) {
               showLabelsLeft={combo.showLabelsLeft}
               showLabelsRight={combo.showLabelsRight}
               barStackMode={combo.barStackMode}
+              stackGroups={combo.stackGroups}
             />
           )}
         </TileCard>

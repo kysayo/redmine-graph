@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Select from 'react-select'
-import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, ComputedCol, ComputedColFormulaTerm, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, SummaryCardDenominator, SummaryCardFormulaTerm, TeamPreset, TileRef, UserSettings } from '../types'
+import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, ComboStackGroupConfig, ComputedCol, ComputedColFormulaTerm, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, SummaryCardDenominator, SummaryCardFormulaTerm, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets, loadUiState, saveUiState } from '../utils/storage'
 
 const fieldSelectStyles = {
@@ -1930,6 +1930,46 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
     onChangeManual({ ...settings, combos })
   }
 
+  // --- スタックグループ管理 ---
+  function addStackGroup(comboIdx: number) {
+    const combos = (settings.combos ?? []).map((c, i) => {
+      if (i !== comboIdx) return c
+      const newGroup: ComboStackGroupConfig = { id: `sg_${generateId()}`, label: '', commonConditions: [] }
+      return { ...c, stackGroups: [...(c.stackGroups ?? []), newGroup] }
+    })
+    onChangeManual({ ...settings, combos })
+  }
+
+  function updateStackGroup(comboIdx: number, gi: number, patch: Partial<ComboStackGroupConfig>) {
+    const combos = (settings.combos ?? []).map((c, i) => {
+      if (i !== comboIdx) return c
+      const stackGroups = (c.stackGroups ?? []).map((g, j) => j === gi ? { ...g, ...patch } : g)
+      return { ...c, stackGroups }
+    })
+    onChangeManual({ ...settings, combos })
+  }
+
+  function deleteStackGroup(comboIdx: number, gi: number) {
+    const combos = (settings.combos ?? []).map((c, i) => {
+      if (i !== comboIdx) return c
+      const stackGroups = (c.stackGroups ?? []).filter((_, j) => j !== gi)
+      return { ...c, stackGroups: stackGroups.length ? stackGroups : undefined }
+    })
+    onChangeManual({ ...settings, combos })
+  }
+
+  function moveStackGroup(comboIdx: number, from: number, to: number) {
+    const combos = (settings.combos ?? []).map((c, i) => {
+      if (i !== comboIdx) return c
+      const stackGroups = [...(c.stackGroups ?? [])]
+      if (to < 0 || to >= stackGroups.length) return c
+      const [item] = stackGroups.splice(from, 1)
+      stackGroups.splice(to, 0, item)
+      return { ...c, stackGroups }
+    })
+    onChangeManual({ ...settings, combos })
+  }
+
   function addCombo() {
     const id = generateId()
     const startDate = (() => {
@@ -2528,6 +2568,76 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                         getFieldOptions={getFieldOptions}
                         onChange={(next) => updateCombo(comboIdx, { commonConditions: next })}
                       />
+                    </>
+                  )}
+                </div>
+                {/* スタックグループ */}
+                <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
+                  <div
+                    onClick={() => toggleCard(`combo-${combo.id}-stackgroups`)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: collapsedCards.has(`combo-${combo.id}-stackgroups`) ? 0 : 6, userSelect: 'none' }}
+                  >
+                    <span style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>
+                      {collapsedCards.has(`combo-${combo.id}-stackgroups`) ? '▶' : '▼'}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: combo.stackGroups?.length ? '#333' : '#9ca3af' }}>
+                      スタックグループ
+                      {combo.stackGroups?.length
+                        ? ` (${combo.stackGroups.length}件)`
+                        : ' (なし)'}
+                    </span>
+                  </div>
+                  {!collapsedCards.has(`combo-${combo.id}-stackgroups`) && (
+                    <>
+                      <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                        グループごとに共通条件を分け、各グループでこの下の系列セットを集計して横並びで積み上げ表示します（系列はグループの数だけ自動で複製されます）。
+                      </div>
+                      {(combo.stackGroups ?? []).map((g, gi) => (
+                        <div key={g.id} style={{ marginBottom: 8, padding: 6, border: '1px solid #e5e7eb', borderRadius: 4, background: '#fafafa' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                            <input
+                              type="text"
+                              value={g.label}
+                              onChange={(e) => updateStackGroup(comboIdx, gi, { label: e.target.value })}
+                              placeholder="グループ名（例: TW60）"
+                              style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, flex: 1 }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => moveStackGroup(comboIdx, gi, gi - 1)}
+                              disabled={gi === 0}
+                              style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: gi === 0 ? 'not-allowed' : 'pointer', color: gi === 0 ? '#ccc' : '#333' }}
+                              title="上へ移動"
+                            >↑</button>
+                            <button
+                              type="button"
+                              onClick={() => moveStackGroup(comboIdx, gi, gi + 1)}
+                              disabled={gi >= (combo.stackGroups?.length ?? 0) - 1}
+                              style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: gi >= (combo.stackGroups?.length ?? 0) - 1 ? 'not-allowed' : 'pointer', color: gi >= (combo.stackGroups?.length ?? 0) - 1 ? '#ccc' : '#333' }}
+                              title="下へ移動"
+                            >↓</button>
+                            <button
+                              type="button"
+                              onClick={() => deleteStackGroup(comboIdx, gi)}
+                              style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', color: '#dc2626', cursor: 'pointer' }}
+                            >削除</button>
+                          </div>
+                          <ConditionsEditor
+                            conditions={g.commonConditions ?? []}
+                            filterFields={filterFields}
+                            dateFilterFields={dateFilterFields}
+                            getFieldOptions={getFieldOptions}
+                            onChange={(next) => updateStackGroup(comboIdx, gi, { commonConditions: next })}
+                          />
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => addStackGroup(comboIdx)}
+                        style={{ fontSize: 12, padding: '3px 10px', border: '1px solid #ccc', borderRadius: 3, background: '#fff', cursor: 'pointer' }}
+                      >
+                        ＋ スタックグループを追加
+                      </button>
                     </>
                   )}
                 </div>

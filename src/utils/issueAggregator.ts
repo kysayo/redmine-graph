@@ -1,4 +1,4 @@
-import type { CrossTableConfig, CrossTableData, CrossTableSectionData, ElapsedDaysBucket, EVMTileConfig, FilterFieldOption, PieDataPoint, PieGroupRule, PieGroupRuleDateCondition, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
+import type { ComboStackGroupConfig, CrossTableConfig, CrossTableData, CrossTableSectionData, ElapsedDaysBucket, EVMTileConfig, FilterFieldOption, PieDataPoint, PieGroupRule, PieGroupRuleDateCondition, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
 import { calcBusinessDaysUntilStr, calcBusinessElapsedDaysFromStr, countBusinessDaysBetween, getIssueDateByField, getWeekRange, utcToJstDate } from './dateUtils'
 
 /**
@@ -254,13 +254,48 @@ export function countIssues(issues: RedmineIssue[], conditions: SeriesCondition[
  * 1. options.startDate（ユーザー指定）
  * 2. 今日から14日前（空欄時は毎回自動計算）
  */
+/**
+ * スタックグループが定義されている場合、各系列を各グループの数だけ複製した「展開済み系列」リストを返す。
+ * 展開後の id は `${origId}@${groupId}` 形式で、refSeriesIds（difference/sum 用）も同じグループ内の id にマップする。
+ * 各展開系列には _stackGroupId プロパティが付与され、集計・描画側でグループ条件・stackId 解決に利用する。
+ * グループ未定義（空配列または undefined）のときは元の series をそのまま返す。
+ */
+export type ExpandedSeries = SeriesConfig & { _stackGroupId?: string }
+
+export function expandSeriesByStackGroups(
+  series: SeriesConfig[],
+  stackGroups?: ComboStackGroupConfig[],
+): ExpandedSeries[] {
+  if (!stackGroups?.length) return series
+  return series.flatMap(s => stackGroups.map(g => ({
+    ...s,
+    id: `${s.id}@${g.id}`,
+    refSeriesIds: s.refSeriesIds
+      ? [`${s.refSeriesIds[0]}@${g.id}`, `${s.refSeriesIds[1]}@${g.id}`] as [string, string]
+      : undefined,
+    _stackGroupId: g.id,
+  })))
+}
+
 export function aggregateIssues(
   issues: RedmineIssue[],
   series: SeriesConfig[],
   options: AggregateOptions = {},
   commonConditions?: SeriesCondition[],
+  stackGroups?: ComboStackGroupConfig[],
 ): SeriesDataPoint[] {
   const { startDate, hideWeekends = false, weeklyMode = false, anchorDay = 1, futureWeeks = 0 } = options
+
+  // スタックグループの common conditions を id で引けるマップに展開
+  const groupCondsById = new Map<string, SeriesCondition[]>()
+  for (const g of stackGroups ?? []) {
+    if (g.commonConditions?.length) groupCondsById.set(g.id, g.commonConditions)
+  }
+  const getGroupConds = (s: ExpandedSeries): SeriesCondition[] | undefined =>
+    s._stackGroupId ? groupCondsById.get(s._stackGroupId) : undefined
+
+  // 系列をスタックグループの数だけ展開（グループなし時は元のまま）
+  const expanded: ExpandedSeries[] = expandSeriesByStackGroups(series, stackGroups)
 
   // 日付範囲を確定
   let fromDate: Date
@@ -283,7 +318,7 @@ export function aggregateIssues(
 
   // 系列ごとの日別カウントを初期化（全日付を 0 で埋める）
   const dailyCounts: Record<string, Record<string, number>> = {}
-  for (const s of series) {
+  for (const s of expanded) {
     dailyCounts[s.id] = {}
     for (const date of dates) {
       dailyCounts[s.id][date] = 0
@@ -292,15 +327,20 @@ export function aggregateIssues(
 
   // チケットを集計（difference/sum 系列はチケット集計をスキップ）
   for (const issue of issues) {
-    for (const s of series) {
+    for (const s of expanded) {
       if (s.aggregation === 'difference' || s.aggregation === 'sum') continue
 
       // ステータスフィルタ
       if (s.statusIds.length > 0 && !s.statusIds.includes(issue.status.id)) {
         continue
       }
-      // 共通条件フィルタ（全系列に AND で適用）
+      // 共通条件フィルタ（タイル全体に AND で適用）
       if (commonConditions?.length && !issueMatchesConditions(issue, commonConditions)) {
+        continue
+      }
+      // スタックグループ共通条件フィルタ（系列が属するグループのみに AND で適用）
+      const groupConds = getGroupConds(s)
+      if (groupConds && !issueMatchesConditions(issue, groupConds)) {
         continue
       }
       // 条件フィルタ
@@ -331,14 +371,14 @@ export function aggregateIssues(
   // SeriesDataPoint[] に変換
   const result: SeriesDataPoint[] = dates.map((date) => {
     const point: SeriesDataPoint = { date }
-    for (const s of series) {
+    for (const s of expanded) {
       point[s.id] = dailyCounts[s.id][date]
     }
     return point
   })
 
   // cumulative（累計）系列を変換（difference/sum 系列はスキップ）
-  for (const s of series) {
+  for (const s of expanded) {
     if (s.aggregation === 'difference' || s.aggregation === 'sum') continue
     if (s.aggregation === 'cumulative') {
       // グラフ開始日（dates[0]）より前のチケット数を初期値として積算する
@@ -346,8 +386,17 @@ export function aggregateIssues(
       if (dates.length > 0) {
         // 週次モードでは最初の基準日、日次モードでは dates[0] を境界として使う
         const boundary = dates[0]
+        const groupConds = getGroupConds(s)
         for (const issue of issues) {
           if (s.statusIds.length > 0 && !s.statusIds.includes(issue.status.id)) {
+            continue
+          }
+          // 共通条件フィルタ（タイル全体）
+          if (commonConditions?.length && !issueMatchesConditions(issue, commonConditions)) {
+            continue
+          }
+          // スタックグループ共通条件フィルタ
+          if (groupConds && !issueMatchesConditions(issue, groupConds)) {
             continue
           }
           // 条件フィルタ
@@ -377,7 +426,7 @@ export function aggregateIssues(
   }
 
   // difference（差分）系列を計算: 参照元2系列の値の差を代入
-  for (const s of series) {
+  for (const s of expanded) {
     if (s.aggregation !== 'difference') continue
     const [idA, idB] = s.refSeriesIds ?? []
     if (!idA || !idB) continue
@@ -389,7 +438,7 @@ export function aggregateIssues(
   }
 
   // sum（和分）系列を計算: 参照元2系列の値の和を代入
-  for (const s of series) {
+  for (const s of expanded) {
     if (s.aggregation !== 'sum') continue
     const [idA, idB] = s.refSeriesIds ?? []
     if (!idA || !idB) continue
@@ -402,7 +451,7 @@ export function aggregateIssues(
 
   // hideFuture=true の系列は未来の日付の値を null に変換
   const todayStr = formatDate(new Date())
-  const hideFutureSeries = series.filter(s => s.hideFuture)
+  const hideFutureSeries = expanded.filter(s => s.hideFuture)
   if (hideFutureSeries.length > 0) {
     // 週次集計時: 今週のアンカー日を計算（今日以降で最初のanchorDay）
     // アンカー日が今日より後でも「今週」なので非表示にしない

@@ -144,6 +144,13 @@ export interface SeriesConfig {
   hideFuture?: boolean                              // true のとき未来の日付の値を非表示（null）にする
 }
 
+// 2軸グラフ スタックグループ設定（同一タイル内で独立した積み上げ棒を横並び表示するための単位）
+export interface ComboStackGroupConfig {
+  id: string                              // 内部ID（例: 'sg_xxxxx'）
+  label: string                           // 凡例・ツールチップ表示用の名前（例: 'TW60', 'PH50'）
+  commonConditions?: SeriesCondition[]    // このグループに属する系列に AND で適用される条件
+}
+
 // EVMタイル グループ行設定
 export interface EVMGroupRow {
   groupName: string        // getIssueGroupValue() が返す値名と一致させる（例: "QA", "BUG"）
@@ -300,6 +307,7 @@ export interface ComboChartConfig {
   futureWeeks?: number               // 未来を表示する週数（showFuture=true 時のみ有効）。デフォルト 1
   startWeeksAgo?: number             // 設定時: 開始日を「今日からN週前」で動的計算（startDate より優先）
   barStackMode?: 'grouped' | 'stacked' // 棒グラフの並べ方。省略時=grouped（隣接配置）。stacked のとき yAxisId ごとに積み上げ
+  stackGroups?: ComboStackGroupConfig[] // スタックグループ定義。各系列の stackGroupId と紐づき、同タイル内に複数の独立した積み上げ棒を横並び表示できる
 }
 
 // タイル表示順序のエントリ
