@@ -791,6 +791,7 @@ export function App({ container }: Props) {
               chartHeight={combo.chartHeight}
               showLabelsLeft={combo.showLabelsLeft}
               showLabelsRight={combo.showLabelsRight}
+              barStackMode={combo.barStackMode}
             />
           )}
         </TileCard>

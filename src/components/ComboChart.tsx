@@ -53,6 +53,7 @@ interface Props {
   showBrush?: boolean
   showLabelsLeft?: boolean
   showLabelsRight?: boolean
+  barStackMode?: 'grouped' | 'stacked'
 }
 
 function formatDateTick(dateStr: string, fmt: 'yyyy-mm-dd' | 'M/D'): string {
@@ -92,7 +93,7 @@ function CustomXAxisTick({ x = 0, y = 0, payload, index = 0, tickInterval, fmt }
   )
 }
 
-export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxisRightMax, dateFormat, chartHeight, showBrush, showLabelsLeft, showLabelsRight }: Props) {
+export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxisRightMax, dateFormat, chartHeight, showBrush, showLabelsLeft, showLabelsRight, barStackMode }: Props) {
     const fmt = dateFormat ?? 'yyyy-mm-dd'
     const maxTicks = fmt === 'M/D' ? 20 : 10
     const tickInterval = Math.max(0, Math.ceil(data.length / maxTicks) - 1)
@@ -213,12 +214,13 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
                   name={s.label}
                   fill={s.color}
                   barSize={12}
+                  stackId={barStackMode === 'stacked' ? (s.yAxisId === 'left' ? 'bar-left' : 'bar-right') : undefined}
                 >
                   {showLabel && (
                     <LabelList
                       dataKey={s.id}
-                      position="top"
-                      formatter={(v: unknown) => (v as number) === 0 ? '' : String(v)}
+                      position={barStackMode === 'stacked' ? 'insideTop' : 'top'}
+                      formatter={(v: unknown) => (v == null || v === 0) ? '' : String(v)}
                       style={{ fontSize: 10, fill: s.color, fontWeight: 600 }}
                     />
                   )}

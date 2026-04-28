@@ -299,6 +299,7 @@ export interface ComboChartConfig {
   showFuture?: boolean               // true のとき未来の日付を横軸に追加
   futureWeeks?: number               // 未来を表示する週数（showFuture=true 時のみ有効）。デフォルト 1
   startWeeksAgo?: number             // 設定時: 開始日を「今日からN週前」で動的計算（startDate より優先）
+  barStackMode?: 'grouped' | 'stacked' // 棒グラフの並べ方。省略時=grouped（隣接配置）。stacked のとき yAxisId ごとに積み上げ
 }
 
 // タイル表示順序のエントリ

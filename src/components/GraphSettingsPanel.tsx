@@ -2490,6 +2490,15 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 70 }}
                     />
                   </div>
+                  {/* 棒グラフを積み上げ */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={combo.barStackMode === 'stacked'}
+                      onChange={(e) => updateCombo(comboIdx, { barStackMode: e.target.checked ? 'stacked' : undefined })}
+                    />
+                    棒グラフを積み上げ
+                  </label>
                 </div>
                 {/* 共通絞り込み条件（全系列に AND で適用） */}
                 <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
