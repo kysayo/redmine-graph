@@ -15,6 +15,9 @@ const COLORS = [
   '#ec4899', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#a855f7',
 ]
 
+// Recharts の凡例・ラベル・ツールチップでは改行が想定されないため、表示前に \n を半角スペースに置換する
+const stripNewlines = (s: string | undefined | null) => (s ?? '').replace(/\n/g, ' ')
+
 function CustomTooltip({ active, payload }: { active?: boolean; payload?: { name?: string; value?: number; payload?: { fill?: string } }[] }) {
   if (!active || !payload?.length) return null
   const entry = payload[0]
@@ -29,7 +32,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: { name
     }}>
       <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: 2, background: COLORS[0], display: 'inline-block', flexShrink: 0 }} />
-        <span style={{ color: '#374151' }}>{entry.name}</span>
+        <span style={{ color: '#374151' }}>{stripNewlines(entry.name)}</span>
         <span style={{ fontWeight: 600, color: '#111827', marginLeft: 4 }}>{entry.value} Case</span>
       </p>
     </div>
@@ -49,11 +52,11 @@ function StackedTooltip({ active, payload, label }: { active?: boolean; payload?
       fontSize: 12,
       minWidth: 140,
     }}>
-      <p style={{ margin: '0 0 6px', fontWeight: 600, color: '#111827' }}>{label}</p>
+      <p style={{ margin: '0 0 6px', fontWeight: 600, color: '#111827' }}>{stripNewlines(label)}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ margin: '2px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 10, height: 10, borderRadius: 2, background: p.fill, display: 'inline-block', flexShrink: 0 }} />
-          <span style={{ color: '#374151', flex: 1 }}>{p.name}</span>
+          <span style={{ color: '#374151', flex: 1 }}>{stripNewlines(p.name)}</span>
           <span style={{ fontWeight: 600, color: '#111827' }}>{p.value} Case</span>
         </p>
       ))}
@@ -93,8 +96,8 @@ function CustomYAxisTick(props: {
   const yNum = typeof y === 'string' ? parseFloat(y) : (y ?? 0)
   const name = payload?.value ?? ''
   const raw = flatData.find(d => d.name === name)?._raw as StackedBarDataPoint | undefined
-  // 長い名前は折り返す（120px幅の中で）
-  const words = name.split(/\s+/)
+  // 長い名前は折り返す（120px幅の中で）。\n も空白として扱われ自動折り返しの区切り位置として機能する
+  const words = stripNewlines(name).split(/\s+/)
   const lines: string[] = []
   let cur = ''
   for (const w of words) {
@@ -167,7 +170,7 @@ export function HBarChart({ data, title, topN, onBarClick, stackedData, onSegmen
           {segKeys.map(k => (
             <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#374151' }}>
               <span style={{ width: 10, height: 10, borderRadius: 2, background: segColorMap[k], display: 'inline-block', flexShrink: 0 }} />
-              {k}
+              {stripNewlines(k)}
             </span>
           ))}
         </div>
@@ -252,6 +255,7 @@ export function HBarChart({ data, title, topN, onBarClick, stackedData, onSegmen
             dataKey="name"
             width={120}
             tick={{ fontSize: 12, fill: '#374151' }}
+            tickFormatter={(v: string) => stripNewlines(v)}
             tickLine={false}
             axisLine={false}
           />

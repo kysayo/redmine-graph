@@ -13,6 +13,9 @@ const OUTER_RADIUS = 108
 const LINE_EXTEND = 35
 const RADIAN = Math.PI / 180
 
+// Recharts の凡例・ラベルでは改行が想定されないため、表示前に \n を半角スペースに置換する
+const stripNewlines = (s: string | undefined | null) => (s ?? '').replace(/\n/g, ' ')
+
 interface LabelData {
   key: number
   sx: number; sy: number
@@ -36,7 +39,7 @@ function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: { n
     }}>
       <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: 2, background: entry.payload?.fill ?? '#ccc', display: 'inline-block', flexShrink: 0 }} />
-        <span style={{ color: '#374151' }}>{entry.name}</span>
+        <span style={{ color: '#374151' }}>{stripNewlines(entry.name)}</span>
         <span style={{ fontWeight: 600, color: '#111827', marginLeft: 4 }}>{entry.value} Case</span>
       </p>
     </div>
@@ -111,7 +114,7 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
         key: index,
         sx, sy, ex, ey, bcos,
         color: COLORS[index % COLORS.length],
-        text: `${item.name}:${item.value} Case:${(percent * 100).toFixed(0)}%`,
+        text: `${stripNewlines(item.name)}:${item.value} Case:${(percent * 100).toFixed(0)}%`,
       })
     })
   }
@@ -147,7 +150,7 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
               onClick={() => onSliceClick?.(item)}
             >
               <span style={{ width: 12, height: 12, background: COLORS[index % COLORS.length], display: 'inline-block', borderRadius: 2, flexShrink: 0 }} />
-              <span style={{ color: '#374151' }}>{item.name}</span>
+              <span style={{ color: '#374151' }}>{stripNewlines(item.name)}</span>
               <span style={{ color: '#6b7280' }}>{((item.value / total) * 100).toFixed(0)}%</span>
               <span style={{ fontWeight: 600, color: '#111827' }}>{item.value}件</span>
             </span>
@@ -234,7 +237,7 @@ export function PieChart({ data, groupBy, onSliceClick, wide }: Props) {
             onClick={() => onSliceClick?.(item)}
           >
             <span style={{ width: 12, height: 12, borderRadius: '50%', background: COLORS[index % COLORS.length], flexShrink: 0, marginRight: 10 }} />
-            <span style={{ flex: 1, color: '#374151', fontSize: 13 }}>{item.name}</span>
+            <span style={{ flex: 1, color: '#374151', fontSize: 13 }}>{stripNewlines(item.name)}</span>
             <span style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{item.value}</span>
           </div>
         ))}

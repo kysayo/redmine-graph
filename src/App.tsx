@@ -880,6 +880,7 @@ export function App({ container }: Props) {
               data={data}
               title={title}
               compact={tileColumns < 3}
+              cellPaddingX={table.cellPaddingX}
               onCellClick={issueState.issues !== null
                 ? (rk, ck, rfv, cfv, si) => handleCrossTableCellClick(
                     table, rk, ck, rfv, cfv,

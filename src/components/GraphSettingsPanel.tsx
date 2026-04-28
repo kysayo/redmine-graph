@@ -311,12 +311,12 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
           {groupRules.map((rule, idx) => (
             <div key={idx} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #f0f0f0' }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
+                <textarea
                   value={rule.name}
                   onChange={(e) => updateRuleName(idx, e.target.value)}
                   placeholder="グループ名"
-                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 110 }}
+                  rows={1}
+                  style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 110, resize: 'vertical', minHeight: 22, fontFamily: 'inherit', lineHeight: 1.3 }}
                 />
                 {isDateField ? (
                   <>
@@ -3477,7 +3477,7 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       />
                     </div>
                     {/* タイル幅 */}
-                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>タイル幅</span>
                       {([1, 2, 3] as const).map(cols => {
                         const currentCols = table.tileColumns ?? (table.fullWidth !== false ? 3 : 1)
@@ -3497,6 +3497,23 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                           </label>
                         )
                       })}
+                      <span style={{ fontSize: 11, color: '#666', whiteSpace: 'nowrap', marginLeft: 8 }}>セル左右余白(px)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={32}
+                        step={1}
+                        placeholder="自動"
+                        value={table.cellPaddingX ?? ''}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          const parsed = raw === '' ? undefined : Number(raw)
+                          const nextVal = parsed != null && Number.isFinite(parsed) ? parsed : undefined
+                          const next = tables.map((t, j) => j === i ? { ...t, cellPaddingX: nextVal } : t)
+                          onChangeManual({ ...settings, tables: next })
+                        }}
+                        style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #ccc', borderRadius: 3, width: 60 }}
+                      />
                     </div>
                     </>}
                   </div>

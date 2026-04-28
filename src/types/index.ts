@@ -259,6 +259,7 @@ export interface CrossTableConfig {
   fullWidth?: boolean             // 後方互換: false=1列、省略/true=全幅。tileColumns が指定された場合はそちら優先
   tileColumns?: 1 | 2 | 3        // タイルの幅（1=1/3幅、2=2/3幅、3=全幅）。省略時は fullWidth に従う
   colSections?: CrossTableColSection[]  // 複数列セクション（存在する場合 colGroupBy より優先）
+  cellPaddingX?: number           // セルの左右余白(px)。省略時は compact なら 8、通常 12（従来動作）
 }
 
 // クロス集計テーブルの集計結果

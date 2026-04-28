@@ -5,6 +5,7 @@ interface CrossTableProps {
   data: CrossTableData
   title: string
   compact?: boolean
+  cellPaddingX?: number
   onCellClick?: (
     rowKey: string,
     colKey: string,
@@ -25,6 +26,7 @@ export function CrossTable({
   data,
   title,
   compact = false,
+  cellPaddingX,
   onCellClick,
   onRowTotalClick,
   onColTotalClick,
@@ -34,9 +36,15 @@ export function CrossTable({
 
   const { rowKeys, colKeys, rowLabels, colLabels, rowFilterValues, colFilterValues, cells, rowTotals, colTotals, grandTotal, sections } = data
 
-  const cellPadding = compact ? '4px 8px' : '8px 12px'
+  const verticalPx = compact ? 4 : 8
+  const horizontalPx = cellPaddingX ?? (compact ? 8 : 12)
+  const cellPadding = `${verticalPx}px ${horizontalPx}px`
   const cellFontSize = compact ? 12 : 13
-  const headerWhiteSpace: React.CSSProperties['whiteSpace'] = compact ? 'normal' : 'nowrap'
+  // ヘッダ系セルでは name 内の \n を改行として描画したいが、自動折り返しはしない（'pre'）。
+  // 自動折り返しを許すと "Kusakabe Junji" のような単語も列幅不足で勝手に折り返されてしまうため。
+  // 1画面に収めたい場合はユーザーが name に \n を入れるか cellPaddingX で調整する想定。
+  // データ・合計セルは数値が折り返らないように 'nowrap' を維持。
+  const headerWhiteSpace: React.CSSProperties['whiteSpace'] = 'pre'
 
   const stickyColStyle: React.CSSProperties = {
     position: 'sticky',
@@ -47,7 +55,7 @@ export function CrossTable({
     fontSize: cellFontSize,
     padding: cellPadding,
     textAlign: 'left',
-    whiteSpace: 'nowrap',
+    whiteSpace: 'pre',
     border: '1px solid #d1d5db',
     borderRight: '2px solid #9ca3af',
   }
@@ -59,7 +67,6 @@ export function CrossTable({
     padding: cellPadding,
     textAlign: 'center',
     whiteSpace: headerWhiteSpace,
-    wordBreak: compact ? 'break-word' : undefined,
     border: '1px solid #d1d5db',
   }
 
@@ -119,10 +126,9 @@ export function CrossTable({
       background: '#e8ecf0',
       fontWeight: 700,
       fontSize: cellFontSize,
-      padding: compact ? '4px 8px' : '6px 12px',
+      padding: `${compact ? 4 : 6}px ${horizontalPx}px`,
       textAlign: 'center',
       whiteSpace: headerWhiteSpace,
-      wordBreak: compact ? 'break-word' : undefined,
       border: '1px solid #d1d5db',
       borderLeft: '2px solid #9ca3af',
       borderBottom: '1px solid #d1d5db',
@@ -179,10 +185,9 @@ export function CrossTable({
                         background: '#d1d5db',
                         fontWeight: 700,
                         fontSize: cellFontSize,
-                        padding: compact ? '4px 8px' : '6px 12px',
+                        padding: `${compact ? 4 : 6}px ${horizontalPx}px`,
                         textAlign: 'center',
                         whiteSpace: headerWhiteSpace,
-                        wordBreak: compact ? 'break-word' : undefined,
                         // border shorthand を使わず個別指定。グループ内の縦線は背景色と同色にして不可視にする
                         borderTop: '1px solid #d1d5db',
                         borderBottom: '1px solid #d1d5db',
