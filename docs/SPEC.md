@@ -68,7 +68,12 @@ Recharts の `PieChart` を使用した割合表示グラフ。
     - **N週前から指定**: チェックボックスをオンにして週数を入力すると「今日からN週前」を開始日として動的計算。翌日になると自動的に1日ずれる。デフォルト値 2
     - **固定日付指定**: チェックボックスがオフのときに日付ピッカーで固定日付を指定（空欄=自動、デフォルト: 今日の14日前）
   - 未来を表示: チェック時は今日以降の日付を横軸に追加。チェックボックスの隣の数値で何週先まで表示するかを指定（デフォルト: 2週）。未来表示が有効な場合、グラフ上に今日の位置を示すオレンジ破線を表示
-  - 土日を非表示: チェック時は土日をX軸から除外し、土日分のチケットは月曜に計上
+  - 土日を非表示: チェック時は土日をX軸から除外し、土日分のチケットは月曜に計上（日次モードのみ意味を持つ。週次・月次モードでは無視される）
+  - **集計単位**: `日次` / `週次` / `月次` の 3 択ラジオで、X 軸の刻みを切り替える。`ComboChartConfig.aggregationMode` に保存される（旧 `weeklyMode` フラグはロード時にフォールバック解釈され、書き戻しは `aggregationMode` のみ）
+    - `日次`（デフォルト・`'daily'`）: 従来動作。チケット日付がそのまま X 軸の日付になる
+    - `週次`（`'weekly'`）: チケット日付を「その日以降で最初の基準曜日」に振り替えて X 軸（週次基準日）に集計。`anchorDay`（基準曜日: 月〜金）を別セレクタで指定
+    - `月次`（`'monthly'`）: チケット日付を **その月の 1 日（`YYYY-MM-01`）** に振り替えて X 軸に集計。今日が月の途中（例: 2026-04-28）でも `2026-04-01` のバーに当月分が積算され、`showFuture` を ON にしなくても自動的に X 軸に含まれる
+  - 基準曜日: `集計単位 = 週次` のときのみ表示されるセレクタ。月曜〜金曜から選択（デフォルト: 月曜）
   - 左軸の最小値: Y軸左軸の最小値を指定（空欄=自動スケール）。「最大値の8割」チェックボックスをオンにすると入力欄が無効になり、左軸系列データの最大値×0.8を `floor(/10)×10`（1の位=0）で計算した値が自動適用される（例: 最大613 → 490）
   - 左軸の件数表示: チェック時は左軸系列の棒グラフ・折れ線グラフの各データ点に値ラベルを常時表示（デフォルト: 非表示）。0値は表示しない。折れ線は `offset={12}` でドットから離して表示。ラベル表示時はグラフ上部マージンを自動拡張（8px→32px）してラベルの見切れを防ぐ
   - 右軸の最大値: Y軸右軸の最大値を指定（空欄=自動スケール）
@@ -105,7 +110,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
     - ベース日付フィールドが空（未設定）のチケットは条件に**マッチしない**（除外される）
     - 到来日数モードではベース日付フィールドの指定が必須（未指定時は除外）
     - 演算子 `=`（ちょうどN日）、`>=`（N日以上）、`<=`（N日以内）が使用可能。Redmine URLフィルタへの変換時はベース日付フィールドのフィルタに変換される
-  - 未来を非表示: 「未来を表示」が有効なコンボチャートでのみ表示。チェック時はその系列の未来日付の値を null にして棒・折れ線を描画しない（例: 発生数・完了数など未来に値が存在しない系列に設定する）。週次集計モードでは「今週のアンカー日（今日以降で最初の基準曜日）」は未来とみなさず表示する（例: 今日=木曜・基準曜日=金曜のとき、翌日の金曜が今週の代表日として表示される）
+  - 未来を非表示: 「未来を表示」が有効なコンボチャートでのみ表示。チェック時はその系列の未来日付の値を null にして棒・折れ線を描画しない（例: 発生数・完了数など未来に値が存在しない系列に設定する）。週次集計モードでは「今週のアンカー日（今日以降で最初の基準曜日）」は未来とみなさず表示する（例: 今日=木曜・基準曜日=金曜のとき、翌日の金曜が今週の代表日として表示される）。月次集計モードでは現在月のアンカー（`YYYY-MM-01`）が常に今日以下のため特別扱い不要で、未来月（`showFuture` で延長された分）のみ null 化される
   - 順序変更: ↑↓ ボタンで系列の並び順を変更。先頭の ↑・末尾の ↓ は無効（グレー）。`series` 配列の順序がグラフ凡例の表示順に直結する（凡例はカスタムレンダラーで `visibleSeries` の順序と同期）
 - **集計カード設定**（系列設定パネルの上部、2軸グラフの上に表示）:
   - 「＋ カードを追加」ボタンで任意個数追加可能
@@ -136,7 +141,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー形式**: `redmine-graph:settings:{projectId}`（プロジェクトID別に独立）
 - **バージョン管理**: `version: 1`（スキーマ変更時にリセット）
 - 初回表示時は `data-combo-left` / `data-combo-right` 属性からデフォルト設定を生成（開始日は今日の14日前をデフォルトとして設定）
-- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `showLabelsLeft?`, `showLabelsRight?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`, `summaryCards?`, `tables?`, `evmTiles?`, `hiddenTiles?`
+- `UserSettings` のフィールド: `version`, `series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `showLabelsLeft?`, `showLabelsRight?`, `aggregationMode?`, `weeklyMode?`（@deprecated）, `anchorDay?`, `dateFormat?`, `chartHeight?`, `pies?`, `summaryCards?`, `tables?`, `evmTiles?`, `hiddenTiles?`
   - `hiddenTiles?: string[]`: タイルIDの配列。一致するタイルは細いバーで代替表示され、バー全体または「表示」ボタンのクリックで復元できる
   - `yAxisLeftMinAuto?: boolean`: `true` のとき左軸最小値を「最大値の8割」で自動計算（`yAxisLeftMin` より優先）
   - `showLabelsLeft?: boolean`: `true` のとき左軸系列の各データ点に値ラベルを常時表示
@@ -157,7 +162,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **キー**: `redmine-graph:presets`（プロジェクトIDを含まないグローバルキー）
 - **形式**: `Preset[]`（バージョン管理なし）
 - `Preset` 型: `{ id: string, name: string, settings: PresetSettings }`
-- `PresetSettings` 型: `UserSettings` から `version` を除いたもの（`series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `weeklyMode?`, `anchorDay?`, `dateFormat?`, `chartHeight?`）
+- `PresetSettings` 型: `UserSettings` から `version` を除いたもの（`series[]`, `startDate?`, `hideWeekends?`, `yAxisLeftMin?`, `yAxisLeftMinAuto?`, `yAxisRightMax?`, `aggregationMode?`, `weeklyMode?`（@deprecated）, `anchorDay?`, `dateFormat?`, `chartHeight?`）。各 `combos[i]` も `aggregationMode` を持ち、保存時はこちらに書き戻される
 
 ### チームプリセット（data-team-presets 属性）
 
@@ -215,7 +220,12 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 - **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`author_id`・`assigned_to_id`・`category_id`・`fixed_version_id`・`cf_{id}`（カスタムフィールド：リスト系・テキスト型の両方）・`elapsed_days`（経過日数、仮想フィールド）。演算子: `=`（一致）、`!`（不一致）、`>=`（以上）、`<=`（以内）、`~`（含む／部分一致、case-insensitive）、`!~`（含まない）
   - **特殊値 `"me"` の解決**: フィールド値として `"me"`（Redmineの「自分」選択肢）が指定された場合、`window.ViewCustomize.context.user.id` を参照して現在ログイン中のユーザーIDに変換してから比較する。`author_id`・`assigned_to_id` どちらでも有効
 - **経過日数バケット集計**: `groupBy === 'elapsed_days'` かつ `elapsedDaysBuckets` が定義されている場合、通常のフィールドグルーピングの代わりにバケット分類を実行。各チケットの `elapsedDaysBaseField`（省略時は `updated_on || created_on`）からJST換算の経過日数を計算し、最初に条件が合致したバケットに計上。ベース日付フィールドが空（未設定）のチケットはスキップ（集計対象外）。バケット順序はユーザー定義順を維持
-- **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換。`startDate` 指定時は `startDate` より前のチケット数を初期値として積算（グラフ開始時点の既存チケット数を反映）
+- **集計単位（`aggregationMode`）**: `'daily'`（既定）/ `'weekly'` / `'monthly'` の 3 モードで X 軸の刻みを切り替える
+  - `'weekly'`: チケット日付を `getNextAnchorDate()` で「その日以降で最初の `anchorDay`」に振り替え。X 軸は `generateWeeklyDateRange()` で 7 日刻み
+  - `'monthly'`: チケット日付を `getMonthAnchor()` で **その月の 1 日（`YYYY-MM-01`）** に振り替え。X 軸は `generateMonthlyDateRange()` で 1 か月刻み。`hideWeekends` は無視される。今日が月の途中でも当月の 1 日は X 軸の最終要素として必ず含まれる（現在月のバーが自動表示される）
+  - `startDate` 未指定時のフォールバック開始日は `daily=14`日前 / `weekly=70`日前 / `monthly=365`日前
+  - 旧 `weeklyMode: boolean` フラグはロード時に `aggregationMode` へフォールバック解釈される（`weeklyMode === true → 'weekly'`）。書き戻しは `aggregationMode` のみ
+- **累計変換**: `aggregation === 'cumulative'` の系列は日別値を累計に変換。`startDate` 指定時は `startDate` より前のチケット数を初期値として積算（グラフ開始時点の既存チケット数を反映）。`aggregationMode === 'monthly'` のときは「開始月の 1 日」より前のチケットが初期値として加算される
 - **差分・和分計算**: `aggregation === 'difference'` の系列は各日付で `A - B`、`aggregation === 'sum'` の系列は `A + B` を計算して代入（A・Bは `refSeriesIds` で指定した参照系列の値）。累計変換後に実行されるため、参照系列に累計系列を指定した場合はその累計値を使って計算される
 
 ### フィルタフィールド・選択肢取得（filterValues.ts）

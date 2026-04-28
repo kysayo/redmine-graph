@@ -2431,32 +2431,48 @@ export function GraphSettingsPanel({ settings, statuses, statusesLoading, onChan
                       <span>週</span>
                     </div>
                   )}
-                  {/* 週次集計 */}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={combo.weeklyMode ?? false}
-                      onChange={(e) => updateCombo(comboIdx, { weeklyMode: e.target.checked })}
-                    />
-                    週次集計
-                  </label>
-                  {/* 基準曜日 */}
-                  {(combo.weeklyMode ?? false) && (
-                    <div>
-                      <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>基準曜日</label>
-                      <select
-                        value={combo.anchorDay ?? 1}
-                        onChange={(e) => updateCombo(comboIdx, { anchorDay: Number(e.target.value) })}
-                        style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
-                      >
-                        <option value={1}>月曜</option>
-                        <option value={2}>火曜</option>
-                        <option value={3}>水曜</option>
-                        <option value={4}>木曜</option>
-                        <option value={5}>金曜</option>
-                      </select>
-                    </div>
-                  )}
+                  {/* 集計単位 */}
+                  {(() => {
+                    const currentMode: 'daily' | 'weekly' | 'monthly' =
+                      combo.aggregationMode ?? (combo.weeklyMode ? 'weekly' : 'daily')
+                    return (
+                      <>
+                        <div>
+                          <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>集計単位</label>
+                          <div style={{ display: 'flex', gap: 10, fontSize: 12 }}>
+                            {(['daily', 'weekly', 'monthly'] as const).map(m => (
+                              <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+                                <input
+                                  type="radio"
+                                  name={`agg-${combo.id}`}
+                                  checked={currentMode === m}
+                                  onChange={() => updateCombo(comboIdx, { aggregationMode: m, weeklyMode: undefined })}
+                                />
+                                {m === 'daily' ? '日次' : m === 'weekly' ? '週次' : '月次'}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        {/* 基準曜日（週次のみ） */}
+                        {currentMode === 'weekly' && (
+                          <div>
+                            <label style={{ fontSize: 11, color: '#666', display: 'block', marginBottom: 2 }}>基準曜日</label>
+                            <select
+                              value={combo.anchorDay ?? 1}
+                              onChange={(e) => updateCombo(comboIdx, { anchorDay: Number(e.target.value) })}
+                              style={{ fontSize: 12, padding: '2px 4px', border: '1px solid #ccc', borderRadius: 3, background: '#fff' }}
+                            >
+                              <option value={1}>月曜</option>
+                              <option value={2}>火曜</option>
+                              <option value={3}>水曜</option>
+                              <option value={4}>木曜</option>
+                              <option value={5}>金曜</option>
+                            </select>
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
                   {/* 左軸 件数表示 */}
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
                     <input

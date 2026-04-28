@@ -299,7 +299,9 @@ export interface ComboChartConfig {
   yAxisRightMax?: number     // 右軸Y軸の最大値。未設定=自動スケール
   showLabelsLeft?: boolean   // true = 左軸系列のラベルを常時表示
   showLabelsRight?: boolean  // true = 右軸系列のラベルを常時表示
-  weeklyMode?: boolean       // true = 週次集計。false/undefined = 日次（従来）
+  aggregationMode?: 'daily' | 'weekly' | 'monthly'  // 集計単位。未設定時は weeklyMode から導出（後方互換）
+  /** @deprecated aggregationMode === 'weekly' に統合済み。読み込み時のフォールバックとしてのみ参照される */
+  weeklyMode?: boolean
   anchorDay?: number         // 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1
   dateFormat?: 'yyyy-mm-dd' | 'M/D'  // X軸の日付表示形式。デフォルト 'yyyy-mm-dd'
   chartHeight?: number               // グラフ高さ(px)。未設定=320

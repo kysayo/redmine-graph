@@ -569,10 +569,12 @@ export function App({ container }: Props) {
         const day = String(d.getDate()).padStart(2, '0')
         startDate = `${y}-${m}-${day}`
       }
+      const aggregationMode: 'daily' | 'weekly' | 'monthly' =
+        combo.aggregationMode ?? (combo.weeklyMode ? 'weekly' : 'daily')
       const options = {
         startDate,
         hideWeekends: combo.hideWeekends ?? false,
-        weeklyMode: combo.weeklyMode ?? false,
+        aggregationMode,
         anchorDay: combo.anchorDay ?? 1,
         futureWeeks: (combo.showFuture ?? false) ? (combo.futureWeeks ?? 1) : 0,
       }

@@ -41,13 +41,25 @@ function generateWeeklyDateRange(from: Date, to: Date, anchorDay: number): Date[
   return dates
 }
 
+/** 月次の基準日配列を生成（各要素はその月の1日） */
+function generateMonthlyDateRange(from: Date, to: Date): Date[] {
+  const dates: Date[] = []
+  const current = new Date(from.getFullYear(), from.getMonth(), 1)
+  const end = new Date(to.getFullYear(), to.getMonth(), 1)
+  while (current <= end) {
+    dates.push(new Date(current))
+    current.setMonth(current.getMonth() + 1)
+  }
+  return dates
+}
+
 interface DummyDataOptions {
   /** ユーザー指定のグラフX軸開始日（YYYY-MM-DD）。未設定=自動 */
   startDate?: string
   /** true のとき土日をX軸から除外 */
   hideWeekends?: boolean
-  /** true = 週次集計モード */
-  weeklyMode?: boolean
+  /** 集計単位。daily=日次（従来）、weekly=週次、monthly=月次 */
+  aggregationMode?: 'daily' | 'weekly' | 'monthly'
   /** 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1 */
   anchorDay?: number
 }
@@ -88,18 +100,23 @@ export function generateSeriesDummyData(
   series: SeriesConfig[],
   options: DummyDataOptions = {}
 ): SeriesDataPoint[] {
-  const { startDate, hideWeekends = false, weeklyMode = false, anchorDay = 1 } = options
+  const { startDate, hideWeekends = false, aggregationMode = 'daily', anchorDay = 1 } = options
+  const weeklyMode = aggregationMode === 'weekly'
+  const monthlyMode = aggregationMode === 'monthly'
 
   const fromDate = startDate ? new Date(startDate) : (() => {
     const d = new Date()
-    d.setDate(d.getDate() - (weeklyMode ? 70 : 14))
+    const fallbackDays = monthlyMode ? 365 : weeklyMode ? 70 : 14
+    d.setDate(d.getDate() - fallbackDays)
     return d
   })()
   const toDate = new Date()
 
-  const dates = weeklyMode
-    ? generateWeeklyDateRange(fromDate, toDate, anchorDay)
-    : generateDateRange(fromDate, toDate, hideWeekends)
+  const dates = monthlyMode
+    ? generateMonthlyDateRange(fromDate, toDate)
+    : weeklyMode
+      ? generateWeeklyDateRange(fromDate, toDate, anchorDay)
+      : generateDateRange(fromDate, toDate, hideWeekends)
 
   // 各系列の累計カウンター
   const cumulatives: Record<string, number> = {}

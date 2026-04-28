@@ -38,7 +38,7 @@ function migrateV1ToV2(parsed: UserSettings): UserSettings {
     yAxisRightMax: parsed.yAxisRightMax,
     showLabelsLeft: parsed.showLabelsLeft,
     showLabelsRight: parsed.showLabelsRight,
-    weeklyMode: parsed.weeklyMode,
+    aggregationMode: parsed.weeklyMode ? 'weekly' : 'daily',
     anchorDay: parsed.anchorDay,
     dateFormat: parsed.dateFormat,
     chartHeight: parsed.chartHeight,

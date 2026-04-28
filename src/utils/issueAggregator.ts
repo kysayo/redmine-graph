@@ -91,6 +91,28 @@ function generateWeeklyDateRange(from: Date, to: Date, anchorDay: number): strin
 }
 
 /**
+ * 月次集計のアンカー日付を返す（その日付の月初 = YYYY-MM-01）
+ */
+function getMonthAnchor(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`
+}
+
+/**
+ * 月次の基準日配列を生成する
+ * from の月初から to の月初まで 1 か月ずつ進む（各要素は YYYY-MM-01）
+ */
+function generateMonthlyDateRange(from: Date, to: Date): string[] {
+  const dates: string[] = []
+  const current = new Date(from.getFullYear(), from.getMonth(), 1)
+  const end = new Date(to.getFullYear(), to.getMonth(), 1)
+  while (current <= end) {
+    dates.push(formatDate(current))
+    current.setMonth(current.getMonth() + 1)
+  }
+  return dates
+}
+
+/**
  * window.ViewCustomize.context.user.id から現在ログイン中のユーザーIDを文字列で返す。
  * 取得できない場合（開発環境等）は null を返す。
  */
@@ -221,11 +243,11 @@ function getIssueDateForSeries(issue: RedmineIssue, s: SeriesConfig): string | n
 interface AggregateOptions {
   /** ユーザー指定のグラフX軸開始日（YYYY-MM-DD）。未設定=自動 */
   startDate?: string
-  /** true のとき土日をX軸から除外し、土日分のチケットは月曜に計上 */
+  /** true のとき土日をX軸から除外し、土日分のチケットは月曜に計上（daily モードのみ意味を持つ） */
   hideWeekends?: boolean
-  /** true = 週次集計モード。false/undefined = 日次（従来） */
-  weeklyMode?: boolean
-  /** 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1 */
+  /** 集計単位。未設定=daily（従来）。weekly=anchorDay 起点の週次、monthly=月初(YYYY-MM-01)起点の月次 */
+  aggregationMode?: 'daily' | 'weekly' | 'monthly'
+  /** 週次の基準曜日。1=月, 2=火, 3=水, 4=木, 5=金。デフォルト 1（aggregationMode='weekly' のときのみ意味を持つ） */
   anchorDay?: number
   /** 0または未設定=今日まで。正整数=今日+N週まで横軸を延長 */
   futureWeeks?: number
@@ -284,7 +306,9 @@ export function aggregateIssues(
   commonConditions?: SeriesCondition[],
   stackGroups?: ComboStackGroupConfig[],
 ): SeriesDataPoint[] {
-  const { startDate, hideWeekends = false, weeklyMode = false, anchorDay = 1, futureWeeks = 0 } = options
+  const { startDate, hideWeekends = false, aggregationMode = 'daily', anchorDay = 1, futureWeeks = 0 } = options
+  const weeklyMode = aggregationMode === 'weekly'
+  const monthlyMode = aggregationMode === 'monthly'
 
   // スタックグループの common conditions を id で引けるマップに展開
   const groupCondsById = new Map<string, SeriesCondition[]>()
@@ -304,7 +328,8 @@ export function aggregateIssues(
     fromDate = new Date(startDate)
   } else {
     fromDate = new Date()
-    fromDate.setDate(fromDate.getDate() - (weeklyMode ? 70 : 14))
+    const fallbackDays = monthlyMode ? 365 : weeklyMode ? 70 : 14
+    fromDate.setDate(fromDate.getDate() - fallbackDays)
   }
 
   const toDate = new Date()
@@ -312,9 +337,11 @@ export function aggregateIssues(
     toDate.setDate(toDate.getDate() + futureWeeks * 7)
   }
 
-  const dates = weeklyMode
-    ? generateWeeklyDateRange(fromDate, toDate, anchorDay)
-    : generateDateRange(fromDate, toDate, hideWeekends)
+  const dates = monthlyMode
+    ? generateMonthlyDateRange(fromDate, toDate)
+    : weeklyMode
+      ? generateWeeklyDateRange(fromDate, toDate, anchorDay)
+      : generateDateRange(fromDate, toDate, hideWeekends)
 
   // 系列ごとの日別カウントを初期化（全日付を 0 で埋める）
   const dailyCounts: Record<string, Record<string, number>> = {}
@@ -353,7 +380,10 @@ export function aggregateIssues(
       if (rawDate === null) continue  // 日付なし（closed_on が null、custom で未設定など）はスキップ
       let targetDate = rawDate
 
-      if (weeklyMode) {
+      if (monthlyMode) {
+        // 月次モード: 月初(YYYY-MM-01)に振り替える
+        targetDate = getMonthAnchor(targetDate)
+      } else if (weeklyMode) {
         // 週次モード: 基準日に振り替える
         targetDate = getNextAnchorDate(targetDate, anchorDay)
       } else if (hideWeekends) {
@@ -406,7 +436,9 @@ export function aggregateIssues(
           const rawDate = getIssueDateForSeries(issue, s)
           if (rawDate === null) continue
           let targetDate = rawDate
-          if (weeklyMode) {
+          if (monthlyMode) {
+            targetDate = getMonthAnchor(targetDate)
+          } else if (weeklyMode) {
             targetDate = getNextAnchorDate(targetDate, anchorDay)
           } else if (hideWeekends) {
             targetDate = shiftToMonday(targetDate)
