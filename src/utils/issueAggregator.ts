@@ -125,6 +125,7 @@ function resolveCurrentUserId(): string | null {
 /**
  * チケットが1つの絞り込み条件にマッチするか判定する
  * - status_id: issue.status.id の文字列表現と比較
+ * - subproject_id / project_id: issue.project.id の文字列表現と比較
  * - tracker_id: issue.tracker.id の文字列表現と比較
  * - priority_id: issue.priority.id の文字列表現と比較
  * - author_id: issue.author.id の文字列表現と比較
@@ -166,6 +167,8 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
 
   if (field === 'status_id') {
     issueValues = [String(issue.status.id)]
+  } else if (field === 'subproject_id' || field === 'project_id') {
+    issueValues = issue.project ? [String(issue.project.id)] : []
   } else if (field === 'tracker_id') {
     issueValues = [String(issue.tracker.id)]
   } else if (field === 'priority_id') {
@@ -510,6 +513,7 @@ export function aggregateIssues(
  */
 function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null {
   if (groupBy === 'status_id') return issue.status.name
+  if (groupBy === 'subproject_id' || groupBy === 'project_id') return issue.project?.name ?? null
   if (groupBy === 'tracker_id') return issue.tracker.name
   if (groupBy === 'priority_id') return issue.priority?.name ?? null
   if (groupBy === 'assigned_to_id') return issue.assigned_to?.name ?? null
@@ -535,6 +539,7 @@ function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null
  */
 function getIssueGroupFilterValue(issue: RedmineIssue, groupBy: string): string | null {
   if (groupBy === 'status_id') return String(issue.status.id)
+  if (groupBy === 'subproject_id' || groupBy === 'project_id') return issue.project ? String(issue.project.id) : null
   if (groupBy === 'tracker_id') return String(issue.tracker.id)
   if (groupBy === 'priority_id') return issue.priority ? String(issue.priority.id) : null
   if (groupBy === 'assigned_to_id') return issue.assigned_to ? String(issue.assigned_to.id) : null

@@ -8,6 +8,7 @@ const LIST_TYPES = new Set([
   'list_with_history',
   'list_optional_with_history',
   'list_status',  // status_id フィールド用
+  'list_subprojects',  // subproject_id フィールド用（サブプロジェクト）
 ])
 
 // テキスト系フィールドタイプ（自由記入・部分一致のみ）
