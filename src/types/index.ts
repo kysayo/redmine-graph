@@ -31,7 +31,7 @@ export interface PieGroupRuleAndCondition {
 
 // クロス集計グルーピング: 日付フィールド用条件
 export interface PieGroupRuleDateCondition {
-  op: 'empty' | 'not_empty' | '<' | '<=' | '>' | '>=' | 'this_week' | 'next_week' | 'last_week' | 'to_this_week' | 'to_next_week' | 'from_next_week'
+  op: 'empty' | 'not_empty' | '<' | '<=' | '>' | '>=' | 'this_week' | 'next_week' | 'last_week' | 'to_this_week' | 'to_next_week' | 'from_next_week' | 'this_month'
   value?: 'today' | string  // 'today' = 実行時に今日の JST 日付で評価。比較演算子のときのみ使用
 }
 

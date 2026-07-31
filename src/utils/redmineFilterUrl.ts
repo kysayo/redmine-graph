@@ -1,5 +1,5 @@
 import type { ElapsedDaysBucket, SeriesCondition } from '../types'
-import { getWeekRange, jstDateNBusinessDaysAgo, jstDateWithBusinessDaysOffset } from './dateUtils'
+import { getMonthRange, getWeekRange, jstDateNBusinessDaysAgo, jstDateWithBusinessDaysOffset } from './dateUtils'
 
 interface FilterParam {
   field: string
@@ -166,6 +166,9 @@ export function buildRedmineFilterUrl(
           filterMap.set(cond.field, { field: cond.field, operator: '<=', values: [getWeekRange(1).end] })
         } else if (op === 'from_next_week') {
           filterMap.set(cond.field, { field: cond.field, operator: '>=', values: [getWeekRange(1).start] })
+        } else if (op === 'this_month') {
+          const { start, end } = getMonthRange(0)
+          filterMap.set(cond.field, { field: cond.field, operator: '><', values: [start, end] })
         } else {
           const now = new Date()
           const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)

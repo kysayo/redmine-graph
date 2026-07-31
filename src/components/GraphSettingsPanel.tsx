@@ -337,6 +337,7 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
                       <option value="to_this_week">今週まで（〜今週日曜）</option>
                       <option value="to_next_week">来週まで（〜来週日曜）</option>
                       <option value="from_next_week">来週以降（来週月曜〜）</option>
+                      <option value="this_month">今月</option>
                     </select>
                     {['<', '<=', '>', '>='].includes(rule.dateCondition?.op ?? '') && (
                       <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, cursor: 'pointer' }}>
@@ -431,6 +432,7 @@ function PieGroupRulesEditor({ instanceId, groupBy, groupRules, getFieldOptions,
                               <option value="to_this_week">今週まで（〜今週日曜）</option>
                               <option value="to_next_week">来週まで（〜来週日曜）</option>
                               <option value="from_next_week">来週以降（来週月曜〜）</option>
+                              <option value="this_month">今月</option>
                             </select>
                             {['<', '<=', '>', '>='].includes(cond.dateCondition?.op ?? '') && (
                               <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, cursor: 'pointer' }}>
@@ -708,6 +710,7 @@ export function ConditionsEditor({ conditions, filterFields, dateFilterFields, g
                   <option value="to_this_week">今週まで（〜今週日曜）</option>
                   <option value="to_next_week">来週まで（〜来週日曜）</option>
                   <option value="from_next_week">来週以降（来週月曜〜）</option>
+                  <option value="this_month">今月</option>
                 </select>
                 {['<', '<=', '>', '>='].includes(cond.dateCondition.op) && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, cursor: 'pointer' }}>

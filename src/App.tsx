@@ -21,7 +21,7 @@ import type { EvmRegressionResult } from './utils/evmRegression'
 import { FALLBACK_STATUSES, fetchAllIssues, fetchIssueDescription, fetchIssueStatuses, getStatusesFromPage } from './utils/redmineApi'
 import { buildElapsedDaysBucketFilter, buildRedmineFilterUrl } from './utils/redmineFilterUrl'
 import { loadSettings, saveSettings } from './utils/storage'
-import { getWeekRange, setHolidays } from './utils/dateUtils'
+import { getMonthRange, getWeekRange, setHolidays } from './utils/dateUtils'
 import { getProjectId } from './utils/urlParser'
 
 interface Props {
@@ -336,6 +336,10 @@ export function App({ container }: Props) {
       if (op === 'to_this_week') return [{ field: fieldKey, operator: '<=', values: [getWeekRange(0).end] }]
       if (op === 'to_next_week') return [{ field: fieldKey, operator: '<=', values: [getWeekRange(1).end] }]
       if (op === 'from_next_week') return [{ field: fieldKey, operator: '>=', values: [getWeekRange(1).start] }]
+      if (op === 'this_month') {
+        const { start, end } = getMonthRange(0)
+        return [{ field: fieldKey, operator: '><', values: [start, end] }]
+      }
       // 今日の JST 日付を取得
       const now = new Date()
       const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)

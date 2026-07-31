@@ -230,6 +230,21 @@ export function getWeekRange(offset: number): { start: string; end: string } {
 }
 
 /**
+ * 指定した月オフセット（JST基準）の開始日・終了日を返す。
+ * offset=0: 今月
+ */
+export function getMonthRange(offset: number): { start: string; end: string } {
+  const todayJst = utcToJstDate(new Date().toISOString())
+  const d = new Date(todayJst + 'T00:00:00Z')
+  const first = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + offset, 1))
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + offset + 1, 0))
+  return {
+    start: first.toISOString().slice(0, 10),
+    end: last.toISOString().slice(0, 10),
+  }
+}
+
+/**
  * フィールドキーに対応する日付文字列をチケットから取得する。
  * 値が空/未設定の場合は null を返す。
  * - updated_on / created_on / closed_on: UTC ISO文字列
