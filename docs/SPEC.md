@@ -217,7 +217,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
   - `custom` 系列: `customDateFieldKey` で指定したフィールドを取得。`cf_{id}` 形式はカスタムフィールドから、`start_date`・`due_date` 等はチケットの直接プロパティから取得。値が空/null/未設定のチケットはスキップ。UTC変換不要（Redmineはカスタム日付をYYYY-MM-DD形式で返す）
 - **ステータスフィルタ**: `statusIds` が空でない系列は、対象ステータスIDに一致するチケットのみカウント
 - **共通条件フィルタ**: `aggregateIssues(issues, series, options, commonConditions?, stackGroups?)` の `commonConditions` はタイル全体に AND で適用される。`stackGroups[]` が指定された場合、各系列が属するグループの `commonConditions` も AND で適用される。`cumulative` 系列の初期値計算（`startDate` より前のチケット数）でも同じ条件群が適用される（過去の挙動では cumulative 初期値が `commonConditions` を無視していたが、現バージョンでこのバグは修正されている）
-- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`tracker_id`・`priority_id`・`author_id`・`assigned_to_id`・`category_id`・`fixed_version_id`・`cf_{id}`（カスタムフィールド：リスト系・テキスト型の両方）・`elapsed_days`（経過日数、仮想フィールド）。演算子: `=`（一致）、`!`（不一致）、`>=`（以上）、`<=`（以内）、`~`（含む／部分一致、case-insensitive）、`!~`（含まない）
+- **条件フィルタ**: `conditions[]` に設定された絞り込み条件でチケットをフィルタ（AND条件）。対応フィールド: `status_id`・`subproject_id`/`project_id`（`issue.project.id` と比較）・`tracker_id`・`priority_id`・`author_id`・`assigned_to_id`・`category_id`・`fixed_version_id`・`cf_{id}`（カスタムフィールド：リスト系・テキスト型の両方）・`elapsed_days`（経過日数、仮想フィールド）。演算子: `=`（一致）、`!`（不一致）、`>=`（以上）、`<=`（以内）、`~`（含む／部分一致、case-insensitive）、`!~`（含まない）
   - **特殊値 `"me"` の解決**: フィールド値として `"me"`（Redmineの「自分」選択肢）が指定された場合、`window.ViewCustomize.context.user.id` を参照して現在ログイン中のユーザーIDに変換してから比較する。`author_id`・`assigned_to_id` どちらでも有効
 - **経過日数バケット集計**: `groupBy === 'elapsed_days'` かつ `elapsedDaysBuckets` が定義されている場合、通常のフィールドグルーピングの代わりにバケット分類を実行。各チケットの `elapsedDaysBaseField`（省略時は `updated_on || created_on`）からJST換算の経過日数を計算し、最初に条件が合致したバケットに計上。ベース日付フィールドが空（未設定）のチケットはスキップ（集計対象外）。バケット順序はユーザー定義順を維持
 - **集計単位（`aggregationMode`）**: `'daily'`（既定）/ `'weekly'` / `'monthly'` の 3 モードで X 軸の刻みを切り替える
@@ -232,7 +232,7 @@ Recharts の `PieChart` を使用した割合表示グラフ。
 
 絞り込み条件UIで使用するフィールド一覧と選択肢を取得するユーティリティ。
 
-- **`getAvailableFilterFields()`**: `window.availableFilters`（Redmineページ埋め込みJS変数）からリスト系およびテキスト型フィールドを抽出。対象タイプ: `list`, `list_optional`, `list_with_history`, `list_optional_with_history`, `list_status`（`status_id` フィールド用）、および `string`, `text`（テキスト型CF、部分一致用途）。返却 `FilterField.type` はリスト系が `'list'`、テキスト型が `'string'`
+- **`getAvailableFilterFields()`**: `window.availableFilters`（Redmineページ埋め込みJS変数）からリスト系およびテキスト型フィールドを抽出。対象タイプ: `list`, `list_optional`, `list_with_history`, `list_optional_with_history`, `list_status`（`status_id` フィールド用）, `list_subprojects`（`subproject_id` フィールド用）、および `string`, `text`（テキスト型CF、部分一致用途）。返却 `FilterField.type` はリスト系が `'list'`、テキスト型が `'string'`
 - **`getAvailableDateFilterFields()`**: `window.availableFilters` から日付型フィールドを抽出。対象タイプ: `date`のみ（`date_past` の `created_on`/`closed_on` は除外）。キーに `.` を含むフィールド（バージョン関連）も除外。「特殊な日付」集計軸の選択肢として使用。返す `FilterField` の `type` は `'date'`
 - **`getAvailableColumnFilterFields()`**: クロス集計テーブルの列フィールド選択用。リスト系フィールド（`type: 'list'`）と日付型フィールド（`type: 'date'`）の両方を返す。`FilterField.type` で種別を区別できる
 - **`fetchFilterFieldOptions(fieldKey, apiKey)`**: 指定フィールドの選択肢を取得。
