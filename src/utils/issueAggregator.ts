@@ -509,6 +509,7 @@ export function aggregateIssues(
  * - tracker_id: トラッカー名
  * - priority_id: 優先度名
  * - assigned_to_id: 担当者名
+ * - category_id: カテゴリ名
  * - cf_{id}: カスタムフィールド値（文字列）
  */
 function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null {
@@ -517,6 +518,7 @@ function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null
   if (groupBy === 'tracker_id') return issue.tracker.name
   if (groupBy === 'priority_id') return issue.priority?.name ?? null
   if (groupBy === 'assigned_to_id') return issue.assigned_to?.name ?? null
+  if (groupBy === 'category_id') return issue.category?.name ?? null
   if (groupBy === 'due_date') return issue.due_date || null
   if (groupBy === 'start_date') return issue.start_date || null
   if (groupBy.startsWith('cf_')) {
@@ -535,6 +537,7 @@ function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null
  * - tracker_id: トラッカーID
  * - priority_id: 優先度ID
  * - assigned_to_id: 担当者ID
+ * - category_id: カテゴリID
  * - cf_{id}: カスタムフィールド値（IDではなく値そのもの）
  */
 function getIssueGroupFilterValue(issue: RedmineIssue, groupBy: string): string | null {
@@ -543,6 +546,7 @@ function getIssueGroupFilterValue(issue: RedmineIssue, groupBy: string): string 
   if (groupBy === 'tracker_id') return String(issue.tracker.id)
   if (groupBy === 'priority_id') return issue.priority ? String(issue.priority.id) : null
   if (groupBy === 'assigned_to_id') return issue.assigned_to ? String(issue.assigned_to.id) : null
+  if (groupBy === 'category_id') return issue.category ? String(issue.category.id) : null
   if (groupBy === 'due_date') return issue.due_date || null
   if (groupBy === 'start_date') return issue.start_date || null
   if (groupBy.startsWith('cf_')) {
