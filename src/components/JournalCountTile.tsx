@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { AssignmentMappingPerson, FilterFieldOption, JournalCountConfig, JournalCountExtraColumn, JournalRecord } from '../types'
 import { fetchIssueMetadata } from '../utils/redmineApi'
+import { collectNumericCellIssues, formatNumericCellIssues } from '../utils/extraValues'
 
 interface Props {
   config: JournalCountConfig
@@ -253,6 +254,7 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
   const [localExtraValues, setLocalExtraValues] = useState<Record<string, Record<string, string>>>(config.extraValues ?? {})
   const csvInputRef = useRef<HTMLInputElement>(null)
   const [copiedPersons, setCopiedPersons] = useState(false)
+  const [importWarning, setImportWarning] = useState('')
 
   useEffect(() => {
     setLocalExtraValues(config.extraValues ?? {})
@@ -312,7 +314,10 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
   async function handleCsvImport(file: File) {
     const text = await file.text()
     const rows = parseCsv(text)
-    if (rows.length < 2) return
+    if (rows.length < 2) {
+      setImportWarning('CSVにデータ行がありません（1行目はヘッダー行として扱われます）。')
+      return
+    }
 
     const headers = rows[0]
     // headers[0] = Name（担当者）, headers[1] = Resource（数値固定）, headers[2+] = 追加列（テキスト）
@@ -347,6 +352,12 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
       })
       newExtraValues[id] = vals
     })
+
+    // 数値列（Resource 等）に数値以外が入っていないか検査する。
+    // 空欄は許容（リソースを持たない担当者は空欄で表現する）。
+    setImportWarning(formatNumericCellIssues(
+      collectNumericCellIssues(newPersons, newExtraColumns, newExtraValues)
+    ))
 
     onUpdateConfig({
       ...config,
@@ -675,6 +686,16 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
               {copiedPersons ? 'コピー済み!' : '担当者をクリップボードにコピー'}
             </button>
           </div>
+          {importWarning && (
+            <div style={{ marginBottom: 12, fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 3, padding: '4px 8px', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+              <span style={{ flex: 1 }}>⚠ {importWarning}</span>
+              <button
+                type="button"
+                onClick={() => setImportWarning('')}
+                style={{ fontSize: 11, background: 'none', border: 'none', cursor: 'pointer', color: '#b45309', padding: 0, lineHeight: 1.2 }}
+              >×</button>
+            </div>
+          )}
 
           {/* トラッカーフィルタ */}
           <div style={{ marginBottom: 10 }}>

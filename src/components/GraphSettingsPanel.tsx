@@ -3,6 +3,7 @@ import Select from 'react-select'
 import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, ComboStackGroupConfig, ComputedCol, ComputedColFormulaTerm, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, SummaryCardDenominator, SummaryCardFormulaTerm, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets, loadUiState, saveUiState } from '../utils/storage'
 import { COLOR_PALETTE } from '../utils/colors'
+import { collectNumericCellIssues, formatNumericCellIssues } from '../utils/extraValues'
 
 const fieldSelectStyles = {
   control: (base: object) => ({
@@ -1567,6 +1568,7 @@ function AssignmentPersonEditor({ mapping, getFieldOptions, onChange, onConfigPa
   const [inputText, setInputText] = useState('')
   const [candidates, setCandidates] = useState<FilterFieldOption[]>([])
   const [allOptions, setAllOptions] = useState<FilterFieldOption[]>([])
+  const [importWarning, setImportWarning] = useState('')
   const csvFileRef = useRef<HTMLInputElement>(null)
 
   // assigneeField が変わったら選択肢を取得
@@ -1657,6 +1659,15 @@ function AssignmentPersonEditor({ mapping, getFieldOptions, onChange, onConfigPa
         }
       }
     }
+
+    // 数値列（Resource 等）に数値以外が入っていないか検査する。
+    // 空欄は許容（リソースを持たない担当者は空欄で表現する）。
+    const effectiveColumns = newExtraColumns
+      ?? mapping.extraColumns
+      ?? [{ key: 'resource', label: 'Resource', type: 'number' as const }]
+    setImportWarning(formatNumericCellIssues(
+      collectNumericCellIssues(newPersons, effectiveColumns, newExtraValues)
+    ))
 
     if (onConfigPatch && newExtraColumns) {
       onConfigPatch({ persons: newPersons, extraColumns: newExtraColumns, extraValues: newExtraValues })
@@ -1762,6 +1773,16 @@ function AssignmentPersonEditor({ mapping, getFieldOptions, onChange, onConfigPa
         </button>
         <span style={{ fontSize: 10, color: '#9ca3af', alignSelf: 'center' }}>列順: 名前, Resource, 追加列...</span>
       </div>
+      {importWarning && (
+        <div style={{ marginTop: 6, fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 3, padding: '4px 8px', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <span style={{ flex: 1 }}>⚠ {importWarning}</span>
+          <button
+            type="button"
+            onClick={() => setImportWarning('')}
+            style={{ fontSize: 11, background: 'none', border: 'none', cursor: 'pointer', color: '#b45309', padding: 0, lineHeight: 1.2 }}
+          >×</button>
+        </div>
+      )}
     </div>
   )
 }
