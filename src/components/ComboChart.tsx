@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -15,33 +15,50 @@ import {
 } from 'recharts'
 import type { ComboStackGroupConfig, SeriesConfig, SeriesDataPoint } from '../types'
 
-// 展開済み系列。dataKey に `${origId}@${groupId}` を保持し、_stackGroupId でグループに逆引きできる
-type RenderableSeries = SeriesConfig & { _stackGroupId?: string }
+// 展開済み系列。dataKey に `${origId}@${groupId}` を保持し、_stackGroupId でグループに逆引きできる。
+// splitBy で展開された系列は _splitParentId を持ち、元の系列ごとに別の積み上げ棒になる
+type RenderableSeries = SeriesConfig & {
+  _stackGroupId?: string
+  _splitParentId?: string
+  _splitParentLabel?: string
+}
 
-function CustomTooltip({ active, payload, label, renderableSeries, stackGroups, hoveredGroupId }: {
+/** 積み上げ単位のキー（軸 × スタックグループ × 分割元系列）。この単位で1本の棒になる */
+function stackKeyOf(s: RenderableSeries): string {
+  return `${s.yAxisId}-${s._stackGroupId ?? '_default'}-${s._splitParentId ?? '_all'}`
+}
+
+function CustomTooltip({ active, payload, label, renderableSeries, stackGroups, hoveredBucketId }: {
   active?: boolean
   payload?: { name: string; value: number; color: string; dataKey?: string | number }[]
   label?: string
   renderableSeries: RenderableSeries[]
   stackGroups?: ComboStackGroupConfig[]
-  hoveredGroupId?: string | null
+  hoveredBucketId?: string | null
 }) {
   if (!active || !payload?.length) return null
 
   const seriesById = new Map(renderableSeries.map(s => [s.id, s]))
   const groupById = new Map((stackGroups ?? []).map(g => [g.id, g]))
 
-  // gid → entries（未割り当ては gid='' に集約）。Map の挿入順を維持して描画順を payload の出現順に合わせる
+  // バケットID → entries（スタックグループにも分割にも属さない系列は '' に集約）。
+  // Map の挿入順を維持して描画順を payload の出現順に合わせる
   const buckets = new Map<string, { groupLabel: string | null; entries: typeof payload }>()
   for (const e of payload) {
     const s = seriesById.get(String(e.dataKey ?? ''))
     const gid = (s?._stackGroupId && groupById.has(s._stackGroupId)) ? s._stackGroupId : ''
-    // ホバー中のグループが特定されている場合、そのグループのバケットだけ残す（折れ線・未割り当て系列は常に表示）
-    if (hoveredGroupId && gid && gid !== hoveredGroupId) continue
-    let bucket = buckets.get(gid)
+    const pid = s?._splitParentId ?? ''
+    const bid = (gid || pid) ? `${gid}|${pid}` : ''
+    // ホバー中の積み上げ棒が特定されている場合、そのバケットだけ残す（折れ線・未割り当て系列は常に表示）
+    if (hoveredBucketId && bid && bid !== hoveredBucketId) continue
+    let bucket = buckets.get(bid)
     if (!bucket) {
-      bucket = { groupLabel: gid ? (groupById.get(gid)?.label ?? null) : null, entries: [] }
-      buckets.set(gid, bucket)
+      const parts = [
+        gid ? (groupById.get(gid)?.label ?? '') : '',
+        s?._splitParentLabel ?? '',
+      ].filter(Boolean)
+      bucket = { groupLabel: parts.length ? parts.join(' / ') : null, entries: [] }
+      buckets.set(bid, bucket)
     }
     bucket.entries.push(e)
   }
@@ -59,8 +76,8 @@ function CustomTooltip({ active, payload, label, renderableSeries, stackGroups, 
       minWidth: 120,
     }}>
       <p style={{ margin: '0 0 6px', fontWeight: 600, color: '#374151', fontSize: 11 }}>{label}</p>
-      {[...buckets.entries()].map(([gid, b], bi) => (
-        <div key={gid || '_unassigned'} style={{ marginTop: bi > 0 && b.groupLabel ? 6 : 0 }}>
+      {[...buckets.entries()].map(([bid, b], bi) => (
+        <div key={bid || '_unassigned'} style={{ marginTop: bi > 0 && b.groupLabel ? 6 : 0 }}>
           {b.groupLabel && (
             <p style={{ margin: '2px 0', fontSize: 11, fontWeight: 600, color: '#555' }}>
               [{b.groupLabel}]
@@ -80,7 +97,7 @@ function CustomTooltip({ active, payload, label, renderableSeries, stackGroups, 
 
 interface Props {
   data: SeriesDataPoint[]
-  series: SeriesConfig[]
+  series: RenderableSeries[]   // App 側で splitBy 展開済みの系列を受け取る
   yAxisLeftMin?: number
   yAxisLeftMinAuto?: boolean
   yAxisRightMax?: number
@@ -136,8 +153,8 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
     const tickInterval = Math.max(0, Math.ceil(data.length / maxTicks) - 1)
     const brushEnabled = showBrush ?? data.length > 30
 
-    // ホバー中のスタックグループID（Bar のマウスエンター時にセット）
-    const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null)
+    // ホバー中の積み上げ棒のバケットID（Bar のマウスエンター時にセット）
+    const [hoveredBucketId, setHoveredBucketId] = useState<string | null>(null)
 
     // 系列をスタックグループの数だけ展開（aggregateIssues と同じ規則）
     const renderableSeries: RenderableSeries[] = useMemo(() => {
@@ -152,43 +169,52 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
       })))
     }, [series, stackGroups])
 
-    // 各 (stackGroupId, yAxisId) ごとに「最上端の Bar」のIDを特定（visibleな bar 系列のみ対象）
-    // 積み上げの最上端の Bar に LabelList でグループ名を描画するため
-    const topBarIdsByGroup = useMemo(() => {
-      const top = new Map<string, string>()  // key=`${groupId}#${yAxisId}` → series.id
-      if (!stackGroups?.length || barStackMode !== 'stacked') return top
+    // 各積み上げ単位（軸 × スタックグループ × 分割元系列）ごとに「最上端の Bar」のIDを特定
+    // （visibleな bar 系列のみ対象）。積み上げの最上端の Bar に LabelList で見出しを描画するため
+    const topBarIdsByStack = useMemo(() => {
+      const top = new Map<string, string>()  // key=stackKeyOf(s) → series.id
+      if (barStackMode !== 'stacked') return top
       for (const s of renderableSeries) {
         if (s.chartType !== 'bar') continue
         if (!(s.visible ?? true)) continue
-        if (!s._stackGroupId) continue
-        top.set(`${s._stackGroupId}#${s.yAxisId}`, s.id)  // 後ろの方ほど最上端なので最後の値で上書き
+        if (!s._stackGroupId && !s._splitParentId) continue  // ラベル対象は グループ/分割 由来の棒のみ
+        top.set(stackKeyOf(s), s.id)  // 後ろの方ほど最上端なので最後の値で上書き
       }
       return top
-    }, [renderableSeries, stackGroups, barStackMode])
+    }, [renderableSeries, barStackMode])
 
     const groupLabelById = useMemo(
       () => new Map((stackGroups ?? []).map(g => [g.id, g.label] as const)),
       [stackGroups],
     )
 
-    // data の各 point に `_stackTotal#{groupId}#{yAxisId}` フィールドを事前計算して付与する。
-    // グループラベル LabelList の dataKey をこの合計値にすることで、最上端 Bar の値が 0 でも
+    // 積み上げ棒の上に出す見出し（スタックグループ名 / 分割元の系列名。両方あれば併記）
+    const stackHeadingOf = useCallback((s: RenderableSeries): string => {
+      const parts = [
+        s._stackGroupId ? groupLabelById.get(s._stackGroupId) : undefined,
+        s._splitParentLabel,
+      ].filter((v): v is string => !!v)
+      return parts.join(' / ')
+    }, [groupLabelById])
+
+    // data の各 point に `_stackTotal#{stackKey}` フィールドを事前計算して付与する。
+    // 見出しラベル LabelList の dataKey をこの合計値にすることで、最上端 Bar の値が 0 でも
     // スタック全体に値があればラベルが表示される（=スタック全体が 0 の日だけラベル非表示）。
     const decoratedData = useMemo(() => {
-      if (!stackGroups?.length || barStackMode !== 'stacked') return data
-      // 各 (groupId, yAxisId) ペアに含まれる Bar 系列の id を事前列挙
-      const groupYaxisToSeriesIds = new Map<string, string[]>()
+      if (barStackMode !== 'stacked' || topBarIdsByStack.size === 0) return data
+      // 各積み上げ単位に含まれる Bar 系列の id を事前列挙
+      const stackToSeriesIds = new Map<string, string[]>()
       for (const s of renderableSeries) {
         if (s.chartType !== 'bar') continue
         if (!(s.visible ?? true)) continue
-        if (!s._stackGroupId) continue
-        const key = `_stackTotal#${s._stackGroupId}#${s.yAxisId}`
-        if (!groupYaxisToSeriesIds.has(key)) groupYaxisToSeriesIds.set(key, [])
-        groupYaxisToSeriesIds.get(key)!.push(s.id)
+        if (!s._stackGroupId && !s._splitParentId) continue
+        const key = `_stackTotal#${stackKeyOf(s)}`
+        if (!stackToSeriesIds.has(key)) stackToSeriesIds.set(key, [])
+        stackToSeriesIds.get(key)!.push(s.id)
       }
       return data.map(point => {
         const next: SeriesDataPoint = { ...point }
-        for (const [key, ids] of groupYaxisToSeriesIds) {
+        for (const [key, ids] of stackToSeriesIds) {
           let sum = 0
           for (const id of ids) {
             const v = point[id]
@@ -198,7 +224,7 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
         }
         return next
       })
-    }, [data, stackGroups, renderableSeries, barStackMode])
+    }, [data, renderableSeries, barStackMode, topBarIdsByStack])
 
     const visibleSeries = renderableSeries.filter(s => s.visible ?? true)
     const hasLeft = visibleSeries.some(s => s.yAxisId === 'left')
@@ -253,7 +279,7 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
             />
             <YAxis yAxisId="left" orientation="left" hide={!hasLeft} tick={{ fontSize: 11 }} domain={effectiveLeftMin !== undefined ? [effectiveLeftMin, (dataMax: number) => Math.max(dataMax, effectiveLeftMin + 1)] : undefined} allowDataOverflow={effectiveLeftMin !== undefined} />
             <YAxis yAxisId="right" orientation="right" hide={!hasRight} tick={{ fontSize: 11 }} domain={yAxisRightMax !== undefined ? [(dataMin: number) => Math.min(dataMin, yAxisRightMax - 1), yAxisRightMax] : undefined} allowDataOverflow={yAxisRightMax !== undefined} />
-            <Tooltip content={<CustomTooltip renderableSeries={renderableSeries} stackGroups={stackGroups} hoveredGroupId={hoveredGroupId} />} />
+            <Tooltip content={<CustomTooltip renderableSeries={renderableSeries} stackGroups={stackGroups} hoveredBucketId={hoveredBucketId} />} />
             <Legend
               content={() => (
                 <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '4px 16px', padding: '4px 0', fontSize: 12, color: '#666' }}>
@@ -326,15 +352,14 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
                   name={s.label}
                   fill={s.color}
                   barSize={12}
-                  stackId={
-                    barStackMode === 'stacked'
-                      ? `${s.yAxisId}-${s._stackGroupId ?? '_default'}`
-                      : undefined
-                  }
+                  stackId={barStackMode === 'stacked' ? stackKeyOf(s) : undefined}
                   onMouseEnter={() => {
-                    if (s._stackGroupId) setHoveredGroupId(s._stackGroupId)
+                    const bid = (s._stackGroupId || s._splitParentId)
+                      ? `${s._stackGroupId ?? ''}|${s._splitParentId ?? ''}`
+                      : ''
+                    if (bid) setHoveredBucketId(bid)
                   }}
-                  onMouseLeave={() => setHoveredGroupId(null)}
+                  onMouseLeave={() => setHoveredBucketId(null)}
                 >
                   {showLabel && (
                     <LabelList
@@ -344,14 +369,14 @@ export function ComboChart({ data, series, yAxisLeftMin, yAxisLeftMinAuto, yAxis
                       style={{ fontSize: 10, fill: s.color, fontWeight: 600 }}
                     />
                   )}
-                  {/* スタックグループ最上端のバーにのみグループ名ラベルを表示。
+                  {/* 積み上げ最上端のバーにのみ見出しラベル（スタックグループ名 / 分割元の系列名）を表示。
                       dataKey はスタック合計の事前計算フィールドを参照し、合計 0 の日のみ非表示にする */}
-                  {s._stackGroupId && topBarIdsByGroup.get(`${s._stackGroupId}#${s.yAxisId}`) === s.id && (
+                  {topBarIdsByStack.get(stackKeyOf(s)) === s.id && stackHeadingOf(s) !== '' && (
                     <LabelList
-                      dataKey={`_stackTotal#${s._stackGroupId}#${s.yAxisId}`}
+                      dataKey={`_stackTotal#${stackKeyOf(s)}`}
                       position="top"
                       offset={showLabel && barStackMode === 'stacked' ? 4 : 6}
-                      formatter={(v: unknown) => (v == null || v === 0) ? '' : (groupLabelById.get(s._stackGroupId!) || '')}
+                      formatter={(v: unknown) => (v == null || v === 0) ? '' : stackHeadingOf(s)}
                       style={{ fontSize: 9, fill: '#666', fontWeight: 600 }}
                     />
                   )}

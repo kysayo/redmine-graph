@@ -1,4 +1,5 @@
 import type { ComboStackGroupConfig, CrossTableConfig, CrossTableData, CrossTableSectionData, ElapsedDaysBucket, EVMTileConfig, FilterFieldOption, PieDataPoint, PieGroupRule, PieGroupRuleDateCondition, RedmineIssue, SeriesCondition, SeriesConfig, SeriesDataPoint, StackedBarDataPoint } from '../types'
+import { splitColorAt } from './colors'
 import { calcBusinessDaysUntilStr, calcBusinessElapsedDaysFromStr, countBusinessDaysBetween, getIssueDateByField, getMonthRange, getWeekRange, utcToJstDate } from './dateUtils'
 
 /**
@@ -133,6 +134,9 @@ function resolveCurrentUserId(): string | null {
  * - category_id: issue.category.id の文字列表現と比較
  * - fixed_version_id: issue.fixed_version.id の文字列表現と比較
  * - cf_{id}: issue.custom_fields から id が一致するカスタムフィールドの value と比較
+ * - name:{field}: ID ではなく getIssueGroupValue() の返す「表示名」と比較する仮想フィールド。
+ *   複数プロジェクトを横断表示している場合、同名のカテゴリ・バージョン等が
+ *   プロジェクトごとに別IDになるため、名前で束ねたいケースで使う（系列の splitBy が使用）
  * - その他: 非対応フィールドはフィルタしない（true を返す）
  *
  * 特殊値 "me" は resolveCurrentUserId() で現在ユーザーIDに変換してから比較する。
@@ -165,7 +169,11 @@ function conditionMatchesIssue(cond: SeriesCondition, issue: RedmineIssue): bool
     return true
   }
 
-  if (field === 'status_id') {
+  if (field.startsWith(NAME_FIELD_PREFIX)) {
+    // 名前ベース比較（プロジェクト横断で同名の値を束ねるための仮想フィールド）
+    const groupValue = getIssueGroupValue(issue, field.slice(NAME_FIELD_PREFIX.length))
+    issueValues = groupValue !== null ? [groupValue] : []
+  } else if (field === 'status_id') {
     issueValues = [String(issue.status.id)]
   } else if (field === 'subproject_id' || field === 'project_id') {
     issueValues = issue.project ? [String(issue.project.id)] : []
@@ -285,10 +293,122 @@ export function countIssues(issues: RedmineIssue[], conditions: SeriesCondition[
  * 各展開系列には _stackGroupId プロパティが付与され、集計・描画側でグループ条件・stackId 解決に利用する。
  * グループ未定義（空配列または undefined）のときは元の series をそのまま返す。
  */
-export type ExpandedSeries = SeriesConfig & { _stackGroupId?: string }
+/**
+ * splitBy で展開された系列に付与される内部マーカー。
+ * 描画側は _splitParentId ごとに別の stackId を割り当てることで、
+ * 元の系列（例: Created / Completed）が別々の積み上げ棒として横並びになる。
+ */
+export type SplitExpandedSeries = SeriesConfig & {
+  _splitParentId?: string      // 展開元の系列ID
+  _splitParentLabel?: string   // 展開元の系列名（棒の上のラベル表示用）
+}
+
+export type ExpandedSeries = SplitExpandedSeries & { _stackGroupId?: string }
+
+/** 名前ベース比較の仮想フィールドのプレフィックス（例: 'name:category_id'） */
+export const NAME_FIELD_PREFIX = 'name:'
+
+/**
+ * splitBy で指定されたフィールドについて、チケットに実際に現れた値（表示名）の一覧を返す。
+ * 値が未設定のチケットはスキップする。
+ *
+ * @param conditions - 値の抽出時にも適用する絞り込み条件（タイル共通条件 + 系列条件）
+ * @param statusIds - 対象ステータス（空 = 全ステータス）
+ * @param order - 'count'（件数降順・既定） / 'name'（名前昇順）
+ * @param limit - 上限件数（未指定 = 全件）
+ */
+export function resolveSplitValues(
+  issues: RedmineIssue[],
+  splitBy: string,
+  conditions?: SeriesCondition[],
+  statusIds?: number[],
+  order: 'count' | 'name' = 'count',
+  limit?: number,
+): string[] {
+  const counts = new Map<string, number>()
+  for (const issue of issues) {
+    if (statusIds?.length && !statusIds.includes(issue.status.id)) continue
+    if (conditions?.length && !issueMatchesConditions(issue, conditions)) continue
+    const value = getIssueGroupValue(issue, splitBy)
+    if (value === null || value === '') continue
+    counts.set(value, (counts.get(value) ?? 0) + 1)
+  }
+  const values = [...counts.entries()]
+  if (order === 'name') {
+    values.sort((a, b) => a[0].localeCompare(b[0], 'ja'))
+  } else {
+    values.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ja'))
+  }
+  const sorted = values.map(([value]) => value)
+  return limit != null && limit > 0 ? sorted.slice(0, limit) : sorted
+}
+
+/**
+ * splitBy が設定された系列を、チケットに現れた値の数だけ複製した系列リストを返す。
+ * 展開後の各系列には `name:{splitBy} = 値` の条件が AND で追加されるため、
+ * 複数プロジェクトを横断表示していても同名の値（例: 4プロジェクトの「Finance」カテゴリ）が
+ * 1つの系列にまとまる。
+ *
+ * - id は `${origId}~sp{index}` 形式（Recharts の dataKey に使うため値そのものは埋め込まない）
+ * - label は分割値の名前。他の系列と衝突する場合のみ ` (系列名)` を付けて一意化する
+ * - color はパレットからタイル内通しで自動割り当て
+ * - issues が null（ダミーデータ表示時）や splitBy 未設定の系列はそのまま返す
+ * - 分割値が1件も取れない場合（対象0件・グルーピング非対応フィールド）は元の系列をそのまま残す
+ * - difference/sum 系列は参照関係が壊れるため展開しない
+ */
+export function expandSeriesBySplit(
+  series: SeriesConfig[],
+  issues: RedmineIssue[] | null,
+  commonConditions?: SeriesCondition[],
+): SplitExpandedSeries[] {
+  if (!issues) return series
+  if (!series.some(s => s.splitBy && s.aggregation !== 'difference' && s.aggregation !== 'sum')) return series
+
+  // ラベル衝突検出用: 分割値 → それを生成した元系列IDの集合
+  const labelOwners = new Map<string, Set<string>>()
+  const valuesBySeriesId = new Map<string, string[]>()
+  for (const s of series) {
+    if (!s.splitBy || s.aggregation === 'difference' || s.aggregation === 'sum') continue
+    const values = resolveSplitValues(
+      issues,
+      s.splitBy,
+      [...(commonConditions ?? []), ...(s.conditions ?? [])],
+      s.statusIds,
+      s.splitOrder ?? 'count',
+      s.splitLimit,
+    )
+    valuesBySeriesId.set(s.id, values)
+    for (const v of values) {
+      if (!labelOwners.has(v)) labelOwners.set(v, new Set())
+      labelOwners.get(v)!.add(s.id)
+    }
+  }
+
+  let colorIndex = 0
+  return series.flatMap((s): SplitExpandedSeries[] => {
+    const values = valuesBySeriesId.get(s.id)
+    // 値が1件も取れない場合（対象0件・非対応フィールドを選択した場合など）は
+    // 系列がグラフから消えてしまわないよう元の系列をそのまま残す
+    if (!values?.length) return [s]
+    return values.map((value, i): SplitExpandedSeries => ({
+      ...s,
+      id: `${s.id}~sp${i}`,
+      _splitParentId: s.id,
+      _splitParentLabel: s.label || undefined,
+      // 同じ値名を複数の系列が生成する場合のみ系列名を添えて凡例の重複排除を回避する
+      label: (labelOwners.get(value)?.size ?? 0) > 1 && s.label ? `${value} (${s.label})` : value,
+      color: splitColorAt(colorIndex++),
+      conditions: [
+        ...(s.conditions ?? []),
+        { field: `${NAME_FIELD_PREFIX}${s.splitBy}`, operator: '=' as const, values: [value] },
+      ],
+      splitBy: undefined,
+    }))
+  })
+}
 
 export function expandSeriesByStackGroups(
-  series: SeriesConfig[],
+  series: SplitExpandedSeries[],
   stackGroups?: ComboStackGroupConfig[],
 ): ExpandedSeries[] {
   if (!stackGroups?.length) return series
@@ -519,6 +639,8 @@ function getIssueGroupValue(issue: RedmineIssue, groupBy: string): string | null
   if (groupBy === 'priority_id') return issue.priority?.name ?? null
   if (groupBy === 'assigned_to_id') return issue.assigned_to?.name ?? null
   if (groupBy === 'category_id') return issue.category?.name ?? null
+  if (groupBy === 'fixed_version_id') return issue.fixed_version?.name ?? null
+  if (groupBy === 'author_id') return issue.author?.name ?? null
   if (groupBy === 'due_date') return issue.due_date || null
   if (groupBy === 'start_date') return issue.start_date || null
   if (groupBy.startsWith('cf_')) {
@@ -547,6 +669,8 @@ function getIssueGroupFilterValue(issue: RedmineIssue, groupBy: string): string 
   if (groupBy === 'priority_id') return issue.priority ? String(issue.priority.id) : null
   if (groupBy === 'assigned_to_id') return issue.assigned_to ? String(issue.assigned_to.id) : null
   if (groupBy === 'category_id') return issue.category ? String(issue.category.id) : null
+  if (groupBy === 'fixed_version_id') return issue.fixed_version ? String(issue.fixed_version.id) : null
+  if (groupBy === 'author_id') return issue.author ? String(issue.author.id) : null
   if (groupBy === 'due_date') return issue.due_date || null
   if (groupBy === 'start_date') return issue.start_date || null
   if (groupBy.startsWith('cf_')) {

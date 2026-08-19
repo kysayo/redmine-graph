@@ -14,7 +14,7 @@ import type { CrossTableConfig, FilterField, FilterFieldOption, JournalCollector
 import { buildDefaultSettings, readTeamPresets } from './utils/config'
 import { generatePieDummyData, generateSeriesDummyData } from './utils/dummyData'
 import { fetchFilterFieldOptions, getAvailableColumnFilterFields, getAvailableDateFilterFields, getAvailableFilterFields } from './utils/filterValues'
-import { aggregateCrossTable, aggregateEVM, aggregateIssues, aggregatePie, aggregateStackedBar } from './utils/issueAggregator'
+import { aggregateCrossTable, aggregateEVM, aggregateIssues, aggregatePie, aggregateStackedBar, expandSeriesBySplit } from './utils/issueAggregator'
 import type { EVMAggregateResult } from './utils/issueAggregator'
 import { computeEvmRegression } from './utils/evmRegression'
 import type { EvmRegressionResult } from './utils/evmRegression'
@@ -560,9 +560,17 @@ export function App({ container }: Props) {
     window.open(url, '_blank', 'noopener')
   }, [])
 
+  // 分割キー（splitBy）が設定された系列を、チケットに現れた値の数だけ展開した系列リスト。
+  // 集計（aggregateIssues）と描画（ComboChart）の両方で同じ配列を使う必要があるためここで一度だけ計算する
+  const combosResolvedSeries = useMemo(() => {
+    return (settings.combos ?? []).map(combo =>
+      expandSeriesBySplit(combo.series, issueState.issues, combo.commonConditions)
+    )
+  }, [issueState.issues, settings.combos])
+
   // 複数2軸グラフ用データ（combos配列の長さ分を集計）
   const combosData = useMemo(() => {
-    return (settings.combos ?? []).map(combo => {
+    return (settings.combos ?? []).map((combo, comboIdx) => {
       // startWeeksAgo が設定されている場合は今日からN週前を動的に計算
       let startDate = combo.startDate
       if (combo.startWeeksAgo != null && combo.startWeeksAgo > 0) {
@@ -582,13 +590,14 @@ export function App({ container }: Props) {
         anchorDay: combo.anchorDay ?? 1,
         futureWeeks: (combo.showFuture ?? false) ? (combo.futureWeeks ?? 1) : 0,
       }
+      const resolvedSeries = combosResolvedSeries[comboIdx] ?? combo.series
       if (issueState.issues !== null) {
-        return aggregateIssues(issueState.issues, combo.series, options, combo.commonConditions, combo.stackGroups)
+        return aggregateIssues(issueState.issues, resolvedSeries, options, combo.commonConditions, combo.stackGroups)
       }
       // Redmineに接続できない場合はダミーデータ
       return generateSeriesDummyData(combo.series, options)
     })
-  }, [issueState.issues, settings.combos])
+  }, [issueState.issues, settings.combos, combosResolvedSeries])
 
   const piesData = useMemo(() => {
     return (settings.pies ?? []).map((pie, i) => {
@@ -789,7 +798,7 @@ export function App({ container }: Props) {
           {shouldFetch && !issueState.loading && (
             <ComboChart
               data={comboData}
-              series={combo.series}
+              series={combosResolvedSeries[idx] ?? combo.series}
               yAxisLeftMin={combo.yAxisLeftMin}
               yAxisLeftMinAuto={combo.yAxisLeftMinAuto}
               yAxisRightMax={combo.yAxisRightMax}

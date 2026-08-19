@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Select from 'react-select'
 import type { AssignmentMappingConfig, AssignmentMappingPerson, ComboChartConfig, ComboStackGroupConfig, ComputedCol, ComputedColFormulaTerm, CrossTableColSection, CrossTableConfig, ElapsedDaysBucket, EvmMonthlyActual, EVMGroupRow, EVMTileConfig, FilterField, FilterFieldOption, HeadingConfig, JournalCollectorConfig, JournalCountConfig, JournalCountExtraColumn, PieGroupRule, PieGroupRuleAndCondition, PieGroupRuleDateCondition, Preset, PresetSettings, RedmineStatus, SeriesCondition, SeriesConfig, SummaryCardConfig, SummaryCardDenominator, SummaryCardFormulaTerm, TeamPreset, TileRef, UserSettings } from '../types'
 import { loadPresets, savePresets, loadUiState, saveUiState } from '../utils/storage'
+import { COLOR_PALETTE } from '../utils/colors'
 
 const fieldSelectStyles = {
   control: (base: object) => ({
@@ -40,11 +41,6 @@ const fieldSelectStyles = {
     padding: '0 4px',
   }),
 }
-
-const COLOR_PALETTE = [
-  '#93c5fd', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1', '#14b8a6',
-]
 
 interface ElapsedDaysBucketsEditorProps {
   buckets: ElapsedDaysBucket[]
@@ -832,19 +828,24 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
 
   function handleAggregationChange(newAgg: SeriesConfig['aggregation']) {
     if (newAgg === 'difference' || newAgg === 'sum') {
-      const candidates = allSeries.filter(s => s.id !== series.id && s.aggregation !== 'difference' && s.aggregation !== 'sum')
+      const candidates = allSeries.filter(s => s.id !== series.id && s.aggregation !== 'difference' && s.aggregation !== 'sum' && !s.splitBy)
       onChange({
         ...series,
         aggregation: newAgg,
         refSeriesIds: candidates.length >= 2 ? [candidates[0].id, candidates[1].id] : undefined,
+        splitBy: undefined,
       })
     } else {
       onChange({ ...series, aggregation: newAgg, refSeriesIds: undefined })
     }
   }
 
-  // 参照系列の選択肢（自身 + difference/sum 系列を除く）
-  const refCandidates = allSeries.filter(s => s.id !== series.id && s.aggregation !== 'difference' && s.aggregation !== 'sum')
+  // 参照系列の選択肢（自身 + difference/sum 系列 + 分割キー付き系列を除く）
+  // 分割キー付き系列は集計時に複数系列へ展開されるため単一の参照先にできない
+  const refCandidates = allSeries.filter(s => s.id !== series.id && s.aggregation !== 'difference' && s.aggregation !== 'sum' && !s.splitBy)
+
+  // 分割キーの選択肢（リスト系フィールドのみ）
+  const splitFields = filterFields.filter(f => f.type !== 'string' && f.type !== 'date')
 
   const labelStyle: React.CSSProperties = {
     fontSize: 12,
@@ -1002,6 +1003,57 @@ function SeriesRow({ series, allSeries, statuses, statusesLoading, canDelete, ca
           <option value="sum">和 (A + B)</option>
         </select>
       </div>
+
+      {/* 分割キー（difference/sum の場合は非表示） */}
+      {series.aggregation !== 'difference' && series.aggregation !== 'sum' && (
+        <div>
+          <label style={labelStyle}>分割キー（未選択=分割なし）</label>
+          <div style={{ minWidth: 180 }}>
+            <Select
+              options={splitFields.map(f => ({ label: f.name, value: f.key }))}
+              value={
+                series.splitBy
+                  ? { label: splitFields.find(f => f.key === series.splitBy)?.name ?? series.splitBy, value: series.splitBy }
+                  : null
+              }
+              onChange={(selected) => update('splitBy', selected?.value ?? undefined)}
+              styles={fieldSelectStyles}
+              placeholder="分割しない"
+              noOptionsMessage={() => '候補なし'}
+              isClearable
+              menuPortalTarget={document.body}
+              menuPosition="fixed"
+            />
+          </div>
+          {series.splitBy && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+              <select
+                value={series.splitOrder ?? 'count'}
+                onChange={(e) => update('splitOrder', e.target.value as SeriesConfig['splitOrder'])}
+                style={selectStyle}
+                title="分割された系列の並び順（積み上げの下から順）"
+              >
+                <option value="count">件数降順</option>
+                <option value="name">名前昇順</option>
+              </select>
+              <input
+                type="number"
+                min={1}
+                value={series.splitLimit ?? ''}
+                onChange={(e) => update('splitLimit', e.target.value !== '' ? Number(e.target.value) : undefined)}
+                style={{ ...selectStyle, width: 64 }}
+                placeholder="上限"
+                title="表示する分割値の上限件数（空=全件）"
+              />
+            </div>
+          )}
+          {series.splitBy && (
+            <span style={{ fontSize: 11, color: '#999', display: 'block', marginTop: 2, maxWidth: 200 }}>
+              ※ 値ごとに系列を自動生成（凡例・色は自動。系列名・色の設定は無視）
+            </span>
+          )}
+        </div>
+      )}
 
       {/* 未来を非表示（showFuture が有効な場合のみ） */}
       {showFuture && (

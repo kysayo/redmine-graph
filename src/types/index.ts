@@ -142,6 +142,9 @@ export interface SeriesConfig {
   conditions?: SeriesCondition[]                    // 絞り込み条件（省略可 = フィルタなし）
   visible?: boolean                                 // 表示/非表示（省略時 = true として扱う）
   hideFuture?: boolean                              // true のとき未来の日付の値を非表示（null）にする
+  splitBy?: string                                  // 分割キー（例: 'category_id'）。指定時、取得済みチケットに現れた値ごとに系列を自動複製する
+  splitOrder?: 'count' | 'name'                     // 分割値の並び順（省略時 = 'count' 件数降順）
+  splitLimit?: number                               // 分割値の上限件数（省略時 = 全件）
 }
 
 // 2軸グラフ スタックグループ設定（同一タイル内で独立した積み上げ棒を横並び表示するための単位）
