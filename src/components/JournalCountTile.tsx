@@ -20,6 +20,9 @@ function getExtraColumns(config: JournalCountConfig): JournalCountExtraColumn[] 
   return config.extraColumns ?? DEFAULT_EXTRA_COLUMNS
 }
 
+/** データ収集日がこの日数以上前なら警告色で表示する */
+const STALE_DAYS = 3
+
 function isTempId(id: string): boolean {
   return id.startsWith('_csv_')
 }
@@ -30,6 +33,16 @@ function getCurrentYearMonth(): string {
   const y = now.getFullYear()
   const m = String(now.getMonth() + 1).padStart(2, '0')
   return `${y}-${m}`
+}
+
+/** YYYY-MM-DD から今日までの経過日数を返す（ローカル日付基準） */
+function daysSince(dateStr: string): number {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (!y || !m || !d) return 0
+  const target = Date.UTC(y, m - 1, d)
+  const now = new Date()
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.floor((today - target) / 86400000)
 }
 
 /** YYYY-MM-DD が属する週の月曜日を返す */
@@ -614,8 +627,21 @@ export function JournalCountTile({ config, apiKey, getFieldOptions, onUpdateConf
           {name || 'ジャーナル更新回数'}
         </span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {lastFetched && <span style={{ fontSize: 11, color: '#9ca3af' }}>最終取得: {lastFetched}</span>}
-          <button type="button" style={btnBase} onClick={() => loadRecords()} disabled={loading}>
+          {lastFetched && (
+            <span
+              style={{ fontSize: 11, color: daysSince(lastFetched) >= STALE_DAYS ? '#b45309' : '#9ca3af' }}
+              title="ジャーナル収集タイルが最後にデータを保存した日"
+            >
+              データ収集日: {lastFetched}
+            </span>
+          )}
+          <button
+            type="button"
+            style={btnBase}
+            onClick={() => loadRecords()}
+            disabled={loading}
+            title="ソースチケットのJSONを再取得（設定変更時は不要）"
+          >
             {loading ? '取得中...' : '更新'}
           </button>
           <button type="button" style={btnBase} onClick={() => setIsSettingsOpen(o => !o)}>
